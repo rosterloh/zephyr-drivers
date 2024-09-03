@@ -1,0 +1,9 @@
+&i2c0 {
+	status = "okay";
+
+	seesaw: seesaw@30 {
+		compatible = "adafruit,seesaw";
+		reg = <0x30>;
+		status = "okay";
+	};
+};

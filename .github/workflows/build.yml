@@ -1,0 +1,44 @@
+name: Zephyr Twister Tests
+
+on:
+  pull_request:
+  schedule:
+    - cron: "0 0 * * *" # every sunday
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: zephyr-drivers
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Copy west.yml
+        shell: bash
+        run: |
+          cp zephyr-drivers/.github/west.yml zephyr-drivers/west.yml
+
+      - name: Setup Zephyr project
+        uses: zephyrproject-rtos/action-zephyr-setup@v1
+        with:
+          app-path: zephyr-drivers
+          toolchains: x86_64-zephyr-elf
+
+      - name: Twister Tests
+        working-directory: zephyr-drivers
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            EXTRA_TWISTER_FLAGS="--short-build-path -O/tmp/twister-out"
+          fi
+          west twister -T tests -v --inline-logs --integration $EXTRA_TWISTER_FLAGS
