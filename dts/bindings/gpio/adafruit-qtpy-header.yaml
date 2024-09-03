@@ -1,0 +1,28 @@
+description: |
+    GPIO pins exposed on Adafruit QT Py headers.
+
+    The Adafruit QT Py layout provides two headers, along opposite
+    edges of the board.
+
+    Proceeding counter-clockwise:
+    * A 7-pin Digital/Analog Input header.  This has input signals
+      labeled from 0 at the top through 6 at the bottom.
+    * An 7-pin header Power and Digital/Analog Input header.  This
+      has three power pins, followed by four inputs labeled 10 at the
+      top through 7 at the bottom.
+
+    This binding provides a nexus mapping for 10 pins where parent pins 0
+    through 10 correspond to D0 through D10, as depicted below:
+
+        0 A0                     5V  -
+        1 A1                     GND -
+        2 A2                     3V  -
+        3 A3                     MO  10
+        4 SDA                    MI  9
+        5 SCL                    SCK 8
+        6 Tx                     Rx  7
+
+
+compatible: "adafruit,qtpy-gpio"
+
+include: [gpio-nexus.yaml, base.yaml]

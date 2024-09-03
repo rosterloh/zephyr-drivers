@@ -1,0 +1,26 @@
+description: |
+  Adafruit SeeSaw driver. See more info at:
+  https://learn.adafruit.com/adafruit-seesaw-atsamd09-breakout/overview
+
+compatible: "adafruit,seesaw"
+
+include: i2c-device.yaml
+
+properties:
+  int-gpios:
+    type: phandle-array
+    description: Interrupt gpio pin
+
+  read-delay-ms:
+    type: int
+    default: 250
+    description: |
+      Default delay time in ms after writing before a read
+      If not specified defaults to 250.
+
+  capabilities:
+    type: string
+    default: "neokey"
+    enum:
+      - "neokey"
+    description: Predefined boards which are based on SeeSaw controllers.
