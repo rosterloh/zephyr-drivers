@@ -1,0 +1,24 @@
+menuconfig DYNAMIXEL
+	bool "Robotis Dynamixel Servo"
+	default y
+	depends on SERIAL && SERIAL_HAS_DRIVER
+	depends on DT_HAS_ROBOTIS_DYNAMIXEL_ENABLED
+	select UART_USE_RUNTIME_CONFIGURE
+	select CRC
+	help
+	  Enable driver for Robotis Dynamixel Servo motors.
+
+if DYNAMIXEL
+
+config DYNAMIXEL_BUFFER_SIZE
+	int "Dynamixel buffer size"
+	default 256
+	range 64 256
+	help
+	  Dynamixel buffer size.
+
+module = DYNAMIXEL
+module-str = dynamixel
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # DYNAMIXEL

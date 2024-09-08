@@ -1,0 +1,33 @@
+description: Dynamixel over serial line device
+
+compatible: "robotis,dynamixel"
+
+include: uart-device.yaml
+
+properties:
+    tx-en-gpios:
+      type: phandle-array
+      required: false
+      description: Transmit enable pin (TX_EN) of the transceiver.
+    
+    protocol-version:
+      type: int
+      required: false
+      default: 2
+      description: Specify the version of the Dynamixel protocol.
+      enum:
+        - 1
+        - 2
+
+child-binding:
+    description: Dynamixel Motor configuration.
+    properties:
+      label:
+        type: string
+        required: false
+        description: Human readable string describing the device
+
+      id:
+        type: int
+        required: true
+        description: The address on the bus of this device.

@@ -1,0 +1,2 @@
+# <vendor-prefix><TAB><Full name of vendor>
+robotis	ROBOTIS Co., Ltd.

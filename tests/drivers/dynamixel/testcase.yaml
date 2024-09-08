@@ -1,0 +1,17 @@
+tests:
+  drivers.dynamixel:
+    tags: dynamixel
+    platform_allow: arduino_mkrzero
+    harness_config:
+      # DYNAMIXEL test fixture for MKR Zero:
+      # SERCOM5(PB23)-RX <-> SERCOM4(PB10)-TX
+      # SERCOM5(PB22)-TX <-> SERCOM4(PB11)-RX
+      fixture: uart_loopback
+  drivers.dynamixel.build_only:
+    build_only: true
+    tags:
+      - drivers
+      - dynamixel
+    filter: CONFIG_UART_CONSOLE and CONFIG_UART_INTERRUPT_DRIVEN
+    integration_platforms:
+      - arduino_mkrzero

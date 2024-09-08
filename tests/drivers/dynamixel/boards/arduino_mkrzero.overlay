@@ -1,0 +1,21 @@
+/*
+ * Copyright (c) 2024 Richard Osterloh <richard.osterloh@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+ 
+ &sercom5 {
+	status = "okay";
+	current-speed = <115200>;
+
+	dynamixel0 {
+		status = "okay";
+		compatible = "robotis,dynamixel";
+		tx-en-gpios = <&arduino_mkr_header 21 GPIO_ACTIVE_LOW>; // A6
+
+		test_motor {
+			id = <1>;
+			label = "TEST";
+		};
+	};
+};
