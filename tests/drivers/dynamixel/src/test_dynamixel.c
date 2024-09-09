@@ -17,11 +17,12 @@ uint8_t test_get_dxl_iface(void)
 }
 
 static struct dxl_iface_param dxl_param = {
-    .rx_timeout = DXL_TEST_RESPONSE_TO,
-    .serial = {
-	.baud = DXL_TEST_BAUDRATE_LOW,
-	.parity = DXL_TEST_PARITY,
-    },
+	.rx_timeout = DXL_TEST_RESPONSE_TO,
+	.serial =
+		{
+			.baud = DXL_TEST_BAUDRATE_LOW,
+			.parity = DXL_TEST_PARITY,
+		},
 };
 
 /*

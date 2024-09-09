@@ -9,38 +9,38 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(dynamixel, CONFIG_DYNAMIXEL_LOG_LEVEL);
 
-#define DXL_DEFINE_GPIO_CFG(inst, prop)                         \
-	static struct gpio_dt_spec prop##_cfg_##inst = {        \
-	    .port = DEVICE_DT_GET(DT_INST_PHANDLE(inst, prop)), \
-	    .pin = DT_INST_GPIO_PIN(inst, prop),                \
-	    .dt_flags = DT_INST_GPIO_FLAGS(inst, prop),         \
+#define DXL_DEFINE_GPIO_CFG(inst, prop)                                                            \
+	static struct gpio_dt_spec prop##_cfg_##inst = {                                           \
+		.port = DEVICE_DT_GET(DT_INST_PHANDLE(inst, prop)),                                \
+		.pin = DT_INST_GPIO_PIN(inst, prop),                                               \
+		.dt_flags = DT_INST_GPIO_FLAGS(inst, prop),                                        \
 	};
 
-#define DXL_DEFINE_GPIO_CFGS(inst)                            \
-	COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, tx_en_gpios), \
+#define DXL_DEFINE_GPIO_CFGS(inst)                                                                 \
+	COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, tx_en_gpios),                                      \
 		    (DXL_DEFINE_GPIO_CFG(inst, tx_en_gpios)), ())
 
 DT_INST_FOREACH_STATUS_OKAY(DXL_DEFINE_GPIO_CFGS)
 
-#define DXL_ASSIGN_GPIO_CFG(inst, prop)                \
-	COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, prop), \
-		    (&prop##_cfg_##inst), (NULL))
+#define DXL_ASSIGN_GPIO_CFG(inst, prop)                                                            \
+	COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, prop), (&prop##_cfg_##inst), (NULL))
 
-#define DXL_DT_GET_SERIAL_DEV(inst) {                                                    \
-					.dev = DEVICE_DT_GET(DT_INST_PARENT(inst)),      \
-					.tx_en = DXL_ASSIGN_GPIO_CFG(inst, tx_en_gpios), \
-				    },
+#define DXL_DT_GET_SERIAL_DEV(inst)                                                                \
+	{                                                                                          \
+		.dev = DEVICE_DT_GET(DT_INST_PARENT(inst)),                                        \
+		.tx_en = DXL_ASSIGN_GPIO_CFG(inst, tx_en_gpios),                                   \
+	},
 
 static struct dxl_serial_config dxl_serial_cfg[] = {
-    DT_INST_FOREACH_STATUS_OKAY(DXL_DT_GET_SERIAL_DEV)};
+	DT_INST_FOREACH_STATUS_OKAY(DXL_DT_GET_SERIAL_DEV)};
 
-#define DXL_DT_GET_DEV(inst) {                                                    \
-				 .iface_name = DEVICE_DT_NAME(DT_DRV_INST(inst)), \
-				 .cfg = &dxl_serial_cfg[inst],                    \
-			     },
+#define DXL_DT_GET_DEV(inst)                                                                       \
+	{                                                                                          \
+		.iface_name = DEVICE_DT_NAME(DT_DRV_INST(inst)),                                   \
+		.cfg = &dxl_serial_cfg[inst],                                                      \
+	},
 
-static struct dxl_context dxl_ctx_tbl[] = {
-    DT_INST_FOREACH_STATUS_OKAY(DXL_DT_GET_DEV)};
+static struct dxl_context dxl_ctx_tbl[] = {DT_INST_FOREACH_STATUS_OKAY(DXL_DT_GET_DEV)};
 
 static void dxl_rx_handler(struct k_work *item)
 {
@@ -63,8 +63,7 @@ int dxl_tx_wait_rx(struct dxl_context *ctx)
 {
 	dxl_tx(ctx);
 
-	if (k_sem_take(&ctx->wait_sem, K_USEC(ctx->rxwait_to)) != 0)
-	{
+	if (k_sem_take(&ctx->wait_sem, K_USEC(ctx->rxwait_to)) != 0) {
 		LOG_WRN("Packet wait-for-RX timeout");
 		return -ETIMEDOUT;
 	}
@@ -76,16 +75,14 @@ struct dxl_context *dxl_get_context(const uint8_t iface)
 {
 	struct dxl_context *ctx;
 
-	if (iface >= ARRAY_SIZE(dxl_ctx_tbl))
-	{
+	if (iface >= ARRAY_SIZE(dxl_ctx_tbl)) {
 		LOG_ERR("Interface %u not available", iface);
 		return NULL;
 	}
 
 	ctx = &dxl_ctx_tbl[iface];
 
-	if (!atomic_test_bit(&ctx->state, DXL_STATE_CONFIGURED))
-	{
+	if (!atomic_test_bit(&ctx->state, DXL_STATE_CONFIGURED)) {
 		LOG_ERR("Interface not configured");
 		return NULL;
 	}
@@ -95,10 +92,8 @@ struct dxl_context *dxl_get_context(const uint8_t iface)
 
 int dxl_iface_get_by_ctx(const struct dxl_context *ctx)
 {
-	for (int i = 0; i < ARRAY_SIZE(dxl_ctx_tbl); i++)
-	{
-		if (&dxl_ctx_tbl[i] == ctx)
-		{
+	for (int i = 0; i < ARRAY_SIZE(dxl_ctx_tbl); i++) {
+		if (&dxl_ctx_tbl[i] == ctx) {
 			return i;
 		}
 	}
@@ -108,10 +103,8 @@ int dxl_iface_get_by_ctx(const struct dxl_context *ctx)
 
 int dxl_iface_get_by_name(const char *iface_name)
 {
-	for (int i = 0; i < ARRAY_SIZE(dxl_ctx_tbl); i++)
-	{
-		if (strcmp(iface_name, dxl_ctx_tbl[i].iface_name) == 0)
-		{
+	for (int i = 0; i < ARRAY_SIZE(dxl_ctx_tbl); i++) {
+		if (strcmp(iface_name, dxl_ctx_tbl[i].iface_name) == 0) {
 			return i;
 		}
 	}
@@ -123,16 +116,14 @@ static struct dxl_context *dxl_init_iface(const uint8_t iface)
 {
 	struct dxl_context *ctx;
 
-	if (iface >= ARRAY_SIZE(dxl_ctx_tbl))
-	{
+	if (iface >= ARRAY_SIZE(dxl_ctx_tbl)) {
 		LOG_ERR("Interface %u not available", iface);
 		return NULL;
 	}
 
 	ctx = &dxl_ctx_tbl[iface];
 
-	if (atomic_test_and_set_bit(&ctx->state, DXL_STATE_CONFIGURED))
-	{
+	if (atomic_test_and_set_bit(&ctx->state, DXL_STATE_CONFIGURED)) {
 		LOG_ERR("Interface already used");
 		return NULL;
 	}
@@ -150,14 +141,12 @@ int dxl_init(const int iface, struct dxl_iface_param param)
 	int rc = 0;
 
 	ctx = dxl_init_iface(iface);
-	if (ctx == NULL)
-	{
+	if (ctx == NULL) {
 		rc = -EINVAL;
 		goto init_error;
 	}
 
-	if (dxl_serial_init(ctx, param) != 0)
-	{
+	if (dxl_serial_init(ctx, param) != 0) {
 		LOG_ERR("Failed to init DYNAMIXEL over serial line");
 		rc = -EINVAL;
 		goto init_error;
@@ -168,8 +157,7 @@ int dxl_init(const int iface, struct dxl_iface_param param)
 	return 0;
 
 init_error:
-	if (ctx != NULL)
-	{
+	if (ctx != NULL) {
 		atomic_clear_bit(&ctx->state, DXL_STATE_CONFIGURED);
 	}
 
@@ -182,8 +170,7 @@ int dxl_disable(const uint8_t iface)
 	struct k_work_sync work_sync;
 
 	ctx = dxl_get_context(iface);
-	if (ctx == NULL)
-	{
+	if (ctx == NULL) {
 		LOG_ERR("Interface %u not initialised", iface);
 		return -EINVAL;
 	}

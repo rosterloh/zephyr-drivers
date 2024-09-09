@@ -1,5 +1,5 @@
-#include <zephyr/kernel.h>
 #include <string.h>
+#include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/crc.h>
 
@@ -11,15 +11,14 @@ LOG_MODULE_DECLARE(dynamixel, CONFIG_DYNAMIXEL_LOG_LEVEL);
 /* http://emanual.robotis.com/docs/en/dxl/protocol2/#status-packet */
 #define DYNAMIXEL_MIN_MSG_SIZE 11
 /* https://emanual.robotis.com/docs/en/dxl/crc */
-#define CRC_POLYNOMIAL 0x8005
-#define CRC_SEED 0x0000
+#define CRC_POLYNOMIAL         0x8005
+#define CRC_SEED               0x0000
 
 static void dxl_serial_tx_on(struct dxl_context *ctx)
 {
 	struct dxl_serial_config *cfg = ctx->cfg;
 
-	if (cfg->tx_en != NULL)
-	{
+	if (cfg->tx_en != NULL) {
 		gpio_pin_set(cfg->tx_en->port, cfg->tx_en->pin, 1);
 	}
 
@@ -31,8 +30,7 @@ static void dxl_serial_tx_off(struct dxl_context *ctx)
 	struct dxl_serial_config *cfg = ctx->cfg;
 
 	uart_irq_tx_disable(cfg->dev);
-	if (cfg->tx_en != NULL)
-	{
+	if (cfg->tx_en != NULL) {
 		gpio_pin_set(cfg->tx_en->port, cfg->tx_en->pin, 0);
 	}
 }
@@ -61,9 +59,8 @@ static int rx_frame(struct dxl_context *ctx)
 
 	/* Is the message long enough? */
 	if ((cfg->uart_buf_ctr < DYNAMIXEL_MIN_MSG_SIZE) ||
-	    (cfg->uart_buf_ctr > CONFIG_DYNAMIXEL_BUFFER_SIZE))
-	{
-		LOG_WRN("Frame length error");
+	    (cfg->uart_buf_ctr > CONFIG_DYNAMIXEL_BUFFER_SIZE)) {
+		LOG_WRN("Frame length error. %d bytes", cfg->uart_buf_ctr);
 		return -EMSGSIZE;
 	}
 	LOG_DBG("Reply frame received");
@@ -83,8 +80,7 @@ static int rx_frame(struct dxl_context *ctx)
 	calc_crc = crc16(CRC_POLYNOMIAL, CRC_SEED, &cfg->uart_buf[0],
 			 cfg->uart_buf_ctr - sizeof(ctx->rx_frame.crc));
 
-	if (ctx->rx_frame.crc != calc_crc)
-	{
+	if (ctx->rx_frame.crc != calc_crc) {
 		LOG_WRN("Calculated CRC does not match received CRC");
 		return -EIO;
 	}
@@ -106,7 +102,8 @@ static void tx_frame(struct dxl_context *ctx)
 	cfg->uart_buf[4] = ctx->tx_frame.id;
 	sys_put_le16(ctx->tx_frame.length, &cfg->uart_buf[5]);
 	cfg->uart_buf[7] = ctx->tx_frame.ic;
-	/* The Length indicates the Byte size of Instruction, Parameters and CRC fields */
+	/* The Length indicates the Byte size of Instruction, Parameters and CRC
+	 * fields */
 	tx_bytes = ctx->tx_frame.length + 7;
 	data_ptr = &cfg->uart_buf[8];
 
@@ -135,8 +132,7 @@ static void cb_handler_rx(struct dxl_context *ctx)
 	int n;
 
 	/* Restart timer on a new character */
-	k_timer_start(&cfg->packet_timer,
-		      K_USEC(cfg->packet_timeout), K_NO_WAIT);
+	k_timer_start(&cfg->packet_timer, K_USEC(cfg->packet_timeout), K_NO_WAIT);
 
 	n = uart_fifo_read(cfg->dev, cfg->uart_buf_ptr,
 			   (CONFIG_DYNAMIXEL_BUFFER_SIZE - cfg->uart_buf_ctr));
@@ -150,15 +146,11 @@ static void cb_handler_tx(struct dxl_context *ctx)
 	struct dxl_serial_config *cfg = ctx->cfg;
 	int n;
 
-	if (cfg->uart_buf_ctr > 0)
-	{
-		n = uart_fifo_fill(cfg->dev, cfg->uart_buf_ptr,
-				   cfg->uart_buf_ctr);
+	if (cfg->uart_buf_ctr > 0) {
+		n = uart_fifo_fill(cfg->dev, cfg->uart_buf_ptr, cfg->uart_buf_ctr);
 		cfg->uart_buf_ctr -= n;
 		cfg->uart_buf_ptr += n;
-	}
-	else
-	{
+	} else {
 		/* Disable transmission */
 		cfg->uart_buf_ptr = &cfg->uart_buf[0];
 		dxl_serial_tx_off(ctx);
@@ -171,24 +163,20 @@ static void uart_cb_handler(const struct device *dev, void *app_data)
 	struct dxl_context *ctx = (struct dxl_context *)app_data;
 	struct dxl_serial_config *cfg;
 
-	if (ctx == NULL)
-	{
+	if (ctx == NULL) {
 		LOG_ERR("Dynamixel hardware is not properly initialised");
 		return;
 	}
 
 	cfg = ctx->cfg;
 
-	while (uart_irq_update(cfg->dev) && uart_irq_is_pending(cfg->dev))
-	{
+	while (uart_irq_update(cfg->dev) && uart_irq_is_pending(cfg->dev)) {
 
-		if (uart_irq_rx_ready(cfg->dev))
-		{
+		if (uart_irq_rx_ready(cfg->dev)) {
 			cb_handler_rx(ctx);
 		}
 
-		if (uart_irq_tx_ready(cfg->dev))
-		{
+		if (uart_irq_tx_ready(cfg->dev)) {
 			cb_handler_tx(ctx);
 		}
 	}
@@ -201,8 +189,7 @@ static void packet_tmr_handler(struct k_timer *t_id)
 
 	ctx = (struct dxl_context *)k_timer_user_data_get(t_id);
 
-	if (ctx == NULL)
-	{
+	if (ctx == NULL) {
 		LOG_ERR("Failed to get Dynamixel context");
 		return;
 	}
@@ -214,15 +201,12 @@ static int configure_gpio(struct dxl_context *ctx)
 {
 	struct dxl_serial_config *cfg = ctx->cfg;
 
-	if (cfg->tx_en != NULL)
-	{
-		if (!device_is_ready(cfg->tx_en->port))
-		{
+	if (cfg->tx_en != NULL) {
+		if (!device_is_ready(cfg->tx_en->port)) {
 			return -ENODEV;
 		}
 
-		if (gpio_pin_configure_dt(cfg->tx_en, GPIO_OUTPUT_INACTIVE))
-		{
+		if (gpio_pin_configure_dt(cfg->tx_en, GPIO_OUTPUT_INACTIVE)) {
 			return -EIO;
 		}
 	}
@@ -259,43 +243,35 @@ int dxl_serial_tx(struct dxl_context *ctx)
 	return 0;
 }
 
-int dxl_serial_init(struct dxl_context *ctx,
-		    struct dxl_iface_param param)
+int dxl_serial_init(struct dxl_context *ctx, struct dxl_iface_param param)
 {
 	struct dxl_serial_config *cfg = ctx->cfg;
 	const uint32_t if_delay_max = 3500000;
 	const uint32_t numof_bits = 11;
 	struct uart_config uart_cfg;
 
-	if (!device_is_ready(cfg->dev))
-	{
+	if (!device_is_ready(cfg->dev)) {
 		LOG_ERR("Bus device %s is not ready", cfg->dev->name);
 		return -ENODEV;
 	}
 
-	uart_cfg.baudrate = param.serial.baud,
-	uart_cfg.flow_ctrl = UART_CFG_FLOW_CTRL_NONE;
+	uart_cfg.baudrate = param.serial.baud, uart_cfg.flow_ctrl = UART_CFG_FLOW_CTRL_NONE;
 	uart_cfg.data_bits = UART_CFG_DATA_BITS_8;
 	uart_cfg.parity = UART_CFG_PARITY_NONE;
 	uart_cfg.stop_bits = UART_CFG_STOP_BITS_1;
 
-	if (uart_configure(cfg->dev, &uart_cfg) != 0)
-	{
+	if (uart_configure(cfg->dev, &uart_cfg) != 0) {
 		LOG_ERR("Failed to configure UART");
 		return -EINVAL;
 	}
 
-	if (param.serial.baud <= 38400)
-	{
+	if (param.serial.baud <= 38400) {
 		cfg->packet_timeout = (numof_bits * if_delay_max) / param.serial.baud;
-	}
-	else
-	{
+	} else {
 		cfg->packet_timeout = (numof_bits * if_delay_max) / 38400;
 	}
 
-	if (configure_gpio(ctx) != 0)
-	{
+	if (configure_gpio(ctx) != 0) {
 		return -EIO;
 	}
 
