@@ -10,3 +10,4 @@ manifest:
       import:
         name-allowlist:
           - cmsis
+          - hal_atmel
