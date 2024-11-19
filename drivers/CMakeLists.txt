@@ -1,2 +1,3 @@
 add_subdirectory_ifdef(CONFIG_DYNAMIXEL dynamixel)
 add_subdirectory_ifdef(CONFIG_SEESAW seesaw)
+add_subdirectory_ifdef(CONFIG_SENSOR sensor)

@@ -1,0 +1,1 @@
+add_subdirectory_ifdef(CONFIG_AS7341 as7341)

@@ -1,0 +1,3 @@
+if SENSOR
+rsource "as7341/Kconfig"
+endif # SENSOR

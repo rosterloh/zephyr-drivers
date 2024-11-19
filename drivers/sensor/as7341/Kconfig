@@ -1,0 +1,25 @@
+# AS7341 Multi-Spectral sensor configuration option
+
+menuconfig AS7341
+	bool "OSRAM-AMS AS7341 Multi-Spectral sensor"
+	default y
+	depends on DT_HAS_AMS_AS7341_ENABLED
+	select I2C
+	help
+	  Enable driver for AS7341 sensor.
+
+if AS7341
+
+config AS7341_FETCH_WAIT
+	bool "Wait for valid sensor reading before fetch"
+	help
+	  If set, the driver will automatically wait for the duration of an integration cycle
+	  during a fetch call if necessary.
+
+config AS7341_WARN_SATURATED
+	bool "Warn if sensor is potentially saturated"
+	help
+	  If set, the driver will warn if the sensor ADC is
+	  potentially saturated after a data fetch.
+
+endif # AS7341

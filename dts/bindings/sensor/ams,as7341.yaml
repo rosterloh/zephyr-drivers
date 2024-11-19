@@ -1,0 +1,7 @@
+description: |
+    AMS AS7341 11-Channel Multi-Spectral sensor.
+    See more info at https://ams.com/en/as7341
+
+compatible: "ams,as7341"
+
+include: [sensor-device.yaml, i2c-device.yaml]

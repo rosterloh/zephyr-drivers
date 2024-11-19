@@ -1,0 +1,8 @@
+tests:
+  drivers.sensor.as7341:
+    tags:
+      - drivers
+      - sensor
+      - subsys
+    platform_allow:
+      - native_sim
