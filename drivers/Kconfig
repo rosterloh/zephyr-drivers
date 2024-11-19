@@ -1,4 +1,5 @@
 menu "Drivers"
 rsource "dynamixel/Kconfig"
 rsource "seesaw/Kconfig"
+rsource "sensor/Kconfig"
 endmenu
