@@ -1,0 +1,12 @@
+/ {
+	grove_iic: grove_header0 {
+		compatible = "grove-header";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <0 0 &gpio0 33 0>,	/* IIC_SCL */
+			   <1 0 &gpio0 32 0>;	/* IIC_SDA */
+	};
+};
+
+grove_i2c0: &i2c0 {};

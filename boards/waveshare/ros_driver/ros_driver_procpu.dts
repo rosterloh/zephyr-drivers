@@ -1,0 +1,205 @@
+/dts-v1/;
+
+#include <espressif/esp32/esp32_wroom_32ue_n4.dtsi>
+#include "ros_driver-pinctrl.dtsi"
+// #include "grove_connectors.dtsi"
+// #include "raspberrypi_40pins_connector.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+	model = "Waveshare ROS Driver for Robotics PROCPU";
+	compatible = "espressif,esp32";
+
+	aliases {
+		led0 = &io4_led;
+		led1 = &io5_led;
+		pwm-led0 = &pwm_led_io4;
+		pwm-led1 = &pwm_led_io5;
+		sw0 = &button0;
+		uart-0 = &uart0;
+		i2c-0 = &i2c0;
+		watchdog0 = &wdt0;
+	};
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+		zephyr,bt-hci = &esp32_bt_hci;
+		zephyr,display = &ssd1306_ssd1306_128x32;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		io4_led: led_0 {
+			gpios =  <&gpio0 4 GPIO_ACTIVE_HIGH>;
+			label = "IO4 - LED0";
+		};
+
+		io5_led: led_1 {
+			gpios =  <&gpio0 5 GPIO_ACTIVE_HIGH>;
+			label = "IO5 - LED1";
+		};
+	};
+
+	pwmleds {
+		compatible = "pwm-leds";
+		pwm_led_io4: pwm_led_0 {
+			label = "IO4 PWM LED";
+			pwms = <&ledc0 0 PWM_HZ(100) PWM_POLARITY_NORMAL>;
+		};
+		pwm_led_io5: pwm_led_1 {
+			label = "IO5 PWM LED";
+			pwms = <&ledc0 1 PWM_HZ(100) PWM_POLARITY_NORMAL>;
+		};
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+		button0: button_0 {
+			gpios = <&gpio0 0 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "BOOT Button";
+			zephyr,code = <INPUT_KEY_0>;
+		};
+	};
+};
+
+&uart0 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-names = "default";
+};
+
+&uart1 {
+	current-speed = <115200>;
+	pinctrl-0 = <&uart1_default>;
+	pinctrl-names = "default";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_STANDARD>;
+	sda-gpios = <&gpio0 32 GPIO_OPEN_DRAIN>;
+	scl-gpios = <&gpio0 33 GPIO_OPEN_DRAIN>;
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
+
+	ssd1306_ssd1306_128x32: ssd1306@3c {
+		compatible = "solomon,ssd1306fb";
+		reg = <0x3c>;
+		width = <128>;
+		height = <32>;
+		segment-offset = <0>;
+		page-offset = <0>;
+		display-offset = <0>;
+		multiplex-ratio = <31>;
+		segment-remap;
+		com-invdir;
+		com-sequential;
+		prechargep = <0x22>;
+	};
+};
+
+&spi2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	pinctrl-0 = <&spim2_default>;
+	pinctrl-names = "default";
+};
+
+
+&ledc0 {
+	pinctrl-0 = <&ledc0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	channel0@0 {
+		reg = <0x0>;
+		timer = <0>;
+	};
+	channel1@1 {
+		reg = <0x1>;
+		timer = <1>;
+	};
+};
+
+&timer0 {
+	status = "okay";
+};
+
+&timer1 {
+	status = "okay";
+};
+
+&timer2 {
+	status = "okay";
+};
+
+&timer3 {
+	status = "okay";
+};
+
+&trng0 {
+	status = "okay";
+};
+
+&psram0 {
+	status = "disabled";
+};
+
+&flash0 {
+	status = "okay";
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/* Reserve 60kB for the bootloader */
+		boot_partition: partition@1000 {
+			label = "mcuboot";
+			reg = <0x00001000 DT_SIZE_K(60)>;
+			read-only;
+		};
+
+		/* Reserve 1024kB for the application in slot 0 */
+		slot0_partition: partition@10000 {
+			label = "image-0";
+			reg = <0x00010000 DT_SIZE_M(1)>;
+		};
+
+		/* Reserve 1024kB for the application in slot 1 */
+		slot1_partition: partition@110000 {
+			label = "image-1";
+			reg = <0x00110000 DT_SIZE_M(1)>;
+		};
+
+		/* Reserve 256kB for the scratch partition */
+		scratch_partition: partition@210000 {
+			label = "image-scratch";
+			reg = <0x00210000 DT_SIZE_K(256)>;
+		};
+
+		storage_partition: partition@250000 {
+			label = "storage";
+			reg = <0x00250000 DT_SIZE_K(24)>;
+		};
+	};
+};
+
+&esp32_bt_hci {
+	status = "okay";
+};

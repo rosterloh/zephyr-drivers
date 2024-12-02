@@ -1,0 +1,6 @@
+board:
+    name: ros_driver
+    full_name: Waveshare ROS Driver Board
+    vendor: waveshare
+    socs:
+    - name: esp32

@@ -1,0 +1,39 @@
+/ {
+	raspberrypi_header: raspberrypi_header {
+		compatible = "raspberrypi-40pins-header";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <0 0 &gpio0 17 0>,	/* I2C1_SDA */
+			   <1 0 &gpio0 16 0>,	/* I2C1_SCL */
+			   <2 0 &gpio0 14 0>,	/* GPCLK0 */
+			   <3 0 &gpio0 26 0>,	/* TXD */
+			   <4 0 &gpio0 27 0>,	/* RXD */
+			   <5 0 &gpio0 2 0>,	/* DAC0 */
+			   <6 0 &gpio0 16 0>,	/* I2S_BLCK */
+			   <7 0 &gpio0 8 0>,	/* A0/D0 */
+			   <8 0 &gpio0 9 0>,	/* A1/D1 */
+			   <9 0 &gpio0 7 0>,	/* A2/D2 */
+			   <10 0 &gpio0 4 0>,	/* A3/D3 */
+			   <11 0 &gpio0 2 0>,	/* SPI_MOSI */
+			   <12 0 &gpio0 0 0>,	/* SPI_MISO */
+			   <13 0 &gpio0 5 0>,	/* A4/D4 */
+			   <14 0 &gpio0 3 0>,	/* SPI_SCK */
+			   <15 0 &gpio0 1 0>,	/* SPI_CS */
+			   <16 0 &gpio0 5 0>,	/* DAC1 */
+			   <17 0 &gpio0 13 0>,	/* I2C0_SDA */
+			   <18 0 &gpio0 12 0>,	/* I2C0_SCL */
+			   <19 0 &gpio0 12 0>,	/* GPCLK1 */
+			   <20 0 &gpio0 13 0>,	/* GPCLK2 */
+			   <21 0 &gpio0 6 0>,	/* A5/D5 */
+			   <22 0 &gpio0 4 0>,	/* A6/D6 */
+			   <23 0 &gpio0 20 0>,	/* I2S_LRCLK */
+			   <24 0 &gpio0 7 0>,	/* A7/D7 */
+			   <25 0 &gpio0 6 0>,	/* A8/D8 */
+			   <26 0 &gpio0 21 0>,	/* I2S_SDIN */
+			   <27 0 &gpio0 22 0>;	/* I2S_SDOUT */
+	};
+};
+
+raspberrypi_serial: &uart0 {};
+raspberrypi_i2c0: &i2c0 {};
