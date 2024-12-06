@@ -402,7 +402,7 @@ int seesaw_init(const struct device *dev)
 	return 0;
 }
 
-static const struct seesaw_driver_api seesaw_driver_api = {
+static DEVICE_API(seesaw, seesaw_driver_api) = {
 	.write_pin_mode = seesaw_set_pin_mode,
 	.read_digital = seesaw_get_digital,
 	.read_analog = seesaw_get_analog,

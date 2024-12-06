@@ -213,13 +213,9 @@ __syscall int seesaw_read_digital(const struct device *dev, uint32_t pins, uint3
 
 static inline int z_impl_seesaw_read_digital(const struct device *dev, uint32_t pins, uint32_t *val)
 {
-	const struct seesaw_driver_api *api = (const struct seesaw_driver_api *)dev->api;
+	__ASSERT_NO_MSG(DEVICE_API_IS(seesaw, dev));
 
-	if (api->read_digital == NULL) {
-		return -ENOSYS;
-	}
-
-	return api->read_digital(dev, pins, val);
+	return DEVICE_API_GET(seesaw, dev)->read_digital(dev, pins, val);
 }
 
 /**
@@ -235,13 +231,9 @@ __syscall int seesaw_read_analog(const struct device *dev, uint8_t pin, uint16_t
 
 static inline int z_impl_seesaw_read_analog(const struct device *dev, uint8_t pin, uint16_t *val)
 {
-	const struct seesaw_driver_api *api = (const struct seesaw_driver_api *)dev->api;
+	__ASSERT_NO_MSG(DEVICE_API_IS(seesaw, dev));
 
-	if (api->read_analog == NULL) {
-		return -ENOSYS;
-	}
-
-	return api->read_analog(dev, pin, val);
+	return DEVICE_API_GET(seesaw, dev)->read_analog(dev, pin, val);
 }
 
 /**
@@ -258,13 +250,9 @@ __syscall int seesaw_gpio_interrupts(const struct device *dev, uint32_t pins, ui
 static inline int z_impl_seesaw_gpio_interrupts(const struct device *dev, uint32_t pins,
 						uint8_t enabled)
 {
-	const struct seesaw_driver_api *api = (const struct seesaw_driver_api *)dev->api;
+	__ASSERT_NO_MSG(DEVICE_API_IS(seesaw, dev));
 
-	if (api->gpio_interrupts == NULL) {
-		return -ENOSYS;
-	}
-
-	return api->gpio_interrupts(dev, pins, enabled);
+	return DEVICE_API_GET(seesaw, dev)->gpio_interrupts(dev, pins, enabled);
 }
 
 /**
@@ -305,13 +293,9 @@ __syscall int seesaw_neopixel_setup(const struct device *dev, uint16_t type, uin
 static inline int z_impl_seesaw_neopixel_setup(const struct device *dev, uint16_t type,
 					       uint16_t length, uint8_t pin)
 {
-	const struct seesaw_driver_api *api = (const struct seesaw_driver_api *)dev->api;
+	__ASSERT_NO_MSG(DEVICE_API_IS(seesaw, dev));
 
-	if (api->neopixel_setup == NULL) {
-		return -ENOSYS;
-	}
-
-	return api->neopixel_setup(dev, type, length, pin);
+	return DEVICE_API_GET(seesaw, dev)->neopixel_setup(dev, type, length, pin);
 }
 
 /**
@@ -332,13 +316,9 @@ __syscall int seesaw_neopixel_set_colour(const struct device *dev, uint8_t n, ui
 static inline int z_impl_seesaw_neopixel_set_colour(const struct device *dev, uint8_t n, uint8_t r,
 						    uint8_t g, uint8_t b, uint8_t w)
 {
-	const struct seesaw_driver_api *api = (const struct seesaw_driver_api *)dev->api;
+	__ASSERT_NO_MSG(DEVICE_API_IS(seesaw, dev));
 
-	if (api->neopixel_set_colour == NULL) {
-		return -ENOSYS;
-	}
-
-	return api->neopixel_set_colour(dev, n, r, g, b, w);
+	return DEVICE_API_GET(seesaw, dev)->neopixel_set_colour(dev, n, r, g, b, w);
 }
 
 /**
@@ -354,13 +334,9 @@ __syscall int seesaw_neopixel_set_brightness(const struct device *dev, uint8_t b
 static inline int z_impl_seesaw_neopixel_set_brightness(const struct device *dev,
 							uint8_t brightness)
 {
-	const struct seesaw_driver_api *api = (const struct seesaw_driver_api *)dev->api;
+	__ASSERT_NO_MSG(DEVICE_API_IS(seesaw, dev));
 
-	if (api->neopixel_set_brightness == NULL) {
-		return -ENOSYS;
-	}
-
-	return api->neopixel_set_brightness(dev, brightness);
+	return DEVICE_API_GET(seesaw, dev)->neopixel_set_brightness(dev, brightness);
 }
 
 /**
@@ -374,13 +350,9 @@ __syscall int seesaw_neopixel_show(const struct device *dev);
 
 static inline int z_impl_seesaw_neopixel_show(const struct device *dev)
 {
-	const struct seesaw_driver_api *api = (const struct seesaw_driver_api *)dev->api;
+	__ASSERT_NO_MSG(DEVICE_API_IS(seesaw, dev));
 
-	if (api->neopixel_show == NULL) {
-		return -ENOSYS;
-	}
-
-	return api->neopixel_show(dev);
+	return DEVICE_API_GET(seesaw, dev)->neopixel_show(dev);
 }
 
 /**

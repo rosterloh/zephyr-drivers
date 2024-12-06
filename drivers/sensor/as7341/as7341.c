@@ -53,6 +53,7 @@ static int as7341_power_set(const struct device *dev, bool on)
 	}
 
 	data->powered_on = on;
+	return 0;
 }
 
 static int as7341_spectral_enable(const struct device *dev, bool enabled)
@@ -242,7 +243,7 @@ static int as7341_sample_fetch(const struct device *dev, enum sensor_channel cha
 		}
 
 		for (int i = 0; i < sizeof(read_data) / 2; i++) {
-			channel_buffer[6 + i] = sys_get_le16(read_data + (i * 2));
+			data->channel_buffer[6 + i] = sys_get_le16(read_data + (i * 2));
 		}
 
 		break;
@@ -320,7 +321,6 @@ static int as7341_set_integration(const struct device *dev, uint8_t time, uint16
 static int as7341_attr_set(const struct device *dev, enum sensor_channel chan,
 			   enum sensor_attribute attr, const struct sensor_value *val)
 {
-	const struct as7341_data *data = dev->data;
 	int ret;
 
 	ret = as7341_power_set(dev, false);
@@ -344,21 +344,6 @@ static int as7341_attr_set(const struct device *dev, enum sensor_channel chan,
 	ret = as7341_power_set(dev, true);
 
 	return ret;
-}
-
-static int as7341_power_set(const struct device *dev, bool on)
-{
-	struct as7341_data *data = dev->data;
-	int ret;
-
-	ret = as7341_reg_write(dev, AS7341_REG_ENABLE, AS7341_POWER_ON);
-	if (ret < 0) {
-		LOG_ERR("Failed to %s able power for the device", on ? "en" : "dis");
-		return ret;
-	}
-
-	data->powered_on = on;
-	return 0;
 }
 
 static int as7341_setup(const struct device *dev)
