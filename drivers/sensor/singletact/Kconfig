@@ -1,0 +1,9 @@
+# SingleTact force sensor configuration option
+
+config SINGLETACT
+	bool "SingleTact force sensor"
+	default y
+	depends on DT_HAS_PPS_SINGLETACT_ENABLED
+	select I2C
+	help
+	  Enable driver for SingleTact sensor.

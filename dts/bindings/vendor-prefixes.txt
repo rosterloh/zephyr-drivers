@@ -1,2 +1,3 @@
 # <vendor-prefix><TAB><Full name of vendor>
+pps	PPS UK Limited.
 robotis	ROBOTIS Co., Ltd.

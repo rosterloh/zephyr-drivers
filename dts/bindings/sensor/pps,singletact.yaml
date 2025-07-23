@@ -1,0 +1,24 @@
+description: |
+    SingleTact force sensor.
+    See more info at http://www.singletact.com/
+
+compatible: "pps,singletact"
+
+include: [sensor-device.yaml, i2c-device.yaml]
+
+properties:
+  baseline-samples:
+    type: int
+    required: false
+    default: 3
+    description: How many samples to take at startup to get a baseline.
+
+  sensor-rating:
+    type: int
+    required: false
+    default: 4500
+    description: The force rating of the sensor attached in mN.
+    enum:
+      - 4500
+      - 45000
+      - 450000

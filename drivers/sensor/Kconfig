@@ -1,3 +1,4 @@
 if SENSOR
 rsource "as7341/Kconfig"
+rsource "singletact/Kconfig"
 endif # SENSOR
