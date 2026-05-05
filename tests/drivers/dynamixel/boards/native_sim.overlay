@@ -12,7 +12,7 @@
 		rx-fifo-size = <128>;
 		status = "okay";
 
-		dxl_bus: dxl_bus {
+		dxl_bus: dxl-bus {
 			status = "okay";
 			compatible = "robotis,dynamixel";
 
