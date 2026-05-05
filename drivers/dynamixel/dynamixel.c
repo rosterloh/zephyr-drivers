@@ -164,12 +164,16 @@ init_error:
 	return rc;
 }
 
-int dxl_disable(const uint8_t iface)
+int dxl_disable(int iface)
 {
 	struct dxl_context *ctx;
 	struct k_work_sync work_sync;
 
-	ctx = dxl_get_context(iface);
+	if (iface < 0) {
+		return -EINVAL;
+	}
+
+	ctx = dxl_get_context((uint8_t)iface);
 	if (ctx == NULL) {
 		LOG_ERR("Interface %u not initialised", iface);
 		return -EINVAL;

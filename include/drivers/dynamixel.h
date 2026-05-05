@@ -298,7 +298,7 @@ int dxl_init(const int iface, struct dxl_iface_param param);
  *
  * @retval           0 If the function was successful
  */
-int dxl_disable(const uint8_t iface);
+int dxl_disable(int iface);
 
 #ifdef __cplusplus
 }
