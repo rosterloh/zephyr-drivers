@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <errno.h>
 #include <zephyr/ztest.h>
 #include <drivers/dynamixel.h>
+#include "dynamixel_internal.h"
 
 /* These tests use the header-published control_table[] today; phase 2
  * replaces that with dxl_table_lookup() and the assertions below
@@ -28,4 +30,26 @@ ZTEST(dynamixel_tables, test_known_register_addresses)
 	zassert_equal(control_table[PRESENT_POSITION].length,  4,   "PRESENT_POSITION len");
 	zassert_equal(control_table[PRESENT_TEMPERATURE].address, 146, "PRESENT_TEMPERATURE addr");
 	zassert_equal(control_table[PRESENT_TEMPERATURE].length,  1, "PRESENT_TEMPERATURE len");
+}
+
+ZTEST(dynamixel_tables, test_lookup_known_register)
+{
+	uint16_t addr;
+	uint8_t  length;
+
+	zassert_ok(dxl_table_lookup(GOAL_POSITION, &addr, &length), "lookup ok");
+	zassert_equal(addr,   116, "GOAL_POSITION addr");
+	zassert_equal(length, 4,   "GOAL_POSITION len");
+}
+
+ZTEST(dynamixel_tables, test_lookup_out_of_range)
+{
+	zassert_equal(dxl_table_lookup((enum dxl_control)9999, NULL, NULL),
+		      -EINVAL, "out-of-range returns -EINVAL");
+}
+
+ZTEST(dynamixel_tables, test_lookup_null_outparams)
+{
+	zassert_ok(dxl_table_lookup(MODEL_NUMBER, NULL, NULL),
+		   "NULL outparams allowed");
 }
