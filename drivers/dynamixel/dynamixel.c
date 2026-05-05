@@ -186,12 +186,13 @@ int dxl_disable(const uint8_t iface)
 	return 0;
 }
 
-/* Register a no-op Zephyr device object per dynamixel instance. The driver
- * itself doesn't use the device API (clients call dxl_iface_get_by_name),
- * but the registration is required so DEVICE_DT_GET(dxl_node) resolves to
- * a real symbol. This matters when the parent UART is zephyr,uart-emul,
- * which iterates its status=okay children via DEVICE_DT_GET as part of its
- * emulator-bus init.
+/* Register a no-op Zephyr device per dynamixel instance. The driver itself
+ * doesn't use the device API (clients call dxl_iface_get_by_name); the
+ * device object is purely a linker artefact. zephyr,uart-emul builds a
+ * compile-time emul_link_for_bus[] from its status=okay children using
+ * DEVICE_DT_GET, which resolves to __device_dts_ord_N. Without a registered
+ * device per dxl-bus child, that symbol is undefined and the test build
+ * fails to link.
  */
 #define DXL_DEVICE_DEFINE(inst)                                                                    \
 	DEVICE_DT_INST_DEFINE(inst, NULL, NULL, NULL, NULL, POST_KERNEL,                           \
