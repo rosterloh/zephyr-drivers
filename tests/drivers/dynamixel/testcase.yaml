@@ -4,6 +4,7 @@ tests:
     tags:
       - drivers
       - dynamixel
+    harness: ztest
     platform_allow:
       - native_sim
   drivers.dynamixel.build_only:
