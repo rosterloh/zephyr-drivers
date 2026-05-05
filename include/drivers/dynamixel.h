@@ -137,64 +137,6 @@ struct dxl_control_info {
 	uint8_t length;
 };
 
-/* https://emanual.robotis.com/docs/en/dxl/x/xl330-m288/#control-table-of-eeprom-area */
-static const struct dxl_control_info control_table[] = {
-	{0, 2},  /* MODEL_NUMBER */
-	{2, 4},  /* MODEL_INFORMATION */
-	{6, 1},  /* FIRMWARE_VERSION */
-	{7, 1},  /* ID */
-	{8, 1},  /* BAUD_RATE */
-	{9, 1},  /* RETURN_DELAY_TIME */
-	{10, 1}, /* DRIVE_MODE */
-	{11, 1}, /* OPERATING_MODE */
-	{12, 1}, /* SECONDARY_ID */
-	{13, 1}, /* PROTOCOL_VERSION */
-	{20, 4}, /* HOMING_OFFSET */
-	{24, 4}, /* MOVING_THRESHOLD */
-	{31, 1}, /* TEMPERATURE_LIMIT */
-	{32, 2}, /* MAX_VOLTAGE_LIMIT */
-	{34, 2}, /* MIN_VOLTAGE_LIMIT */
-	{36, 2}, /* PWM_LIMIT */
-	{38, 2}, /* CURRENT_LIMIT */
-	{44, 4}, /* VELOCITY_LIMIT */
-	{48, 4}, /* MAX_POSITION_LIMIT */
-	{52, 4}, /* MIN_POSITION_LIMIT */
-	{60, 1}, /* STARTUP_CONFIGURATION */
-	{62, 1}, /* PWM_SLOPE */
-	{63, 1}, /* SHUTDOWN */
-
-	{64, 1},  /* TORQUE_ENABLE */
-	{65, 1},  /* LED */
-	{68, 1},  /* STATUS_RETURN_LEVEL */
-	{69, 1},  /* REGISTERED_INSTRUCTION */
-	{70, 1},  /* HARDWARE_ERROR_STATUS */
-	{76, 2},  /* VELOCITY_I_GAIN */
-	{78, 2},  /* VELOCITY_P_GAIN */
-	{80, 2},  /* POSITION_D_GAIN */
-	{82, 2},  /* POSITION_I_GAIN */
-	{84, 2},  /* POSITION_P_GAIN */
-	{88, 2},  /* FEEDFORWARD_2ND_GAIN */
-	{90, 2},  /* FEEDFORWARD_1ST_GAIN */
-	{98, 1},  /* BUS_WATCHDOG */
-	{100, 2}, /* GOAL_PWM */
-	{102, 2}, /* GOAL_CURRENT */
-	{104, 4}, /* GOAL_VELOCITY */
-	{108, 4}, /* PROFILE_ACCELERATION */
-	{112, 4}, /* PROFILE_VELOCITY */
-	{116, 4}, /* GOAL_POSITION */
-	{120, 2}, /* REALTIME_TICK */
-	{122, 1}, /* MOVING */
-	{123, 1}, /* MOVING_STATUS */
-	{124, 2}, /* PRESENT_PWM */
-	{126, 2}, /* PRESENT_CURRENT */
-	{128, 4}, /* PRESENT_VELOCITY */
-	{132, 4}, /* PRESENT_POSITION */
-	{136, 4}, /* VELOCITY_TRAJECTORY */
-	{140, 4}, /* POSITION_TRAJECTORY */
-	{144, 2}, /* PRESENT_INPUT_VOLTAGE */
-	{146, 1}  /* PRESENT_TEMPERATURE */
-};
-
 /**
  * @brief Model info struct.
  */
@@ -212,8 +154,6 @@ struct dxl_model_info {
 	/** Maximum position in radians */
 	float max_radian;
 };
-
-static const struct dxl_model_info info_x330 = {0.229, 0, 2048, 4096, -3.14159265, 3.14159265};
 
 /**
  * @brief Frame struct used internally.
