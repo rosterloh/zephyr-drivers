@@ -100,6 +100,7 @@ git commit -m "tests: dynamixel: target native_sim, drop arduino_mkrzero loopbac
 		current-speed = <115200>;
 		tx-fifo-size = <128>;
 		rx-fifo-size = <128>;
+		latch-buffer-size = <128>;
 		status = "okay";
 
 		dxl_bus: dxl-bus {
@@ -152,6 +153,8 @@ git commit -m "tests: dynamixel: add native_sim overlay with two motor children"
 
 #define FAKE_SERVO_RAM_SIZE 256
 #define FAKE_SERVO_LAST_TX_SIZE 64
+/* Status reply uses params_len (<= RAM size) + 11 bytes of framing. */
+#define FAKE_SERVO_STATUS_BUF_SIZE (FAKE_SERVO_RAM_SIZE + 11)
 
 struct fake_servo {
 	uint8_t  id;
@@ -227,7 +230,7 @@ static void send_status(struct fake_servo *s,
 			uint8_t error,
 			const uint8_t *params, uint16_t params_len)
 {
-	uint8_t buf[FAKE_SERVO_LAST_TX_SIZE];
+	uint8_t buf[FAKE_SERVO_STATUS_BUF_SIZE];
 	uint16_t length = params_len + 1 /* error */ + 2 /* crc */ + 1 /* instruction */;
 	uint16_t total  = length + 7;
 	uint16_t crc;
@@ -286,6 +289,9 @@ static void handle_packet(struct fake_servo *s, const uint8_t *pkt, size_t len)
 		send_status(s, s->error_byte, NULL, 0);
 		break;
 	case INST_READ: {
+		if (len < 14) {
+			return; /* malformed: READ needs 4 param bytes */
+		}
 		uint16_t addr = sys_get_le16(&pkt[8]);
 		uint16_t rlen = sys_get_le16(&pkt[10]);
 		s->last_addr   = addr;
@@ -298,6 +304,9 @@ static void handle_packet(struct fake_servo *s, const uint8_t *pkt, size_t len)
 		break;
 	}
 	case INST_WRITE: {
+		if (len < 12) {
+			return; /* malformed: WRITE needs at least 2 addr bytes */
+		}
 		uint16_t addr   = sys_get_le16(&pkt[8]);
 		uint16_t params = length - 5; /* length covers ic + 2 addr + params + 2 crc */
 		s->last_addr   = addr;
