@@ -144,4 +144,19 @@ int dxl_serial_init(struct dxl_context *ctx,
  */
 void dxl_serial_disable(struct dxl_context *ctx);
 
+/**
+ * @brief Look up a control register's address and length.
+ *
+ * @param item    Control register identifier.
+ * @param addr    Optional out: register address.
+ * @param length  Optional out: register length in bytes.
+ *
+ * @retval 0 on success
+ * @retval -EINVAL if item is out of range or has no entry
+ */
+int dxl_table_lookup(enum dxl_control item, uint16_t *addr, uint8_t *length);
+
+/* Model info (currently unused by driver code; available for unit conversions). */
+extern const struct dxl_model_info dxl_info_x330;
+
 #endif /* ZEPHYR_INCLUDE_DYNAMIXEL_INTERNAL_H_ */
