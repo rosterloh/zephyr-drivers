@@ -27,7 +27,7 @@ DT_INST_FOREACH_STATUS_OKAY(DXL_DEFINE_GPIO_CFGS)
 
 #define DXL_DT_GET_SERIAL_DEV(inst)                                                                \
 	{                                                                                          \
-		.dev = DEVICE_DT_GET(DT_INST_PHANDLE(inst, uart)),                                 \
+		.dev = DEVICE_DT_GET(DT_INST_PARENT(inst)),                                        \
 		.tx_en = DXL_ASSIGN_GPIO_CFG(inst, tx_en_gpios),                                   \
 	},
 
@@ -185,3 +185,16 @@ int dxl_disable(const uint8_t iface)
 
 	return 0;
 }
+
+/* Register a no-op Zephyr device object per dynamixel instance. The driver
+ * itself doesn't use the device API (clients call dxl_iface_get_by_name),
+ * but the registration is required so DEVICE_DT_GET(dxl_node) resolves to
+ * a real symbol. This matters when the parent UART is zephyr,uart-emul,
+ * which iterates its status=okay children via DEVICE_DT_GET as part of its
+ * emulator-bus init.
+ */
+#define DXL_DEVICE_DEFINE(inst)                                                                    \
+	DEVICE_DT_INST_DEFINE(inst, NULL, NULL, NULL, NULL, POST_KERNEL,                           \
+			      CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, NULL);
+
+DT_INST_FOREACH_STATUS_OKAY(DXL_DEVICE_DEFINE)

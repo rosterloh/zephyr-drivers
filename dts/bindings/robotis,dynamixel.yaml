@@ -2,19 +2,14 @@ description: Dynamixel over serial line device
 
 compatible: "robotis,dynamixel"
 
-include: base.yaml
+include: uart-device.yaml
 
 properties:
-    uart:
-      type: phandle
-      required: true
-      description: Phandle to the UART controller used for Dynamixel communication.
-
     tx-en-gpios:
       type: phandle-array
       required: false
       description: Transmit enable pin (TX_EN) of the transceiver.
-
+    
     protocol-version:
       type: int
       required: false
