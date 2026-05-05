@@ -8,6 +8,7 @@
 #ifndef ZEPHYR_INCLUDE_DYNAMIXEL_H_
 #define ZEPHYR_INCLUDE_DYNAMIXEL_H_
 
+#include <stddef.h>
 #include <zephyr/drivers/uart.h>
 
 #ifdef __cplusplus
@@ -271,6 +272,35 @@ int dxl_init(const int iface, struct dxl_iface_param param);
  * @retval           0 If the function was successful
  */
 int dxl_disable(int iface);
+
+/**
+ * @brief Motor metadata derived from devicetree child nodes.
+ */
+struct dxl_motor {
+	/** Optional label string from DT. May be NULL. */
+	const char *label;
+	/** Parent Dynamixel interface index. */
+	int         iface;
+	/** Bus ID of the motor. */
+	uint8_t     id;
+};
+
+/**
+ * @brief Number of motors discovered in devicetree.
+ */
+size_t dxl_motor_count(void);
+
+/**
+ * @brief Get the motor entry at @a idx, or NULL if out of range.
+ */
+const struct dxl_motor *dxl_motor_get(size_t idx);
+
+/**
+ * @brief Find a motor by its DT @c label, or NULL if not found.
+ *
+ * The comparison is by @c strcmp; both arguments must be non-NULL.
+ */
+const struct dxl_motor *dxl_motor_get_by_label(const char *label);
 
 #ifdef __cplusplus
 }

@@ -43,6 +43,49 @@ static struct dxl_serial_config dxl_serial_cfg[] = {
 
 static struct dxl_context dxl_ctx_tbl[] = {DT_INST_FOREACH_STATUS_OKAY(DXL_DT_GET_DEV)};
 
+#define DXL_MOTOR_ENTRY(motor_node, parent_inst)                       \
+	{                                                              \
+		.label = DT_PROP_OR(motor_node, label, NULL),          \
+		.iface = parent_inst,                                  \
+		.id    = DT_PROP(motor_node, id),                      \
+	},
+
+#define DXL_IFACE_MOTORS(inst)                                         \
+	DT_INST_FOREACH_CHILD_VARGS(inst, DXL_MOTOR_ENTRY, inst)
+
+static const struct dxl_motor dxl_motors[] = {
+	DT_INST_FOREACH_STATUS_OKAY(DXL_IFACE_MOTORS)
+};
+
+size_t dxl_motor_count(void)
+{
+	return ARRAY_SIZE(dxl_motors);
+}
+
+const struct dxl_motor *dxl_motor_get(size_t idx)
+{
+	if (idx >= ARRAY_SIZE(dxl_motors)) {
+		return NULL;
+	}
+	return &dxl_motors[idx];
+}
+
+const struct dxl_motor *dxl_motor_get_by_label(const char *label)
+{
+	if (label == NULL) {
+		return NULL;
+	}
+	for (size_t i = 0; i < ARRAY_SIZE(dxl_motors); i++) {
+		if (dxl_motors[i].label == NULL) {
+			continue;
+		}
+		if (strcmp(dxl_motors[i].label, label) == 0) {
+			return &dxl_motors[i];
+		}
+	}
+	return NULL;
+}
+
 static void dxl_rx_handler(struct k_work *item)
 {
 	struct dxl_context *ctx;
