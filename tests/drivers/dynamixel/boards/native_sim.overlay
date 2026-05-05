@@ -10,6 +10,7 @@
 		current-speed = <115200>;
 		tx-fifo-size = <128>;
 		rx-fifo-size = <128>;
+		latch-buffer-size = <128>;
 		status = "okay";
 
 		dxl_bus: dxl-bus {

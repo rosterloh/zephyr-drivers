@@ -14,6 +14,8 @@
 
 #define FAKE_SERVO_RAM_SIZE 256
 #define FAKE_SERVO_LAST_TX_SIZE 64
+/* Status reply uses params_len (<= RAM size) + 11 bytes of framing. */
+#define FAKE_SERVO_STATUS_BUF_SIZE (FAKE_SERVO_RAM_SIZE + 11)
 
 struct fake_servo {
 	uint8_t  id;
