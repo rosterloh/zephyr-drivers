@@ -58,7 +58,10 @@ int dxl_reboot(const int iface, const uint8_t id)
 static int dxl_read_n(int iface, uint8_t id, enum dxl_control item,
 		      uint8_t expected_width, uint32_t *out)
 {
-	struct dxl_context *ctx = dxl_get_context(iface);
+	if (iface < 0) {
+		return -EINVAL;
+	}
+	struct dxl_context *ctx = dxl_get_context((uint8_t)iface);
 	uint16_t addr;
 	uint8_t  length;
 	int err;
@@ -134,7 +137,10 @@ int dxl_read_u32(int iface, uint8_t id, enum dxl_control item, uint32_t *out)
 static int dxl_write_n(int iface, uint8_t id, enum dxl_control item,
 		       uint8_t expected_width, uint32_t value)
 {
-	struct dxl_context *ctx = dxl_get_context(iface);
+	if (iface < 0) {
+		return -EINVAL;
+	}
+	struct dxl_context *ctx = dxl_get_context((uint8_t)iface);
 	uint16_t addr;
 	uint8_t  length;
 	int err;
