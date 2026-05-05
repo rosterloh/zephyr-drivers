@@ -7,5 +7,11 @@ project(test_dynamixel)
 
 target_sources(app PRIVATE
     src/main.c
-    src/test_dynamixel.c
-    )
+    src/fake_servo.c
+    src/test_protocol.c
+    src/test_tables.c
+    src/test_motors.c
+)
+
+zephyr_include_directories(./src)
+zephyr_include_directories(${ZEPHYR_DRIVERS_REPO_ROOT}/drivers/dynamixel)

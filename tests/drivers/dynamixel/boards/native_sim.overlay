@@ -12,20 +12,21 @@
 		rx-fifo-size = <128>;
 		latch-buffer-size = <128>;
 		status = "okay";
+	};
 
-		dxl_bus: dxl-bus {
-			status = "okay";
-			compatible = "robotis,dynamixel";
+	dxl_bus: dxl-bus {
+		status = "okay";
+		compatible = "robotis,dynamixel";
+		uart = <&dxl_uart>;
 
-			alpha: alpha {
-				id = <1>;
-				label = "ALPHA";
-			};
+		alpha: alpha {
+			id = <1>;
+			label = "ALPHA";
+		};
 
-			beta: beta {
-				id = <2>;
-				label = "BETA";
-			};
+		beta: beta {
+			id = <2>;
+			label = "BETA";
 		};
 	};
 };

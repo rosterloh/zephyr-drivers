@@ -27,7 +27,7 @@ DT_INST_FOREACH_STATUS_OKAY(DXL_DEFINE_GPIO_CFGS)
 
 #define DXL_DT_GET_SERIAL_DEV(inst)                                                                \
 	{                                                                                          \
-		.dev = DEVICE_DT_GET(DT_INST_PARENT(inst)),                                        \
+		.dev = DEVICE_DT_GET(DT_INST_PHANDLE(inst, uart)),                                 \
 		.tx_en = DXL_ASSIGN_GPIO_CFG(inst, tx_en_gpios),                                   \
 	},
 
