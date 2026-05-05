@@ -43,19 +43,16 @@ static struct dxl_serial_config dxl_serial_cfg[] = {
 
 static struct dxl_context dxl_ctx_tbl[] = {DT_INST_FOREACH_STATUS_OKAY(DXL_DT_GET_DEV)};
 
-#define DXL_MOTOR_ENTRY(motor_node, parent_inst)                       \
-	{                                                              \
-		.label = DT_PROP_OR(motor_node, label, NULL),          \
-		.iface = parent_inst,                                  \
-		.id    = DT_PROP(motor_node, id),                      \
+#define DXL_MOTOR_ENTRY(motor_node, parent_inst)                                                   \
+	{                                                                                          \
+		.label = DT_PROP_OR(motor_node, label, NULL),                                      \
+		.iface = parent_inst,                                                              \
+		.id = DT_PROP(motor_node, id),                                                     \
 	},
 
-#define DXL_IFACE_MOTORS(inst)                                         \
-	DT_INST_FOREACH_CHILD_VARGS(inst, DXL_MOTOR_ENTRY, inst)
+#define DXL_IFACE_MOTORS(inst) DT_INST_FOREACH_CHILD_VARGS(inst, DXL_MOTOR_ENTRY, inst)
 
-static const struct dxl_motor dxl_motors[] = {
-	DT_INST_FOREACH_STATUS_OKAY(DXL_IFACE_MOTORS)
-};
+static const struct dxl_motor dxl_motors[] = {DT_INST_FOREACH_STATUS_OKAY(DXL_IFACE_MOTORS)};
 
 size_t dxl_motor_count(void)
 {

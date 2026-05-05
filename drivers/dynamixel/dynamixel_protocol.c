@@ -55,15 +55,15 @@ int dxl_reboot(const int iface, const uint8_t id)
 	return err;
 }
 
-static int dxl_read_n(int iface, uint8_t id, enum dxl_control item,
-		      uint8_t expected_width, uint32_t *out)
+static int dxl_read_n(int iface, uint8_t id, enum dxl_control item, uint8_t expected_width,
+		      uint32_t *out)
 {
 	if (iface < 0) {
 		return -EINVAL;
 	}
 	struct dxl_context *ctx = dxl_get_context((uint8_t)iface);
 	uint16_t addr;
-	uint8_t  length;
+	uint8_t length;
 	int err;
 
 	if (ctx == NULL) {
@@ -81,11 +81,11 @@ static int dxl_read_n(int iface, uint8_t id, enum dxl_control item,
 
 	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
 
-	ctx->expected_id     = id;
-	ctx->tx_frame.id     = id;
+	ctx->expected_id = id;
+	ctx->tx_frame.id = id;
 	ctx->tx_frame.length = 7;
-	ctx->tx_frame.ic     = DXL_INST_READ;
-	sys_put_le16(addr,   &ctx->tx_frame.data[0]);
+	ctx->tx_frame.ic = DXL_INST_READ;
+	sys_put_le16(addr, &ctx->tx_frame.data[0]);
 	sys_put_le16(length, &ctx->tx_frame.data[2]);
 
 	err = dxl_tx_wait_rx(ctx);
@@ -93,9 +93,15 @@ static int dxl_read_n(int iface, uint8_t id, enum dxl_control item,
 		uint8_t dev_err = ctx->rx_frame.data[0];
 		if (dev_err == 0) {
 			switch (length) {
-			case 1: *out = ctx->rx_frame.data[1]; break;
-			case 2: *out = sys_get_le16(&ctx->rx_frame.data[1]); break;
-			case 4: *out = sys_get_le32(&ctx->rx_frame.data[1]); break;
+			case 1:
+				*out = ctx->rx_frame.data[1];
+				break;
+			case 2:
+				*out = sys_get_le16(&ctx->rx_frame.data[1]);
+				break;
+			case 4:
+				*out = sys_get_le32(&ctx->rx_frame.data[1]);
+				break;
 			default:
 				err = -EINVAL;
 				break;
@@ -134,15 +140,15 @@ int dxl_read_u32(int iface, uint8_t id, enum dxl_control item, uint32_t *out)
 	return dxl_read_n(iface, id, item, 4, out);
 }
 
-static int dxl_write_n(int iface, uint8_t id, enum dxl_control item,
-		       uint8_t expected_width, uint32_t value)
+static int dxl_write_n(int iface, uint8_t id, enum dxl_control item, uint8_t expected_width,
+		       uint32_t value)
 {
 	if (iface < 0) {
 		return -EINVAL;
 	}
 	struct dxl_context *ctx = dxl_get_context((uint8_t)iface);
 	uint16_t addr;
-	uint8_t  length;
+	uint8_t length;
 	int err;
 
 	if (ctx == NULL) {
@@ -157,10 +163,10 @@ static int dxl_write_n(int iface, uint8_t id, enum dxl_control item,
 
 	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
 
-	ctx->expected_id     = id;
-	ctx->tx_frame.id     = id;
+	ctx->expected_id = id;
+	ctx->tx_frame.id = id;
 	ctx->tx_frame.length = 5 + length;
-	ctx->tx_frame.ic     = DXL_INST_WRITE;
+	ctx->tx_frame.ic = DXL_INST_WRITE;
 	sys_put_le16(addr, &ctx->tx_frame.data[0]);
 	switch (length) {
 	case 1:
@@ -187,11 +193,17 @@ static int dxl_write_n(int iface, uint8_t id, enum dxl_control item,
 	return err;
 }
 
-int dxl_write_u8 (int iface, uint8_t id, enum dxl_control item, uint8_t val)
-{ return dxl_write_n(iface, id, item, 1, val); }
+int dxl_write_u8(int iface, uint8_t id, enum dxl_control item, uint8_t val)
+{
+	return dxl_write_n(iface, id, item, 1, val);
+}
 
 int dxl_write_u16(int iface, uint8_t id, enum dxl_control item, uint16_t val)
-{ return dxl_write_n(iface, id, item, 2, val); }
+{
+	return dxl_write_n(iface, id, item, 2, val);
+}
 
 int dxl_write_u32(int iface, uint8_t id, enum dxl_control item, uint32_t val)
-{ return dxl_write_n(iface, id, item, 4, val); }
+{
+	return dxl_write_n(iface, id, item, 4, val);
+}

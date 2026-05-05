@@ -19,22 +19,21 @@ LOG_MODULE_REGISTER(fake_servo, LOG_LEVEL_INF);
 #define DXL_HDR2 0xFD
 #define DXL_RSV  0x00
 
-#define INST_PING       0x01
-#define INST_READ       0x02
-#define INST_WRITE      0x03
-#define INST_REBOOT     0x08
-#define INST_STATUS     0x55
+#define INST_PING   0x01
+#define INST_READ   0x02
+#define INST_WRITE  0x03
+#define INST_REBOOT 0x08
+#define INST_STATUS 0x55
 
 #define CRC_POLY 0x8005
 #define CRC_SEED 0x0000
 
-static void send_status(struct fake_servo *s,
-			uint8_t error,
-			const uint8_t *params, uint16_t params_len)
+static void send_status(struct fake_servo *s, uint8_t error, const uint8_t *params,
+			uint16_t params_len)
 {
 	uint8_t buf[FAKE_SERVO_STATUS_BUF_SIZE];
 	uint16_t length = params_len + 1 /* error */ + 2 /* crc */ + 1 /* instruction */;
-	uint16_t total  = length + 7;
+	uint16_t total = length + 7;
 	uint16_t crc;
 
 	if (s->drop_response) {
@@ -63,9 +62,9 @@ static void send_status(struct fake_servo *s,
 
 static void handle_packet(struct fake_servo *s, const uint8_t *pkt, size_t len)
 {
-	uint8_t  id;
+	uint8_t id;
 	uint16_t length;
-	uint8_t  inst;
+	uint8_t inst;
 
 	if (len < 10) {
 		return;
@@ -73,9 +72,9 @@ static void handle_packet(struct fake_servo *s, const uint8_t *pkt, size_t len)
 	if (pkt[0] != DXL_HDR0 || pkt[1] != DXL_HDR1 || pkt[2] != DXL_HDR2) {
 		return;
 	}
-	id     = pkt[4];
+	id = pkt[4];
 	length = sys_get_le16(&pkt[5]);
-	inst   = pkt[7];
+	inst = pkt[7];
 
 	/* Capture for assertions */
 	s->last_tx_len = MIN(len, sizeof(s->last_tx));
@@ -96,7 +95,7 @@ static void handle_packet(struct fake_servo *s, const uint8_t *pkt, size_t len)
 		}
 		uint16_t addr = sys_get_le16(&pkt[8]);
 		uint16_t rlen = sys_get_le16(&pkt[10]);
-		s->last_addr   = addr;
+		s->last_addr = addr;
 		s->last_length = rlen;
 		if (addr + rlen <= FAKE_SERVO_RAM_SIZE) {
 			send_status(s, s->error_byte, &s->control_ram[addr], rlen);
@@ -109,9 +108,9 @@ static void handle_packet(struct fake_servo *s, const uint8_t *pkt, size_t len)
 		if (len < 12) {
 			return; /* malformed: WRITE needs at least 2 addr bytes */
 		}
-		uint16_t addr   = sys_get_le16(&pkt[8]);
+		uint16_t addr = sys_get_le16(&pkt[8]);
 		uint16_t params = length - 5; /* length covers ic + 2 addr + params + 2 crc */
-		s->last_addr   = addr;
+		s->last_addr = addr;
 		s->last_length = params;
 		if (addr + params <= FAKE_SERVO_RAM_SIZE) {
 			memcpy(&s->control_ram[addr], &pkt[10], params);

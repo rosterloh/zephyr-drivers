@@ -15,9 +15,9 @@
 
 #include "fake_servo.h"
 
-#define DXL_BUS_NODE      DT_NODELABEL(dxl_bus)
-#define DXL_UART_NODE     DT_PARENT(DXL_BUS_NODE)
-#define DXL_IFACE_NAME    DEVICE_DT_NAME(DXL_BUS_NODE)
+#define DXL_BUS_NODE   DT_NODELABEL(dxl_bus)
+#define DXL_UART_NODE  DT_PARENT(DXL_BUS_NODE)
+#define DXL_IFACE_NAME DEVICE_DT_NAME(DXL_BUS_NODE)
 
 static const struct device *uart_dev = DEVICE_DT_GET(DXL_UART_NODE);
 
@@ -28,7 +28,7 @@ static void bring_up_default(void)
 {
 	struct dxl_iface_param p = {
 		.rx_timeout = 50000,
-		.serial = { .baud = 115200, .parity = UART_CFG_PARITY_NONE },
+		.serial = {.baud = 115200, .parity = UART_CFG_PARITY_NONE},
 	};
 
 	fake_servo_init(&srv, 1);
@@ -61,7 +61,7 @@ ZTEST(dynamixel_protocol, test_phase1_ping_request_bytes)
 	zassert_equal(srv.last_tx[1], 0xFF, "header byte 1");
 	zassert_equal(srv.last_tx[2], 0xFD, "header byte 2");
 	zassert_equal(srv.last_tx[3], 0x00, "reserved");
-	zassert_equal(srv.last_tx[4], 1,    "id");
+	zassert_equal(srv.last_tx[4], 1, "id");
 	zassert_equal(srv.last_tx[7], 0x01, "ping instruction");
 	zassert_equal(srv.last_instruction, 0x01, "captured instruction");
 }
@@ -75,8 +75,7 @@ ZTEST(dynamixel_protocol, test_timeout_returns_etimedout)
 
 	rc = dxl_read_u32(iface, 1, PRESENT_POSITION, &val32);
 
-	zassert_equal(rc, -ETIMEDOUT,
-		      "timeout must return -ETIMEDOUT, got %d", rc);
+	zassert_equal(rc, -ETIMEDOUT, "timeout must return -ETIMEDOUT, got %d", rc);
 }
 
 ZTEST(dynamixel_protocol, test_write_u8_round_trip)
@@ -84,8 +83,8 @@ ZTEST(dynamixel_protocol, test_write_u8_round_trip)
 	zassert_ok(dxl_write_u8(iface, 1, TORQUE_ENABLE, 1), "write failed");
 
 	zassert_equal(srv.last_instruction, 0x03, "write instruction");
-	zassert_equal(srv.last_addr,        64,   "TORQUE_ENABLE addr");
-	zassert_equal(srv.last_length,      1,    "1-byte param");
+	zassert_equal(srv.last_addr, 64, "TORQUE_ENABLE addr");
+	zassert_equal(srv.last_length, 1, "1-byte param");
 	zassert_equal(fake_servo_get_u8(&srv, 64), 1, "RAM updated");
 }
 
@@ -103,8 +102,7 @@ ZTEST(dynamixel_protocol, test_phase3_wrong_id_response_rejected)
 
 	rc = dxl_ping(iface, 1);
 
-	zassert_equal(rc, -ETIMEDOUT,
-		      "wrong-id reply should look like a timeout, got %d", rc);
+	zassert_equal(rc, -ETIMEDOUT, "wrong-id reply should look like a timeout, got %d", rc);
 }
 
 ZTEST(dynamixel_protocol, test_read_u32_full_value)
@@ -141,8 +139,8 @@ ZTEST(dynamixel_protocol, test_write_u32_round_trip)
 {
 	zassert_ok(dxl_write_u32(iface, 1, GOAL_POSITION, 0xDEADBEEF), "write failed");
 
-	zassert_equal(srv.last_addr,   116, "GOAL_POSITION addr");
-	zassert_equal(srv.last_length, 4,   "4-byte param");
+	zassert_equal(srv.last_addr, 116, "GOAL_POSITION addr");
+	zassert_equal(srv.last_length, 4, "4-byte param");
 	zassert_equal(fake_servo_get_u32(&srv, 116), 0xDEADBEEF, "RAM");
 }
 
@@ -150,19 +148,19 @@ ZTEST(dynamixel_protocol, test_width_mismatch_returns_einval)
 {
 	uint8_t val8;
 
-	zassert_equal(dxl_read_u8(iface, 1, PRESENT_POSITION, &val8),
-		      -EINVAL, "u8 read of 4-byte register");
+	zassert_equal(dxl_read_u8(iface, 1, PRESENT_POSITION, &val8), -EINVAL,
+		      "u8 read of 4-byte register");
 
-	zassert_equal(dxl_write_u16(iface, 1, TORQUE_ENABLE, 0),
-		      -EINVAL, "u16 write of 1-byte register");
+	zassert_equal(dxl_write_u16(iface, 1, TORQUE_ENABLE, 0), -EINVAL,
+		      "u16 write of 1-byte register");
 }
 
 ZTEST(dynamixel_protocol, test_invalid_register_returns_einval)
 {
 	uint32_t val32;
 
-	zassert_equal(dxl_read_u32(iface, 1, (enum dxl_control)9999, &val32),
-		      -EINVAL, "out-of-range register");
+	zassert_equal(dxl_read_u32(iface, 1, (enum dxl_control)9999, &val32), -EINVAL,
+		      "out-of-range register");
 }
 
 ZTEST(dynamixel_protocol, test_device_error_byte_returned_positive)
@@ -189,8 +187,7 @@ ZTEST(dynamixel_protocol, test_crc_error_returns_eio)
 
 	rc = dxl_read_u32(iface, 1, PRESENT_POSITION, &val);
 
-	zassert_equal(rc, -EIO,
-		      "corrupted CRC should return -EIO, got %d", rc);
+	zassert_equal(rc, -EIO, "corrupted CRC should return -EIO, got %d", rc);
 }
 
 ZTEST(dynamixel_protocol, test_write_u16_round_trip)
@@ -198,8 +195,8 @@ ZTEST(dynamixel_protocol, test_write_u16_round_trip)
 	zassert_ok(dxl_write_u16(iface, 1, GOAL_PWM, 0x0BEE), "write failed");
 
 	zassert_equal(srv.last_instruction, 0x03, "write instruction");
-	zassert_equal(srv.last_addr,        100,  "GOAL_PWM addr");
-	zassert_equal(srv.last_length,      2,    "2-byte param");
+	zassert_equal(srv.last_addr, 100, "GOAL_PWM addr");
+	zassert_equal(srv.last_length, 2, "2-byte param");
 	zassert_equal(fake_servo_get_u16(&srv, 100), 0x0BEE, "RAM updated");
 }
 

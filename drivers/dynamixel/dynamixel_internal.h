@@ -5,8 +5,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <drivers/dynamixel.h>
 
-struct dxl_serial_config
-{
+struct dxl_serial_config {
 	/* UART device */
 	const struct device *dev;
 	/* Packet timeout (maximum inter-frame delay) */
@@ -25,8 +24,7 @@ struct dxl_serial_config
 
 #define DXL_STATE_CONFIGURED 0
 
-struct dxl_context
-{
+struct dxl_context {
 	/* Interface name */
 	const char *iface_name;
 	/* Serial line configuration */
@@ -137,8 +135,7 @@ int dxl_serial_tx(struct dxl_context *ctx);
  *
  * @retval           0 If the function was successful.
  */
-int dxl_serial_init(struct dxl_context *ctx,
-		    struct dxl_iface_param param);
+int dxl_serial_init(struct dxl_context *ctx, struct dxl_iface_param param);
 
 /**
  * @brief Disable serial line support.

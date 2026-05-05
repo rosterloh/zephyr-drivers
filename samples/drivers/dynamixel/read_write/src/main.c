@@ -13,8 +13,8 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(sample_dynamixel, LOG_LEVEL_INF);
 
-#define DXL_BUS_NODE     DT_NODELABEL(dxl_bus)
-#define DXL_IFACE_NAME   DEVICE_DT_NAME(DXL_BUS_NODE)
+#define DXL_BUS_NODE   DT_NODELABEL(dxl_bus)
+#define DXL_IFACE_NAME DEVICE_DT_NAME(DXL_BUS_NODE)
 
 #define DEFAULT_MOTOR_ID 1
 #define BLINK_COUNT      3
@@ -23,9 +23,9 @@ LOG_MODULE_REGISTER(sample_dynamixel, LOG_LEVEL_INF);
 static int read_and_log(int iface, uint8_t id)
 {
 	uint16_t model;
-	uint8_t  firmware;
+	uint8_t firmware;
 	uint32_t position;
-	uint8_t  temperature;
+	uint8_t temperature;
 	int rc;
 
 	rc = dxl_read_u16(iface, id, MODEL_NUMBER, &model);
@@ -89,10 +89,11 @@ int main(void)
 
 	struct dxl_iface_param param = {
 		.rx_timeout = 50000,
-		.serial = {
-			.baud   = 57600,
-			.parity = UART_CFG_PARITY_NONE,
-		},
+		.serial =
+			{
+				.baud = 57600,
+				.parity = UART_CFG_PARITY_NONE,
+			},
 	};
 
 	iface = dxl_iface_get_by_name(DXL_IFACE_NAME);

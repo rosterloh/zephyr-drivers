@@ -208,11 +208,11 @@ int dxl_reboot(const int iface, const uint8_t id);
  * @retval >0 enum dxl_error from the device's status packet.
  * @retval <0 errno: -ETIMEDOUT, -EIO, -ENODEV, -EINVAL.
  */
-int dxl_read_u8 (int iface, uint8_t id, enum dxl_control item, uint8_t  *out);
+int dxl_read_u8(int iface, uint8_t id, enum dxl_control item, uint8_t *out);
 int dxl_read_u16(int iface, uint8_t id, enum dxl_control item, uint16_t *out);
 int dxl_read_u32(int iface, uint8_t id, enum dxl_control item, uint32_t *out);
 
-int dxl_write_u8 (int iface, uint8_t id, enum dxl_control item, uint8_t  val);
+int dxl_write_u8(int iface, uint8_t id, enum dxl_control item, uint8_t val);
 int dxl_write_u16(int iface, uint8_t id, enum dxl_control item, uint16_t val);
 int dxl_write_u32(int iface, uint8_t id, enum dxl_control item, uint32_t val);
 
@@ -280,9 +280,9 @@ struct dxl_motor {
 	/** Optional label string from DT. May be NULL. */
 	const char *label;
 	/** Parent Dynamixel interface index. */
-	int         iface;
+	int iface;
 	/** Bus ID of the motor. */
-	uint8_t     id;
+	uint8_t id;
 };
 
 /**

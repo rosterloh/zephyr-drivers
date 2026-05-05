@@ -69,8 +69,7 @@ static int rx_frame(struct dxl_context *ctx)
 	ctx->rx_frame.id = cfg->uart_buf[4];
 
 	if (ctx->rx_frame.id != ctx->expected_id) {
-		LOG_WRN("Response ID %u != expected %u",
-			ctx->rx_frame.id, ctx->expected_id);
+		LOG_WRN("Response ID %u != expected %u", ctx->rx_frame.id, ctx->expected_id);
 		return -EBADMSG;
 	}
 
