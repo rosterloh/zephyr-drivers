@@ -102,7 +102,7 @@ git commit -m "tests: dynamixel: target native_sim, drop arduino_mkrzero loopbac
 		rx-fifo-size = <128>;
 		status = "okay";
 
-		dxl_bus: dxl_bus {
+		dxl_bus: dxl-bus {
 			status = "okay";
 			compatible = "robotis,dynamixel";
 
