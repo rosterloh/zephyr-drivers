@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <string.h>
 #include <zephyr/sys/byteorder.h>
 
@@ -19,83 +20,11 @@ int dxl_ping(const int iface, const uint8_t id)
 	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
 
 	ctx->tx_frame.id = id;
-	ctx->tx_frame.length = 3; /* instruction + 2 crc */
+	ctx->expected_id = id;
+	ctx->tx_frame.length = 3;
 	ctx->tx_frame.ic = DXL_INST_PING;
 
 	err = dxl_tx_wait_rx(ctx);
-	/* validate response */
-
-	k_mutex_unlock(&ctx->iface_lock);
-
-	return err;
-}
-
-/* https://emanual.robotis.com/docs/en/dxl/protocol2/#read-0x02 */
-int dxl_read(const int iface, const uint8_t id, uint8_t item_idx, void *data)
-{
-	struct dxl_context *ctx = dxl_get_context(iface);
-	struct dxl_control_info control = control_table[item_idx];
-	int err;
-
-	if (ctx == NULL) {
-		return -ENODEV;
-	}
-
-	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
-
-	ctx->tx_frame.id = id;
-	ctx->tx_frame.length = 7; /* instruction + 4 parameters + 2 crc */
-	ctx->tx_frame.ic = DXL_INST_READ;
-	sys_put_le16(control.address, &ctx->tx_frame.data[0]);
-	sys_put_le16(control.length, &ctx->tx_frame.data[2]);
-
-	err = dxl_tx_wait_rx(ctx);
-
-	/* https://emanual.robotis.com/docs/en/dxl/protocol2/#error */
-	err = ctx->rx_frame.data[0];
-	if (control.length == 1) {
-		*(uint8_t *)data = ctx->rx_frame.data[1];
-	} else if (control.length == 2) {
-		*(uint16_t *)data = sys_get_le16(&ctx->rx_frame.data[1]);
-	} else {
-		*(uint32_t *)data = sys_get_le16(&ctx->rx_frame.data[1]);
-	}
-
-	k_mutex_unlock(&ctx->iface_lock);
-
-	return err;
-}
-
-/* https://emanual.robotis.com/docs/en/dxl/protocol2/#write-0x03 */
-int dxl_write(const int iface, const uint8_t id, uint8_t item_idx, uint32_t data)
-{
-	struct dxl_context *ctx = dxl_get_context(iface);
-	struct dxl_control_info control = control_table[item_idx];
-	int err;
-
-	if (ctx == NULL) {
-		return -ENODEV;
-	}
-
-	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
-
-	ctx->tx_frame.id = id;
-	ctx->tx_frame.length =
-		5 + control.length; /* instruction + 2 address + parameter data + 2 crc */
-	ctx->tx_frame.ic = DXL_INST_WRITE;
-	sys_put_le16(control.address, &ctx->tx_frame.data[0]);
-	if (control.length == 1) {
-		sys_put_le32(data & 0xFF, &ctx->tx_frame.data[2]);
-	} else if (control.length == 2) {
-		sys_put_le32(data & 0xFFFF, &ctx->tx_frame.data[2]);
-	} else {
-		sys_put_le32(data, &ctx->tx_frame.data[2]);
-	}
-
-	err = dxl_tx_wait_rx(ctx);
-
-	/* https://emanual.robotis.com/docs/en/dxl/protocol2/#error */
-	err = ctx->rx_frame.data[0];
 
 	k_mutex_unlock(&ctx->iface_lock);
 
@@ -115,13 +44,166 @@ int dxl_reboot(const int iface, const uint8_t id)
 	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
 
 	ctx->tx_frame.id = id;
-	ctx->tx_frame.length = 3; /* instruction + 2 crc */
+	ctx->expected_id = id;
+	ctx->tx_frame.length = 3;
 	ctx->tx_frame.ic = DXL_INST_REBOOT;
 
 	err = dxl_tx_wait_rx(ctx);
-	/* validate response */
 
 	k_mutex_unlock(&ctx->iface_lock);
 
 	return err;
+}
+
+static int dxl_read_n(int iface, uint8_t id, enum dxl_control item, uint8_t expected_width,
+		      uint32_t *out)
+{
+	if (iface < 0) {
+		return -EINVAL;
+	}
+	struct dxl_context *ctx = dxl_get_context((uint8_t)iface);
+	uint16_t addr;
+	uint8_t length;
+	int err;
+
+	if (ctx == NULL) {
+		return -ENODEV;
+	}
+	if (out == NULL) {
+		return -EINVAL;
+	}
+	if (dxl_table_lookup(item, &addr, &length) != 0) {
+		return -EINVAL;
+	}
+	if (length != expected_width) {
+		return -EINVAL;
+	}
+
+	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
+
+	ctx->expected_id = id;
+	ctx->tx_frame.id = id;
+	ctx->tx_frame.length = 7;
+	ctx->tx_frame.ic = DXL_INST_READ;
+	sys_put_le16(addr, &ctx->tx_frame.data[0]);
+	sys_put_le16(length, &ctx->tx_frame.data[2]);
+
+	err = dxl_tx_wait_rx(ctx);
+	if (err == 0) {
+		uint8_t dev_err = ctx->rx_frame.data[0];
+		if (dev_err == 0) {
+			switch (length) {
+			case 1:
+				*out = ctx->rx_frame.data[1];
+				break;
+			case 2:
+				*out = sys_get_le16(&ctx->rx_frame.data[1]);
+				break;
+			case 4:
+				*out = sys_get_le32(&ctx->rx_frame.data[1]);
+				break;
+			default:
+				err = -EINVAL;
+				break;
+			}
+		} else {
+			err = (int)dev_err;
+		}
+	}
+
+	k_mutex_unlock(&ctx->iface_lock);
+	return err;
+}
+
+int dxl_read_u8(int iface, uint8_t id, enum dxl_control item, uint8_t *out)
+{
+	uint32_t v = 0;
+	int rc = dxl_read_n(iface, id, item, 1, &v);
+	if (rc == 0) {
+		*out = (uint8_t)v;
+	}
+	return rc;
+}
+
+int dxl_read_u16(int iface, uint8_t id, enum dxl_control item, uint16_t *out)
+{
+	uint32_t v = 0;
+	int rc = dxl_read_n(iface, id, item, 2, &v);
+	if (rc == 0) {
+		*out = (uint16_t)v;
+	}
+	return rc;
+}
+
+int dxl_read_u32(int iface, uint8_t id, enum dxl_control item, uint32_t *out)
+{
+	return dxl_read_n(iface, id, item, 4, out);
+}
+
+static int dxl_write_n(int iface, uint8_t id, enum dxl_control item, uint8_t expected_width,
+		       uint32_t value)
+{
+	if (iface < 0) {
+		return -EINVAL;
+	}
+	struct dxl_context *ctx = dxl_get_context((uint8_t)iface);
+	uint16_t addr;
+	uint8_t length;
+	int err;
+
+	if (ctx == NULL) {
+		return -ENODEV;
+	}
+	if (dxl_table_lookup(item, &addr, &length) != 0) {
+		return -EINVAL;
+	}
+	if (length != expected_width) {
+		return -EINVAL;
+	}
+
+	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
+
+	ctx->expected_id = id;
+	ctx->tx_frame.id = id;
+	ctx->tx_frame.length = 5 + length;
+	ctx->tx_frame.ic = DXL_INST_WRITE;
+	sys_put_le16(addr, &ctx->tx_frame.data[0]);
+	switch (length) {
+	case 1:
+		ctx->tx_frame.data[2] = (uint8_t)value;
+		break;
+	case 2:
+		sys_put_le16((uint16_t)value, &ctx->tx_frame.data[2]);
+		break;
+	case 4:
+		sys_put_le32(value, &ctx->tx_frame.data[2]);
+		break;
+	default:
+		k_mutex_unlock(&ctx->iface_lock);
+		return -EINVAL;
+	}
+
+	err = dxl_tx_wait_rx(ctx);
+	if (err == 0) {
+		uint8_t dev_err = ctx->rx_frame.data[0];
+		err = (dev_err == 0) ? 0 : (int)dev_err;
+	}
+
+	k_mutex_unlock(&ctx->iface_lock);
+	return err;
+}
+
+int dxl_write_u8(int iface, uint8_t id, enum dxl_control item, uint8_t val)
+{
+	return dxl_write_n(iface, id, item, 1, val);
+}
+
+int dxl_write_u16(int iface, uint8_t id, enum dxl_control item, uint16_t val)
+{
+	return dxl_write_n(iface, id, item, 2, val);
+}
+
+int dxl_write_u32(int iface, uint8_t id, enum dxl_control item, uint32_t val)
+{
+	return dxl_write_n(iface, id, item, 4, val);
 }

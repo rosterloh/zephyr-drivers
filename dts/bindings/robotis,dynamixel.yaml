@@ -9,23 +9,14 @@ properties:
       type: phandle-array
       required: false
       description: Transmit enable pin (TX_EN) of the transceiver.
-    
-    protocol-version:
-      type: int
-      required: false
-      default: 2
-      description: Specify the version of the Dynamixel protocol.
-      enum:
-        - 1
-        - 2
 
 child-binding:
-    description: Dynamixel Motor configuration.
+    description: Dynamixel motor on this bus.
     properties:
       label:
         type: string
         required: false
-        description: Human readable string describing the device
+        description: Human readable string describing the device.
 
       id:
         type: int

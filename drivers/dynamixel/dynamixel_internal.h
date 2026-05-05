@@ -5,8 +5,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <drivers/dynamixel.h>
 
-struct dxl_serial_config
-{
+struct dxl_serial_config {
 	/* UART device */
 	const struct device *dev;
 	/* Packet timeout (maximum inter-frame delay) */
@@ -25,8 +24,7 @@ struct dxl_serial_config
 
 #define DXL_STATE_CONFIGURED 0
 
-struct dxl_context
-{
+struct dxl_context {
 	/* Interface name */
 	const char *iface_name;
 	/* Serial line configuration */
@@ -49,6 +47,9 @@ struct dxl_context
 
 	/* Records error from frame reception, e.g. CRC error */
 	int rx_frame_err;
+
+	/* ID of the device the current request is addressed to */
+	uint8_t expected_id;
 };
 
 /**
@@ -134,8 +135,7 @@ int dxl_serial_tx(struct dxl_context *ctx);
  *
  * @retval           0 If the function was successful.
  */
-int dxl_serial_init(struct dxl_context *ctx,
-		    struct dxl_iface_param param);
+int dxl_serial_init(struct dxl_context *ctx, struct dxl_iface_param param);
 
 /**
  * @brief Disable serial line support.
@@ -143,5 +143,20 @@ int dxl_serial_init(struct dxl_context *ctx,
  * @param ctx        Dynamixel interface context
  */
 void dxl_serial_disable(struct dxl_context *ctx);
+
+/**
+ * @brief Look up a control register's address and length.
+ *
+ * @param item    Control register identifier.
+ * @param addr    Optional out: register address.
+ * @param length  Optional out: register length in bytes.
+ *
+ * @retval 0 on success
+ * @retval -EINVAL if item is out of range or has no entry
+ */
+int dxl_table_lookup(enum dxl_control item, uint16_t *addr, uint8_t *length);
+
+/* Model info (currently unused by driver code; available for unit conversions). */
+extern const struct dxl_model_info dxl_info_x330;
 
 #endif /* ZEPHYR_INCLUDE_DYNAMIXEL_INTERNAL_H_ */

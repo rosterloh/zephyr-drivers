@@ -8,6 +8,7 @@
 #ifndef ZEPHYR_INCLUDE_DYNAMIXEL_H_
 #define ZEPHYR_INCLUDE_DYNAMIXEL_H_
 
+#include <stddef.h>
 #include <zephyr/drivers/uart.h>
 
 #ifdef __cplusplus
@@ -137,64 +138,6 @@ struct dxl_control_info {
 	uint8_t length;
 };
 
-/* https://emanual.robotis.com/docs/en/dxl/x/xl330-m288/#control-table-of-eeprom-area */
-static const struct dxl_control_info control_table[] = {
-	{0, 2},  /* MODEL_NUMBER */
-	{2, 4},  /* MODEL_INFORMATION */
-	{6, 1},  /* FIRMWARE_VERSION */
-	{7, 1},  /* ID */
-	{8, 1},  /* BAUD_RATE */
-	{9, 1},  /* RETURN_DELAY_TIME */
-	{10, 1}, /* DRIVE_MODE */
-	{11, 1}, /* OPERATING_MODE */
-	{12, 1}, /* SECONDARY_ID */
-	{13, 1}, /* PROTOCOL_VERSION */
-	{20, 4}, /* HOMING_OFFSET */
-	{24, 4}, /* MOVING_THRESHOLD */
-	{31, 1}, /* TEMPERATURE_LIMIT */
-	{32, 2}, /* MAX_VOLTAGE_LIMIT */
-	{34, 2}, /* MIN_VOLTAGE_LIMIT */
-	{36, 2}, /* PWM_LIMIT */
-	{38, 2}, /* CURRENT_LIMIT */
-	{44, 4}, /* VELOCITY_LIMIT */
-	{48, 4}, /* MAX_POSITION_LIMIT */
-	{52, 4}, /* MIN_POSITION_LIMIT */
-	{60, 1}, /* STARTUP_CONFIGURATION */
-	{62, 1}, /* PWM_SLOPE */
-	{63, 1}, /* SHUTDOWN */
-
-	{64, 1},  /* TORQUE_ENABLE */
-	{65, 1},  /* LED */
-	{68, 1},  /* STATUS_RETURN_LEVEL */
-	{69, 1},  /* REGISTERED_INSTRUCTION */
-	{70, 1},  /* HARDWARE_ERROR_STATUS */
-	{76, 2},  /* VELOCITY_I_GAIN */
-	{78, 2},  /* VELOCITY_P_GAIN */
-	{80, 2},  /* POSITION_D_GAIN */
-	{82, 2},  /* POSITION_I_GAIN */
-	{84, 2},  /* POSITION_P_GAIN */
-	{88, 2},  /* FEEDFORWARD_2ND_GAIN */
-	{90, 2},  /* FEEDFORWARD_1ST_GAIN */
-	{98, 1},  /* BUS_WATCHDOG */
-	{100, 2}, /* GOAL_PWM */
-	{102, 2}, /* GOAL_CURRENT */
-	{104, 4}, /* GOAL_VELOCITY */
-	{108, 4}, /* PROFILE_ACCELERATION */
-	{112, 4}, /* PROFILE_VELOCITY */
-	{116, 4}, /* GOAL_POSITION */
-	{120, 2}, /* REALTIME_TICK */
-	{122, 1}, /* MOVING */
-	{123, 1}, /* MOVING_STATUS */
-	{124, 2}, /* PRESENT_PWM */
-	{126, 2}, /* PRESENT_CURRENT */
-	{128, 4}, /* PRESENT_VELOCITY */
-	{132, 4}, /* PRESENT_POSITION */
-	{136, 4}, /* VELOCITY_TRAJECTORY */
-	{140, 4}, /* POSITION_TRAJECTORY */
-	{144, 2}, /* PRESENT_INPUT_VOLTAGE */
-	{146, 1}  /* PRESENT_TEMPERATURE */
-};
-
 /**
  * @brief Model info struct.
  */
@@ -213,14 +156,10 @@ struct dxl_model_info {
 	float max_radian;
 };
 
-static const struct dxl_model_info info_x330 = {0.229, 0, 2048, 4096, -3.14159265, 3.14159265};
-
 /**
  * @brief Frame struct used internally.
  */
 struct dxl_frame {
-	/** Packet header */
-	uint32_t header;
 	/** ID of the device that should receive the Instruction Packet and process it */
 	uint8_t id;
 	/** Length of packet field */
@@ -246,34 +185,6 @@ struct dxl_frame {
 int dxl_ping(const int iface, const uint8_t id);
 
 /**
- * @brief Read Instruction
- *
- * Sends a read instruction to a specific device.
- *
- * @param iface    Dynamixel interface index
- * @param id       Packet ID of the device that should receive the Instruction Packet
- * @param item_idx Index of control register to read. @see dxl_control
- * @param data     Pointer to the data to be received
- *
- * @retval         0 If the function was successful
- */
-int dxl_read(const int iface, const uint8_t id, uint8_t item_idx, void *data);
-
-/**
- * @brief Write Instruction
- *
- * Sends a write instruction to a specific device.
- *
- * @param iface    Dynamixel interface index
- * @param id       Packet ID of the device that should receive the Instruction Packet
- * @param item_idx Index of control register to read. @see dxl_control
- * @param data     Data to write
- *
- * @retval         0 If the function was successful
- */
-int dxl_write(const int iface, const uint8_t id, uint8_t item_idx, uint32_t data);
-
-/**
  * @brief Reboot Instruction
  *
  * Sends a reboot message to a specific device.
@@ -286,6 +197,26 @@ int dxl_write(const int iface, const uint8_t id, uint8_t item_idx, uint32_t data
 int dxl_reboot(const int iface, const uint8_t id);
 
 /**
+ * @brief Read an 8-bit register.
+ *
+ * @param iface Dynamixel interface index.
+ * @param id    Bus ID of the device.
+ * @param item  Control register identifier.
+ * @param out   Output pointer.
+ *
+ * @retval 0 on success, with device-success.
+ * @retval >0 enum dxl_error from the device's status packet.
+ * @retval <0 errno: -ETIMEDOUT, -EIO, -ENODEV, -EINVAL.
+ */
+int dxl_read_u8(int iface, uint8_t id, enum dxl_control item, uint8_t *out);
+int dxl_read_u16(int iface, uint8_t id, enum dxl_control item, uint16_t *out);
+int dxl_read_u32(int iface, uint8_t id, enum dxl_control item, uint32_t *out);
+
+int dxl_write_u8(int iface, uint8_t id, enum dxl_control item, uint8_t val);
+int dxl_write_u16(int iface, uint8_t id, enum dxl_control item, uint16_t val);
+int dxl_write_u32(int iface, uint8_t id, enum dxl_control item, uint32_t val);
+
+/**
  * @brief Get Dynamixel interface index according to interface name
  *
  * If there is more than one interface, it can be used to clearly
@@ -296,16 +227,6 @@ int dxl_reboot(const int iface, const uint8_t id);
  * @retval           Dynamixel interface index or negative error value.
  */
 int dxl_iface_get_by_name(const char *iface_name);
-
-/**
- * @brief Dynamixel raw callback function signature
- *
- * @param iface      Dynamixel interface index
- * @param frame      Pointer to the packet struct to send
- *
- * @retval           0 If transfer was successful
- */
-typedef int (*dxl_raw_cb_t)(const int iface, const struct dxl_frame *frame);
 
 /**
  * @brief Dynamixel serial line parameter
@@ -332,16 +253,6 @@ struct dxl_iface_param {
 };
 
 /**
- * @brief Motor parameter structure to configure Dynamixel motor.
- */
-struct dxl_motor_config {
-	/** Name of the motor */
-	const char *label;
-	/** Motor ID on the bus */
-	uint8_t id;
-};
-
-/**
  * @brief Configure Dynamixel Interface
  *
  * @param iface      Dynamixel interface index
@@ -360,7 +271,36 @@ int dxl_init(const int iface, struct dxl_iface_param param);
  *
  * @retval           0 If the function was successful
  */
-int dxl_disable(const uint8_t iface);
+int dxl_disable(int iface);
+
+/**
+ * @brief Motor metadata derived from devicetree child nodes.
+ */
+struct dxl_motor {
+	/** Optional label string from DT. May be NULL. */
+	const char *label;
+	/** Parent Dynamixel interface index. */
+	int iface;
+	/** Bus ID of the motor. */
+	uint8_t id;
+};
+
+/**
+ * @brief Number of motors discovered in devicetree.
+ */
+size_t dxl_motor_count(void);
+
+/**
+ * @brief Get the motor entry at @a idx, or NULL if out of range.
+ */
+const struct dxl_motor *dxl_motor_get(size_t idx);
+
+/**
+ * @brief Find a motor by its DT @c label, or NULL if not found.
+ *
+ * The comparison is by @c strcmp; both arguments must be non-NULL.
+ */
+const struct dxl_motor *dxl_motor_get_by_label(const char *label);
 
 #ifdef __cplusplus
 }
