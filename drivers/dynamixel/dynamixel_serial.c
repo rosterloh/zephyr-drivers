@@ -67,6 +67,13 @@ static int rx_frame(struct dxl_context *ctx)
 	LOG_HEXDUMP_DBG(cfg->uart_buf, cfg->uart_buf_ctr, "uart_buf");
 
 	ctx->rx_frame.id = cfg->uart_buf[4];
+
+	if (ctx->rx_frame.id != ctx->expected_id) {
+		LOG_WRN("Response ID %u != expected %u",
+			ctx->rx_frame.id, ctx->expected_id);
+		return -EBADMSG;
+	}
+
 	ctx->rx_frame.length = sys_get_le16(&cfg->uart_buf[5]);
 	ctx->rx_frame.ic = cfg->uart_buf[7]; /* 0x55 is status packet */
 	data_ptr = &cfg->uart_buf[8];

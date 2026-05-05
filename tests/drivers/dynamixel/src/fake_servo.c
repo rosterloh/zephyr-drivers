@@ -82,7 +82,7 @@ static void handle_packet(struct fake_servo *s, const uint8_t *pkt, size_t len)
 	memcpy(s->last_tx, pkt, s->last_tx_len);
 	s->last_instruction = inst;
 
-	if (id != s->id) {
+	if (id != s->id && !s->answer_any_id) {
 		return; /* not addressed to this servo */
 	}
 

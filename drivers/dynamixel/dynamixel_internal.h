@@ -49,6 +49,9 @@ struct dxl_context
 
 	/* Records error from frame reception, e.g. CRC error */
 	int rx_frame_err;
+
+	/* ID of the device the current request is addressed to */
+	uint8_t expected_id;
 };
 
 /**

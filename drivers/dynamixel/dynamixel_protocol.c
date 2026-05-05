@@ -20,6 +20,7 @@ int dxl_ping(const int iface, const uint8_t id)
 	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
 
 	ctx->tx_frame.id = id;
+	ctx->expected_id = id;
 	ctx->tx_frame.length = 3;
 	ctx->tx_frame.ic = DXL_INST_PING;
 
@@ -48,6 +49,7 @@ int dxl_read(const int iface, const uint8_t id, uint8_t item_idx, void *data)
 	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
 
 	ctx->tx_frame.id = id;
+	ctx->expected_id = id;
 	ctx->tx_frame.length = 7;
 	ctx->tx_frame.ic = DXL_INST_READ;
 	sys_put_le16(addr,   &ctx->tx_frame.data[0]);
@@ -88,6 +90,7 @@ int dxl_write(const int iface, const uint8_t id, uint8_t item_idx, uint32_t data
 	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
 
 	ctx->tx_frame.id = id;
+	ctx->expected_id = id;
 	ctx->tx_frame.length = 5 + length;
 	ctx->tx_frame.ic = DXL_INST_WRITE;
 	sys_put_le16(addr, &ctx->tx_frame.data[0]);
@@ -122,6 +125,7 @@ int dxl_reboot(const int iface, const uint8_t id)
 	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
 
 	ctx->tx_frame.id = id;
+	ctx->expected_id = id;
 	ctx->tx_frame.length = 3;
 	ctx->tx_frame.ic = DXL_INST_REBOOT;
 

@@ -106,3 +106,21 @@ ZTEST(dynamixel_protocol, test_phase1_write_u8_round_trip)
 	zassert_equal(srv.last_length,      1,    "1-byte param");
 	zassert_equal(fake_servo_get_u8(&srv, 64), 1, "RAM updated");
 }
+
+ZTEST(dynamixel_protocol, test_phase3_wrong_id_response_rejected)
+{
+	int rc;
+
+	/* Force the fake to reply to the request even though its id (2) does not
+	 * match the addressed id (1). The driver should detect the mismatched
+	 * response id and discard it silently (no k_sem_give), so the
+	 * wait_sem genuinely times out and the client sees -ETIMEDOUT.
+	 */
+	srv.id = 2;
+	srv.answer_any_id = true;
+
+	rc = dxl_ping(iface, 1);
+
+	zassert_equal(rc, -ETIMEDOUT,
+		      "wrong-id reply should look like a timeout, got %d", rc);
+}

@@ -1,5 +1,6 @@
 #define DT_DRV_COMPAT robotis_dynamixel
 
+#include <errno.h>
 #include <zephyr/kernel.h>
 #include <string.h>
 #include <zephyr/sys/byteorder.h>
@@ -50,6 +51,12 @@ static void dxl_rx_handler(struct k_work *item)
 
 	dxl_serial_rx_disable(ctx);
 	ctx->rx_frame_err = dxl_serial_rx(ctx);
+
+	if (ctx->rx_frame_err == -EBADMSG) {
+		/* Wrong ID — discard silently and keep waiting for a valid reply. */
+		dxl_serial_rx_enable(ctx);
+		return;
+	}
 
 	k_sem_give(&ctx->wait_sem);
 }

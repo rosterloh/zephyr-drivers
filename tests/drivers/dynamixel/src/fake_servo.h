@@ -25,6 +25,7 @@ struct fake_servo {
 	bool     drop_response;
 	bool     corrupt_crc;
 	uint8_t  error_byte;
+	bool     answer_any_id;       /* if true, reply regardless of addressed id (with own id) */
 
 	/* Capture of the most recent request */
 	uint8_t  last_tx[FAKE_SERVO_LAST_TX_SIZE];
