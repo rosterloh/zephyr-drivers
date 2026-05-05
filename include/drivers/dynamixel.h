@@ -224,6 +224,26 @@ int dxl_write(const int iface, const uint8_t id, uint8_t item_idx, uint32_t data
 int dxl_reboot(const int iface, const uint8_t id);
 
 /**
+ * @brief Read an 8-bit register.
+ *
+ * @param iface Dynamixel interface index.
+ * @param id    Bus ID of the device.
+ * @param item  Control register identifier.
+ * @param out   Output pointer.
+ *
+ * @retval 0 on success, with device-success.
+ * @retval >0 enum dxl_error from the device's status packet.
+ * @retval <0 errno: -ETIMEDOUT, -EIO, -ENODEV, -EINVAL.
+ */
+int dxl_read_u8 (int iface, uint8_t id, enum dxl_control item, uint8_t  *out);
+int dxl_read_u16(int iface, uint8_t id, enum dxl_control item, uint16_t *out);
+int dxl_read_u32(int iface, uint8_t id, enum dxl_control item, uint32_t *out);
+
+int dxl_write_u8 (int iface, uint8_t id, enum dxl_control item, uint8_t  val);
+int dxl_write_u16(int iface, uint8_t id, enum dxl_control item, uint16_t val);
+int dxl_write_u32(int iface, uint8_t id, enum dxl_control item, uint32_t val);
+
+/**
  * @brief Get Dynamixel interface index according to interface name
  *
  * If there is more than one interface, it can be used to clearly

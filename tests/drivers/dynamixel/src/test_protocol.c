@@ -119,3 +119,75 @@ ZTEST(dynamixel_protocol, test_phase3_wrong_id_response_rejected)
 	zassert_equal(rc, -ETIMEDOUT,
 		      "wrong-id reply should look like a timeout, got %d", rc);
 }
+
+ZTEST(dynamixel_protocol, test_read_u32_full_value)
+{
+	uint32_t val = 0;
+
+	fake_servo_set_u32(&srv, 132 /* PRESENT_POSITION addr */, 0x12345678);
+
+	zassert_ok(dxl_read_u32(iface, 1, PRESENT_POSITION, &val), "read failed");
+	zassert_equal(val, 0x12345678, "got 0x%08x", val);
+}
+
+ZTEST(dynamixel_protocol, test_read_u16_full_value)
+{
+	uint16_t val = 0;
+
+	fake_servo_set_u16(&srv, 100 /* GOAL_PWM addr */, 0xCAFE);
+
+	zassert_ok(dxl_read_u16(iface, 1, GOAL_PWM, &val), "read failed");
+	zassert_equal(val, 0xCAFE, "got 0x%04x", val);
+}
+
+ZTEST(dynamixel_protocol, test_read_u8_full_value)
+{
+	uint8_t val = 0;
+
+	fake_servo_set_u8(&srv, 64 /* TORQUE_ENABLE addr */, 0xA5);
+
+	zassert_ok(dxl_read_u8(iface, 1, TORQUE_ENABLE, &val), "read failed");
+	zassert_equal(val, 0xA5, "got 0x%02x", val);
+}
+
+ZTEST(dynamixel_protocol, test_write_u32_round_trip)
+{
+	zassert_ok(dxl_write_u32(iface, 1, GOAL_POSITION, 0xDEADBEEF), "write failed");
+
+	zassert_equal(srv.last_addr,   116, "GOAL_POSITION addr");
+	zassert_equal(srv.last_length, 4,   "4-byte param");
+	zassert_equal(fake_servo_get_u32(&srv, 116), 0xDEADBEEF, "RAM");
+}
+
+ZTEST(dynamixel_protocol, test_width_mismatch_returns_einval)
+{
+	uint8_t val8;
+
+	zassert_equal(dxl_read_u8(iface, 1, PRESENT_POSITION, &val8),
+		      -EINVAL, "u8 read of 4-byte register");
+
+	zassert_equal(dxl_write_u16(iface, 1, TORQUE_ENABLE, 0),
+		      -EINVAL, "u16 write of 1-byte register");
+}
+
+ZTEST(dynamixel_protocol, test_invalid_register_returns_einval)
+{
+	uint32_t val32;
+
+	zassert_equal(dxl_read_u32(iface, 1, (enum dxl_control)9999, &val32),
+		      -EINVAL, "out-of-range register");
+}
+
+ZTEST(dynamixel_protocol, test_device_error_byte_returned_positive)
+{
+	uint32_t val = 0;
+	int rc;
+
+	srv.error_byte = DXL_ERR_DATA_RANGE;
+	fake_servo_set_u32(&srv, 132, 0x11);
+
+	rc = dxl_read_u32(iface, 1, PRESENT_POSITION, &val);
+
+	zassert_equal(rc, DXL_ERR_DATA_RANGE,
+		      "device error must be returned as positive enum, got %d", rc);
+}
