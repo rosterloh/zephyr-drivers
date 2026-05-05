@@ -6,6 +6,5 @@
 
 #include <zephyr/ztest.h>
 
-ZTEST_SUITE(dynamixel_protocol, NULL, NULL, NULL, NULL, NULL);
 ZTEST_SUITE(dynamixel_tables,   NULL, NULL, NULL, NULL, NULL);
 ZTEST_SUITE(dynamixel_motors,   NULL, NULL, NULL, NULL, NULL);

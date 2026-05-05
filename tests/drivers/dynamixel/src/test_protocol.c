@@ -24,14 +24,14 @@ static const struct device *uart_dev = DEVICE_DT_GET(DXL_UART_NODE);
 static struct fake_servo srv;
 static int iface;
 
-static void bring_up(uint8_t id)
+static void bring_up_default(void)
 {
 	struct dxl_iface_param p = {
 		.rx_timeout = 50000,
 		.serial = { .baud = 115200, .parity = UART_CFG_PARITY_NONE },
 	};
 
-	fake_servo_init(&srv, id);
+	fake_servo_init(&srv, 1);
 	fake_servo_attach(&srv, uart_dev);
 
 	iface = dxl_iface_get_by_name(DXL_IFACE_NAME);
@@ -39,15 +39,22 @@ static void bring_up(uint8_t id)
 	zassert_ok(dxl_init(iface, p), "dxl_init failed");
 }
 
-static void tear_down(void)
+static void protocol_before_each(void *fixture)
 {
+	ARG_UNUSED(fixture);
+	bring_up_default();
+}
+
+static void protocol_after_each(void *fixture)
+{
+	ARG_UNUSED(fixture);
 	dxl_disable(iface);
 }
 
+ZTEST_SUITE(dynamixel_protocol, NULL, NULL, protocol_before_each, protocol_after_each, NULL);
+
 ZTEST(dynamixel_protocol, test_phase1_ping_request_bytes)
 {
-	bring_up(1);
-
 	zassert_ok(dxl_ping(iface, 1), "ping failed");
 
 	zassert_equal(srv.last_tx[0], 0xFF, "header byte 0");
@@ -57,15 +64,12 @@ ZTEST(dynamixel_protocol, test_phase1_ping_request_bytes)
 	zassert_equal(srv.last_tx[4], 1,    "id");
 	zassert_equal(srv.last_tx[7], 0x01, "ping instruction");
 	zassert_equal(srv.last_instruction, 0x01, "captured instruction");
-
-	tear_down();
 }
 
 ZTEST(dynamixel_protocol, test_phase1_read_u32_truncated)
 {
 	uint32_t val32 = 0;
 
-	bring_up(1);
 	fake_servo_set_u32(&srv, 132 /* PRESENT_POSITION addr */, 0x12345678);
 
 	(void)dxl_read(iface, 1, PRESENT_POSITION, &val32);
@@ -73,8 +77,6 @@ ZTEST(dynamixel_protocol, test_phase1_read_u32_truncated)
 	/* BUG: existing code uses sys_get_le16 even for 4-byte regs. */
 	zassert_equal(val32, 0x00005678,
 		      "phase 1 expects truncated low 16 bits, got 0x%08x", val32);
-
-	tear_down();
 }
 
 ZTEST(dynamixel_protocol, test_phase1_timeout_overwrites_err)
@@ -82,7 +84,6 @@ ZTEST(dynamixel_protocol, test_phase1_timeout_overwrites_err)
 	uint32_t val32 = 0;
 	int rc;
 
-	bring_up(1);
 	srv.drop_response = true;
 
 	rc = dxl_read(iface, 1, PRESENT_POSITION, &val32);
@@ -94,20 +95,14 @@ ZTEST(dynamixel_protocol, test_phase1_timeout_overwrites_err)
 	 */
 	zassert_not_equal(rc, -ETIMEDOUT,
 			  "phase 1 expects err to be overwritten, not -ETIMEDOUT");
-
-	tear_down();
 }
 
 ZTEST(dynamixel_protocol, test_phase1_write_u8_round_trip)
 {
-	bring_up(1);
-
 	zassert_ok(dxl_write(iface, 1, TORQUE_ENABLE, 1), "write failed");
 
 	zassert_equal(srv.last_instruction, 0x03, "write instruction");
 	zassert_equal(srv.last_addr,        64,   "TORQUE_ENABLE addr");
 	zassert_equal(srv.last_length,      1,    "1-byte param");
 	zassert_equal(fake_servo_get_u8(&srv, 64), 1, "RAM updated");
-
-	tear_down();
 }
