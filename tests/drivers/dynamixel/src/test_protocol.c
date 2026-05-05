@@ -66,19 +66,6 @@ ZTEST(dynamixel_protocol, test_phase1_ping_request_bytes)
 	zassert_equal(srv.last_instruction, 0x01, "captured instruction");
 }
 
-ZTEST(dynamixel_protocol, test_phase1_read_u32_truncated)
-{
-	uint32_t val32 = 0;
-
-	fake_servo_set_u32(&srv, 132 /* PRESENT_POSITION addr */, 0x12345678);
-
-	(void)dxl_read(iface, 1, PRESENT_POSITION, &val32);
-
-	/* BUG: existing code uses sys_get_le16 even for 4-byte regs. */
-	zassert_equal(val32, 0x00005678,
-		      "phase 1 expects truncated low 16 bits, got 0x%08x", val32);
-}
-
 ZTEST(dynamixel_protocol, test_timeout_returns_etimedout)
 {
 	uint32_t val32 = 0;
@@ -86,15 +73,15 @@ ZTEST(dynamixel_protocol, test_timeout_returns_etimedout)
 
 	srv.drop_response = true;
 
-	rc = dxl_read(iface, 1, PRESENT_POSITION, &val32);
+	rc = dxl_read_u32(iface, 1, PRESENT_POSITION, &val32);
 
 	zassert_equal(rc, -ETIMEDOUT,
 		      "timeout must return -ETIMEDOUT, got %d", rc);
 }
 
-ZTEST(dynamixel_protocol, test_phase1_write_u8_round_trip)
+ZTEST(dynamixel_protocol, test_write_u8_round_trip)
 {
-	zassert_ok(dxl_write(iface, 1, TORQUE_ENABLE, 1), "write failed");
+	zassert_ok(dxl_write_u8(iface, 1, TORQUE_ENABLE, 1), "write failed");
 
 	zassert_equal(srv.last_instruction, 0x03, "write instruction");
 	zassert_equal(srv.last_addr,        64,   "TORQUE_ENABLE addr");

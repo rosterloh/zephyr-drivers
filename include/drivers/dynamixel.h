@@ -184,34 +184,6 @@ struct dxl_frame {
 int dxl_ping(const int iface, const uint8_t id);
 
 /**
- * @brief Read Instruction
- *
- * Sends a read instruction to a specific device.
- *
- * @param iface    Dynamixel interface index
- * @param id       Packet ID of the device that should receive the Instruction Packet
- * @param item_idx Index of control register to read. @see dxl_control
- * @param data     Pointer to the data to be received
- *
- * @retval         0 If the function was successful
- */
-int dxl_read(const int iface, const uint8_t id, uint8_t item_idx, void *data);
-
-/**
- * @brief Write Instruction
- *
- * Sends a write instruction to a specific device.
- *
- * @param iface    Dynamixel interface index
- * @param id       Packet ID of the device that should receive the Instruction Packet
- * @param item_idx Index of control register to read. @see dxl_control
- * @param data     Data to write
- *
- * @retval         0 If the function was successful
- */
-int dxl_write(const int iface, const uint8_t id, uint8_t item_idx, uint32_t data);
-
-/**
  * @brief Reboot Instruction
  *
  * Sends a reboot message to a specific device.
@@ -256,16 +228,6 @@ int dxl_write_u32(int iface, uint8_t id, enum dxl_control item, uint32_t val);
 int dxl_iface_get_by_name(const char *iface_name);
 
 /**
- * @brief Dynamixel raw callback function signature
- *
- * @param iface      Dynamixel interface index
- * @param frame      Pointer to the packet struct to send
- *
- * @retval           0 If transfer was successful
- */
-typedef int (*dxl_raw_cb_t)(const int iface, const struct dxl_frame *frame);
-
-/**
  * @brief Dynamixel serial line parameter
  */
 struct dxl_serial_param {
@@ -287,16 +249,6 @@ struct dxl_iface_param {
 	uint32_t rx_timeout;
 	/** Serial support parameter of the interface */
 	struct dxl_serial_param serial;
-};
-
-/**
- * @brief Motor parameter structure to configure Dynamixel motor.
- */
-struct dxl_motor_config {
-	/** Name of the motor */
-	const char *label;
-	/** Motor ID on the bus */
-	uint8_t id;
 };
 
 /**
