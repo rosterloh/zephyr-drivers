@@ -36,6 +36,7 @@ tests:
     tags:
       - drivers
       - dynamixel
+    harness: ztest
     platform_allow:
       - native_sim
   drivers.dynamixel.build_only:
@@ -55,6 +56,7 @@ CONFIG_LOG=y
 CONFIG_ZTEST=y
 CONFIG_SERIAL=y
 CONFIG_UART_INTERRUPT_DRIVEN=y
+CONFIG_EMUL=y
 CONFIG_UART_EMUL=y
 CONFIG_DYNAMIXEL=y
 CONFIG_DYNAMIXEL_LOG_LEVEL_DBG=y
