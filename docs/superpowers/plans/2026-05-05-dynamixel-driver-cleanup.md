@@ -1251,6 +1251,8 @@ End-of-Phase-2 gate: All tests green. Header is internally tidier. Public functi
 
 End of phase: typed `dxl_read_u*` / `dxl_write_u*` functions exist, return-code contract is the new `<0 / 0 / >0` shape, response-ID match is enforced, the bug-pinning tests are flipped to assert correct behavior, and `motor_controller/main.c` in the consumer repo has been updated.
 
+> **Note on fixture pattern (post-task-5 hardening):** `test_protocol.c` registers `dynamixel_protocol` with `protocol_before_each` / `protocol_after_each` hooks that call `bring_up_default()` and `dxl_disable(iface)` automatically (default servo id=1). Each `ZTEST` body in this phase therefore should NOT call `bring_up(1)` / `tear_down()` directly — those examples in the plan below are written before the hook conversion. When implementing, **drop the `bring_up`/`tear_down` lines from every test body**. For the wrong-ID test that needs id=2, override `srv.id = 2;` at the top of the test body (the hook initializes srv as id=1).
+
 ### Task 13: Add response-ID match check (no API change)
 
 **Files:**
