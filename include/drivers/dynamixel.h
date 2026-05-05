@@ -159,8 +159,6 @@ struct dxl_model_info {
  * @brief Frame struct used internally.
  */
 struct dxl_frame {
-	/** Packet header */
-	uint32_t header;
 	/** ID of the device that should receive the Instruction Packet and process it */
 	uint8_t id;
 	/** Length of packet field */
