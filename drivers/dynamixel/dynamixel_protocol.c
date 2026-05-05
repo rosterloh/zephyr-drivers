@@ -56,15 +56,15 @@ int dxl_read(const int iface, const uint8_t id, uint8_t item_idx, void *data)
 	sys_put_le16(length, &ctx->tx_frame.data[2]);
 
 	err = dxl_tx_wait_rx(ctx);
-
-	/* PRESERVE the existing buggy behavior for now: phase 3 fixes this. */
-	err = ctx->rx_frame.data[0];
-	if (length == 1) {
-		*(uint8_t *)data = ctx->rx_frame.data[1];
-	} else if (length == 2) {
-		*(uint16_t *)data = sys_get_le16(&ctx->rx_frame.data[1]);
-	} else {
-		*(uint32_t *)data = sys_get_le16(&ctx->rx_frame.data[1]);
+	if (err == 0) {
+		err = ctx->rx_frame.data[0];
+		if (length == 1) {
+			*(uint8_t *)data = ctx->rx_frame.data[1];
+		} else if (length == 2) {
+			*(uint16_t *)data = sys_get_le16(&ctx->rx_frame.data[1]);
+		} else {
+			*(uint32_t *)data = sys_get_le16(&ctx->rx_frame.data[1]);
+		}
 	}
 
 	k_mutex_unlock(&ctx->iface_lock);
@@ -103,9 +103,9 @@ int dxl_write(const int iface, const uint8_t id, uint8_t item_idx, uint32_t data
 	}
 
 	err = dxl_tx_wait_rx(ctx);
-
-	/* PRESERVE the existing buggy behavior for now: phase 3 fixes this. */
-	err = ctx->rx_frame.data[0];
+	if (err == 0) {
+		err = ctx->rx_frame.data[0];
+	}
 
 	k_mutex_unlock(&ctx->iface_lock);
 

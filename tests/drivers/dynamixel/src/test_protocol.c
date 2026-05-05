@@ -79,7 +79,7 @@ ZTEST(dynamixel_protocol, test_phase1_read_u32_truncated)
 		      "phase 1 expects truncated low 16 bits, got 0x%08x", val32);
 }
 
-ZTEST(dynamixel_protocol, test_phase1_timeout_overwrites_err)
+ZTEST(dynamixel_protocol, test_timeout_returns_etimedout)
 {
 	uint32_t val32 = 0;
 	int rc;
@@ -88,13 +88,8 @@ ZTEST(dynamixel_protocol, test_phase1_timeout_overwrites_err)
 
 	rc = dxl_read(iface, 1, PRESENT_POSITION, &val32);
 
-	/* BUG: dxl_read overwrites the timeout return code with rx_frame.data[0],
-	 * which on timeout is uninitialised / leftover. We assert that rc is NOT
-	 * -ETIMEDOUT — the right value the API ought to return — to make the bug
-	 * visible. Phase 3 inverts this: rc MUST be -ETIMEDOUT.
-	 */
-	zassert_not_equal(rc, -ETIMEDOUT,
-			  "phase 1 expects err to be overwritten, not -ETIMEDOUT");
+	zassert_equal(rc, -ETIMEDOUT,
+		      "timeout must return -ETIMEDOUT, got %d", rc);
 }
 
 ZTEST(dynamixel_protocol, test_phase1_write_u8_round_trip)
