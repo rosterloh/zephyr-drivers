@@ -474,9 +474,19 @@ Create `tests/drivers/dynamixel/src/test_motors.c`:
 - [ ] **Step 5: Build and run the (empty) suite**
 
 Run: `west twister -p native_sim -T tests/drivers/dynamixel --inline-logs`
-Expected: build succeeds, two test suites register with zero tests, twister reports success.
+Expected: build succeeds, three test suites register with zero tests, twister reports success.
 
-If the build fails because `zephyr,uart-emul` is missing the device-tree props this overlay uses, copy the prop names from `deps/zephyr/tests/drivers/uart/uart_emul/uart_emul.overlay` and update task 2's overlay accordingly before continuing.
+**Known build hurdle:** `zephyr,uart-emul`'s `DEFINE_UART_EMUL` macro iterates every `status = "okay"` child via `DT_FOREACH_CHILD_STATUS_OKAY` and calls `DEVICE_DT_GET(node_id)` on each. The Dynamixel driver historically did not register a Zephyr device, so `DEVICE_DT_GET` for the dxl-bus child node resolved to an undefined `__device_dts_ord_N` symbol → linker error. Fix landed as a follow-up commit on top of task 4: append a no-op `DEVICE_DT_INST_DEFINE` to `drivers/dynamixel/dynamixel.c`:
+
+```c
+#define DXL_DEVICE_DEFINE(inst)                                                                    \
+	DEVICE_DT_INST_DEFINE(inst, NULL, NULL, NULL, NULL, POST_KERNEL,                           \
+			      CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, NULL);
+
+DT_INST_FOREACH_STATUS_OKAY(DXL_DEVICE_DEFINE)
+```
+
+The driver still doesn't use the device API (clients keep calling `dxl_iface_get_by_name`); the device object is purely a linker artifact so `DEVICE_DT_GET` resolves. This change is binding-and-overlay-neutral, so the consumer's overlay (`applications/motor_controller/boards/robotis_openrb_150.overlay`) keeps working.
 
 - [ ] **Step 6: Commit**
 
