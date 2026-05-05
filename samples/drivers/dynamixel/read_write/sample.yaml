@@ -1,0 +1,16 @@
+sample:
+  name: Dynamixel read/write
+  description: |
+    Pings a Dynamixel servo, reads identifying registers, then blinks the
+    onboard LED to demonstrate the typed read/write API.
+
+tests:
+  sample.drivers.dynamixel.read_write:
+    tags:
+      - drivers
+      - dynamixel
+      - samples
+    integration_platforms:
+      - arduino_mkrzero
+    filter: dt_compat_enabled("robotis,dynamixel")
+    harness: keyboard
