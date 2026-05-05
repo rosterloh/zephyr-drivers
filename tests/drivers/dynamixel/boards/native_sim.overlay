@@ -1,0 +1,30 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	dxl_uart: uart-emul {
+		compatible = "zephyr,uart-emul";
+		current-speed = <115200>;
+		tx-fifo-size = <128>;
+		rx-fifo-size = <128>;
+		status = "okay";
+
+		dxl_bus: dxl_bus {
+			status = "okay";
+			compatible = "robotis,dynamixel";
+
+			alpha: alpha {
+				id = <1>;
+				label = "ALPHA";
+			};
+
+			beta: beta {
+				id = <2>;
+				label = "BETA";
+			};
+		};
+	};
+};
