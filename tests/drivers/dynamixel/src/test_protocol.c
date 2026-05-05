@@ -178,3 +178,35 @@ ZTEST(dynamixel_protocol, test_device_error_byte_returned_positive)
 	zassert_equal(rc, DXL_ERR_DATA_RANGE,
 		      "device error must be returned as positive enum, got %d", rc);
 }
+
+ZTEST(dynamixel_protocol, test_crc_error_returns_eio)
+{
+	uint32_t val = 0;
+	int rc;
+
+	srv.corrupt_crc = true;
+	fake_servo_set_u32(&srv, 132 /* PRESENT_POSITION */, 0xFEEDFACE);
+
+	rc = dxl_read_u32(iface, 1, PRESENT_POSITION, &val);
+
+	zassert_equal(rc, -EIO,
+		      "corrupted CRC should return -EIO, got %d", rc);
+}
+
+ZTEST(dynamixel_protocol, test_write_u16_round_trip)
+{
+	zassert_ok(dxl_write_u16(iface, 1, GOAL_PWM, 0x0BEE), "write failed");
+
+	zassert_equal(srv.last_instruction, 0x03, "write instruction");
+	zassert_equal(srv.last_addr,        100,  "GOAL_PWM addr");
+	zassert_equal(srv.last_length,      2,    "2-byte param");
+	zassert_equal(fake_servo_get_u16(&srv, 100), 0x0BEE, "RAM updated");
+}
+
+ZTEST(dynamixel_protocol, test_reboot_request_bytes)
+{
+	zassert_ok(dxl_reboot(iface, 1), "reboot failed");
+
+	zassert_equal(srv.last_instruction, 0x08, "reboot instruction");
+	zassert_equal(srv.last_tx[4], 1, "id");
+}
