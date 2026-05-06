@@ -163,3 +163,29 @@ ZTEST(dynamixel_sync, test_sync_write_enospc_when_oversized)
 	zassert_equal(dxl_sync_write_u32(iface, GOAL_POSITION, ids, vals, 64),
 		      -ENOSPC, "oversized request must return -ENOSPC");
 }
+
+ZTEST(dynamixel_sync, test_sync_read_u32_happy)
+{
+	const uint8_t ids[] = {1, 2, 3, 4};
+	uint32_t vals[4] = {0};
+	int errs[4] = {-1, -1, -1, -1};
+
+	/* PRESENT_POSITION at addr 132 (4 bytes). */
+	fake_bus_set_u32(&bus, 1, 132, 0x11111111);
+	fake_bus_set_u32(&bus, 2, 132, 0x22222222);
+	fake_bus_set_u32(&bus, 3, 132, 0x33333333);
+	fake_bus_set_u32(&bus, 4, 132, 0x44444444);
+
+	int rc = dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, errs,
+				   ARRAY_SIZE(ids));
+	zassert_ok(rc, "sync_read returned %d", rc);
+
+	zassert_equal(vals[0], 0x11111111, "vals[0]");
+	zassert_equal(vals[1], 0x22222222, "vals[1]");
+	zassert_equal(vals[2], 0x33333333, "vals[2]");
+	zassert_equal(vals[3], 0x44444444, "vals[3]");
+	zassert_equal(errs[0], 0, "errs[0]");
+	zassert_equal(errs[1], 0, "errs[1]");
+	zassert_equal(errs[2], 0, "errs[2]");
+	zassert_equal(errs[3], 0, "errs[3]");
+}

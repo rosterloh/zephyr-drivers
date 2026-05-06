@@ -117,38 +117,116 @@ int dxl_sync_write_u32(int iface, enum dxl_control item,
 	return sync_write_n(iface, item, 4, ids, vals, n);
 }
 
+static void unpack_to_typed(void *vals, size_t i, uint8_t width, uint32_t v)
+{
+	switch (width) {
+	case 1: ((uint8_t  *)vals)[i] = (uint8_t)v;  break;
+	case 2: ((uint16_t *)vals)[i] = (uint16_t)v; break;
+	case 4: ((uint32_t *)vals)[i] = v;           break;
+	}
+}
+
+static int sync_read_n(int iface, enum dxl_control item, uint8_t expected_width,
+		       const uint8_t ids[], void *vals, int errs[], size_t n)
+{
+	if (iface < 0 || n == 0 || ids == NULL || vals == NULL) {
+		return -EINVAL;
+	}
+
+	struct dxl_context *ctx = dxl_get_context((uint8_t)iface);
+	uint16_t addr;
+	uint8_t width;
+
+	if (ctx == NULL) {
+		return -ENODEV;
+	}
+	if (dxl_table_lookup(item, &addr, &width) != 0) {
+		return -EINVAL;
+	}
+	if (width != expected_width) {
+		return -EINVAL;
+	}
+
+	/* params = addr_le16 (2) + data_len_le16 (2) + N (1 byte per id).
+	 * size_t arithmetic prevents wraparound for large n.
+	 */
+	size_t params_len = 4U + n;
+	size_t length_field = 1U + params_len + 2U;
+
+	if (length_field + 7U > CONFIG_DYNAMIXEL_BUFFER_SIZE) {
+		return -ENOSPC;
+	}
+
+	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
+
+	ctx->tx_frame.id = 0xFE;
+	ctx->tx_frame.length = (uint16_t)length_field;
+	ctx->tx_frame.ic = DXL_INST_SYNC_READ;
+	sys_put_le16(addr, &ctx->tx_frame.data[0]);
+	sys_put_le16(width, &ctx->tx_frame.data[2]);
+	for (size_t i = 0; i < n; i++) {
+		ctx->tx_frame.data[4 + i] = ids[i];
+	}
+
+	int summary = 0;
+
+	/* For the first slot the existing path drives TX + waits on the
+	 * semaphore. For each subsequent slot we set expected_id, re-enable RX,
+	 * and wait on the semaphore again — same single-frame primitive.
+	 */
+	for (size_t i = 0; i < n; i++) {
+		ctx->expected_id = ids[i];
+
+		int err;
+		if (i == 0) {
+			err = dxl_tx_wait_rx(ctx);
+		} else {
+			dxl_serial_rx_enable(ctx);
+			if (k_sem_take(&ctx->wait_sem,
+				       K_USEC(ctx->rxwait_to)) != 0) {
+				err = -ETIMEDOUT;
+			} else {
+				err = ctx->rx_frame_err;
+			}
+		}
+
+		int slot_rc;
+		if (err == 0) {
+			uint32_t v = 0;
+			slot_rc = dxl_parse_status_payload(ctx->rx_frame.data, width, &v);
+			if (slot_rc == 0) {
+				unpack_to_typed(vals, i, width, v);
+			}
+		} else {
+			slot_rc = err; /* -ETIMEDOUT, -EIO, -EBADMSG */
+		}
+
+		if (errs != NULL) {
+			errs[i] = slot_rc;
+		}
+		if (slot_rc != 0) {
+			summary = -EIO;
+		}
+	}
+
+	k_mutex_unlock(&ctx->iface_lock);
+	return summary;
+}
+
 int dxl_sync_read_u8(int iface, enum dxl_control item,
 		     const uint8_t ids[], uint8_t vals[], int errs[], size_t n)
 {
-	ARG_UNUSED(iface);
-	ARG_UNUSED(item);
-	ARG_UNUSED(ids);
-	ARG_UNUSED(vals);
-	ARG_UNUSED(errs);
-	ARG_UNUSED(n);
-	return -ENOSYS;
+	return sync_read_n(iface, item, 1, ids, vals, errs, n);
 }
 
 int dxl_sync_read_u16(int iface, enum dxl_control item,
 		      const uint8_t ids[], uint16_t vals[], int errs[], size_t n)
 {
-	ARG_UNUSED(iface);
-	ARG_UNUSED(item);
-	ARG_UNUSED(ids);
-	ARG_UNUSED(vals);
-	ARG_UNUSED(errs);
-	ARG_UNUSED(n);
-	return -ENOSYS;
+	return sync_read_n(iface, item, 2, ids, vals, errs, n);
 }
 
 int dxl_sync_read_u32(int iface, enum dxl_control item,
 		      const uint8_t ids[], uint32_t vals[], int errs[], size_t n)
 {
-	ARG_UNUSED(iface);
-	ARG_UNUSED(item);
-	ARG_UNUSED(ids);
-	ARG_UNUSED(vals);
-	ARG_UNUSED(errs);
-	ARG_UNUSED(n);
-	return -ENOSYS;
+	return sync_read_n(iface, item, 4, ids, vals, errs, n);
 }
