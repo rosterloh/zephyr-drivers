@@ -123,3 +123,43 @@ ZTEST(dynamixel_sync, test_sync_write_width_mismatch_returns_einval)
 	zassert_equal(dxl_sync_write_u16(iface, TORQUE_ENABLE, ids, vals_u16, 2),
 		      -EINVAL, "u16 on 1-byte register");
 }
+
+ZTEST(dynamixel_sync, test_sync_write_validation_einval)
+{
+	const uint8_t ids[] = {1, 2};
+	const uint32_t vals[] = {0, 0};
+
+	/* n = 0 is invalid. */
+	zassert_equal(dxl_sync_write_u32(iface, GOAL_POSITION, ids, vals, 0),
+		      -EINVAL, "n=0");
+
+	/* NULL ids. */
+	zassert_equal(dxl_sync_write_u32(iface, GOAL_POSITION, NULL, vals, 2),
+		      -EINVAL, "NULL ids");
+
+	/* NULL vals. */
+	zassert_equal(dxl_sync_write_u32(iface, GOAL_POSITION, ids, NULL, 2),
+		      -EINVAL, "NULL vals");
+
+	/* Out-of-range item. */
+	zassert_equal(dxl_sync_write_u32(iface, (enum dxl_control)9999, ids, vals, 2),
+		      -EINVAL, "bad item");
+}
+
+ZTEST(dynamixel_sync, test_sync_write_enospc_when_oversized)
+{
+	/* CONFIG_DYNAMIXEL_BUFFER_SIZE defaults to 256. SYNC_WRITE u32 with N
+	 * servos needs 14 + N*5 bytes. N=49 -> 259 > 256. Use a fabricated
+	 * over-large id list (the dispatcher won't actually fire — call returns
+	 * -ENOSPC before TX).
+	 */
+	uint8_t ids[64];
+	uint32_t vals[64];
+	for (size_t i = 0; i < ARRAY_SIZE(ids); i++) {
+		ids[i] = (uint8_t)(i + 1);
+		vals[i] = 0;
+	}
+
+	zassert_equal(dxl_sync_write_u32(iface, GOAL_POSITION, ids, vals, 64),
+		      -ENOSPC, "oversized request must return -ENOSPC");
+}
