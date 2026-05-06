@@ -71,3 +71,55 @@ ZTEST(dynamixel_sync, test_sync_write_u32_happy)
 	zassert_equal(fake_servo_get_u32(fake_bus_get(&bus, 3), 116), 0x300, "id 3");
 	zassert_equal(fake_servo_get_u32(fake_bus_get(&bus, 4), 116), 0x400, "id 4");
 }
+
+ZTEST(dynamixel_sync, test_sync_write_u8_happy)
+{
+	const uint8_t ids[] = {1, 2, 3, 4};
+	const uint8_t vals[] = {1, 0, 1, 0};
+
+	zassert_ok(dxl_sync_write_u8(iface, TORQUE_ENABLE, ids, vals, ARRAY_SIZE(ids)),
+		   "sync_write_u8 failed");
+
+	/* SYNC_WRITE is fire-and-forget at the protocol layer; allow the
+	 * emulated UART worker to drain before checking register state.
+	 */
+	k_sleep(K_MSEC(2));
+
+	/* TORQUE_ENABLE is at addr 64 (1 byte). */
+	zassert_equal(fake_servo_get_u8(fake_bus_get(&bus, 1), 64), 1, "id 1");
+	zassert_equal(fake_servo_get_u8(fake_bus_get(&bus, 2), 64), 0, "id 2");
+	zassert_equal(fake_servo_get_u8(fake_bus_get(&bus, 3), 64), 1, "id 3");
+	zassert_equal(fake_servo_get_u8(fake_bus_get(&bus, 4), 64), 0, "id 4");
+}
+
+ZTEST(dynamixel_sync, test_sync_write_u16_happy)
+{
+	const uint8_t ids[] = {1, 2, 3, 4};
+	const uint16_t vals[] = {0x0AAA, 0x0BBB, 0x0CCC, 0x0DDD};
+
+	zassert_ok(dxl_sync_write_u16(iface, GOAL_PWM, ids, vals, ARRAY_SIZE(ids)),
+		   "sync_write_u16 failed");
+
+	k_sleep(K_MSEC(2));
+
+	/* GOAL_PWM is at addr 100 (2 bytes). */
+	zassert_equal(fake_servo_get_u16(fake_bus_get(&bus, 1), 100), 0x0AAA, "id 1");
+	zassert_equal(fake_servo_get_u16(fake_bus_get(&bus, 2), 100), 0x0BBB, "id 2");
+	zassert_equal(fake_servo_get_u16(fake_bus_get(&bus, 3), 100), 0x0CCC, "id 3");
+	zassert_equal(fake_servo_get_u16(fake_bus_get(&bus, 4), 100), 0x0DDD, "id 4");
+}
+
+ZTEST(dynamixel_sync, test_sync_write_width_mismatch_returns_einval)
+{
+	const uint8_t ids[] = {1, 2};
+	const uint8_t vals_u8[] = {0, 0};
+	const uint16_t vals_u16[] = {0, 0};
+
+	/* u8 helper called on a 4-byte register (GOAL_POSITION). */
+	zassert_equal(dxl_sync_write_u8(iface, GOAL_POSITION, ids, vals_u8, 2),
+		      -EINVAL, "u8 on 4-byte register");
+
+	/* u16 helper called on a 1-byte register (TORQUE_ENABLE). */
+	zassert_equal(dxl_sync_write_u16(iface, TORQUE_ENABLE, ids, vals_u16, 2),
+		      -EINVAL, "u16 on 1-byte register");
+}
