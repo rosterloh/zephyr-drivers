@@ -52,4 +52,10 @@ uint8_t fake_servo_get_u8(struct fake_servo *s, uint16_t addr);
 uint16_t fake_servo_get_u16(struct fake_servo *s, uint16_t addr);
 uint32_t fake_servo_get_u32(struct fake_servo *s, uint16_t addr);
 
+/* Process one received instruction packet. The fake reacts (sends status if
+ * applicable) and updates last_tx / last_instruction / last_addr / last_length.
+ * Used by fake_bus to dispatch packets to the right servo.
+ */
+void fake_servo_handle_packet(struct fake_servo *s, const uint8_t *pkt, size_t len);
+
 #endif /* TEST_FAKE_SERVO_H_ */
