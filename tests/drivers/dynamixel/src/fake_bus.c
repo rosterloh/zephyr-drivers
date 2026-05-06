@@ -14,6 +14,8 @@
 LOG_MODULE_REGISTER(fake_bus, LOG_LEVEL_INF);
 
 #define DXL_BROADCAST_ID 0xFE
+#define INST_SYNC_WRITE  0x83
+#define INST_BULK_WRITE  0x93
 
 /* Forward decl — implemented later in the SYNC/BULK tasks. */
 static void inject_work_fn(struct k_work *w);
@@ -26,6 +28,63 @@ struct fake_servo *fake_bus_get(struct fake_bus *bus, uint8_t id)
 		}
 	}
 	return NULL;
+}
+
+/* SYNC_WRITE param layout (after instruction byte):
+ *   addr_le16 ‖ data_len_le16 ‖ {id, data[L]} × N
+ * pkt[8..9]   = addr,
+ * pkt[10..11] = data_len,
+ * pkt[12..]   = repeating (id, data[L]).
+ */
+static void dispatch_sync_write(struct fake_bus *bus, const uint8_t *pkt, size_t len)
+{
+	if (len < 14) {
+		return; /* need at least addr + len + crc */
+	}
+	uint16_t addr = sys_get_le16(&pkt[8]);
+	uint16_t data_len = sys_get_le16(&pkt[10]);
+	const uint8_t *p = &pkt[12];
+	const uint8_t *end = &pkt[len - 2]; /* before CRC */
+
+	while (p + 1 + data_len <= end) {
+		uint8_t id = p[0];
+		struct fake_servo *s = fake_bus_get(bus, id);
+		if (s != NULL && addr + data_len <= FAKE_SERVO_RAM_SIZE) {
+			memcpy(&s->control_ram[addr], &p[1], data_len);
+			s->last_addr = addr;
+			s->last_length = data_len;
+		}
+		p += 1 + data_len;
+	}
+}
+
+/* BULK_WRITE param layout (after instruction byte):
+ *   {id, addr_le16, len_le16, data[L]} × N
+ * pkt[8..]    = repeating per-entry blocks.
+ */
+static void dispatch_bulk_write(struct fake_bus *bus, const uint8_t *pkt, size_t len)
+{
+	if (len < 10) {
+		return;
+	}
+	const uint8_t *p = &pkt[8];
+	const uint8_t *end = &pkt[len - 2]; /* before CRC */
+
+	while (p + 5 <= end) {
+		uint8_t id = p[0];
+		uint16_t addr = sys_get_le16(&p[1]);
+		uint16_t data_len = sys_get_le16(&p[3]);
+		if (p + 5 + data_len > end) {
+			break;
+		}
+		struct fake_servo *s = fake_bus_get(bus, id);
+		if (s != NULL && addr + data_len <= FAKE_SERVO_RAM_SIZE) {
+			memcpy(&s->control_ram[addr], &p[5], data_len);
+			s->last_addr = addr;
+			s->last_length = data_len;
+		}
+		p += 5 + data_len;
+	}
 }
 
 static void dispatch_single_target(struct fake_bus *bus, const uint8_t *pkt, size_t len)
@@ -69,7 +128,19 @@ static void tx_data_ready_cb(const struct device *dev, size_t size, void *user_d
 		s->last_instruction = buf[7];
 	}
 
-	dispatch_single_target(bus, buf, got);
+	uint8_t inst = buf[7];
+
+	switch (inst) {
+	case INST_SYNC_WRITE:
+		dispatch_sync_write(bus, buf, got);
+		break;
+	case INST_BULK_WRITE:
+		dispatch_bulk_write(bus, buf, got);
+		break;
+	default:
+		dispatch_single_target(bus, buf, got);
+		break;
+	}
 }
 
 void fake_bus_init(struct fake_bus *bus, const uint8_t ids[], size_t n)
