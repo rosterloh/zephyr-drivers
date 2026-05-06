@@ -234,12 +234,90 @@ int dxl_sync_read_u32(int iface, enum dxl_control item,
 int dxl_bulk_read(int iface, const struct dxl_bulk_read_entry req[],
 		  uint32_t vals[], int errs[], size_t n)
 {
-	ARG_UNUSED(iface);
-	ARG_UNUSED(req);
-	ARG_UNUSED(vals);
-	ARG_UNUSED(errs);
-	ARG_UNUSED(n);
-	return -ENOSYS;
+	if (iface < 0 || n == 0 || req == NULL || vals == NULL) {
+		return -EINVAL;
+	}
+
+	struct dxl_context *ctx = dxl_get_context((uint8_t)iface);
+	if (ctx == NULL) {
+		return -ENODEV;
+	}
+
+	if (n > DXL_BULK_MAX_ENTRIES) {
+		return -EINVAL;
+	}
+
+	uint16_t addrs[DXL_BULK_MAX_ENTRIES];
+	uint8_t  widths[DXL_BULK_MAX_ENTRIES];
+	size_t total_params = 0;
+
+	for (size_t i = 0; i < n; i++) {
+		uint16_t a;
+		uint8_t  w;
+		if (dxl_table_lookup(req[i].item, &a, &w) != 0) {
+			return -EINVAL;
+		}
+		addrs[i] = a;
+		widths[i] = w;
+		total_params += 5U; /* id + addr_le16 + len_le16 */
+	}
+
+	size_t length_field = 1U + total_params + 2U;
+	if (length_field + 7U > CONFIG_DYNAMIXEL_BUFFER_SIZE) {
+		return -ENOSPC;
+	}
+
+	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
+
+	ctx->tx_frame.id = 0xFE;
+	ctx->tx_frame.length = (uint16_t)length_field;
+	ctx->tx_frame.ic = DXL_INST_BULK_READ;
+	uint8_t *p = &ctx->tx_frame.data[0];
+	for (size_t i = 0; i < n; i++) {
+		*p++ = req[i].id;
+		sys_put_le16(addrs[i], p);  p += 2;
+		sys_put_le16(widths[i], p); p += 2;
+	}
+
+	int summary = 0;
+	for (size_t i = 0; i < n; i++) {
+		ctx->expected_id = req[i].id;
+
+		int err;
+		if (i == 0) {
+			err = dxl_tx_wait_rx(ctx);
+		} else {
+			dxl_serial_rx_enable(ctx);
+			if (k_sem_take(&ctx->wait_sem,
+				       K_USEC(ctx->rxwait_to)) != 0) {
+				err = -ETIMEDOUT;
+			} else {
+				err = ctx->rx_frame_err;
+			}
+		}
+
+		int slot_rc;
+		if (err == 0) {
+			uint32_t v = 0;
+			slot_rc = dxl_parse_status_payload(ctx->rx_frame.data,
+							   widths[i], &v);
+			if (slot_rc == 0) {
+				vals[i] = v;
+			}
+		} else {
+			slot_rc = err;
+		}
+
+		if (errs != NULL) {
+			errs[i] = slot_rc;
+		}
+		if (slot_rc != 0) {
+			summary = -EIO;
+		}
+	}
+
+	k_mutex_unlock(&ctx->iface_lock);
+	return summary;
 }
 
 int dxl_bulk_write(int iface, const struct dxl_bulk_write_entry req[], size_t n)
