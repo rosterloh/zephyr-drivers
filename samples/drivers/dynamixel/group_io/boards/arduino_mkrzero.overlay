@@ -1,0 +1,39 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Arduino MKR Zero with a half-duplex Dynamixel transceiver on SERCOM5.
+ * TX_EN is wired to A6 (active-low: the transceiver receives when the pin
+ * is low, transmits when high).
+ *
+ *   SERCOM5 TX --[transceiver]-- D+
+ *   SERCOM5 RX --[transceiver]-- D-
+ *   A6      --[transceiver]-- DIR
+ *
+ * Two servos are declared (ids 1 and 2) so the SYNC/BULK group instructions
+ * have something to address. The sample still runs with a single servo on
+ * the bus — the unreachable id will simply be reported in the per-slot
+ * errs[] output.
+ */
+
+&sercom5 {
+	status = "okay";
+	current-speed = <57600>;
+
+	dxl_bus: dxl-bus {
+		status = "okay";
+		compatible = "robotis,dynamixel";
+		tx-en-gpios = <&arduino_mkr_header 21 GPIO_ACTIVE_LOW>;
+
+		servo0: servo0 {
+			id = <1>;
+			label = "servo0";
+		};
+
+		servo1: servo1 {
+			id = <2>;
+			label = "servo1";
+		};
+	};
+};

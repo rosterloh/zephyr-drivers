@@ -60,7 +60,7 @@ static void send_status(struct fake_servo *s, uint8_t error, const uint8_t *para
 	uart_emul_put_rx_data(s->uart, buf, total);
 }
 
-static void handle_packet(struct fake_servo *s, const uint8_t *pkt, size_t len)
+void fake_servo_handle_packet(struct fake_servo *s, const uint8_t *pkt, size_t len)
 {
 	uint8_t id;
 	uint16_t length;
@@ -139,7 +139,7 @@ static void tx_data_ready_cb(const struct device *dev, size_t size, void *user_d
 	if (got == 0) {
 		return;
 	}
-	handle_packet(s, buf, got);
+	fake_servo_handle_packet(s, buf, got);
 }
 
 void fake_servo_init(struct fake_servo *s, uint8_t id)

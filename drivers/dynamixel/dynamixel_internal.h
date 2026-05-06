@@ -159,4 +159,20 @@ int dxl_table_lookup(enum dxl_control item, uint16_t *addr, uint8_t *length);
 /* Model info (currently unused by driver code; available for unit conversions). */
 extern const struct dxl_model_info dxl_info_x330;
 
+/**
+ * @brief Parse a status-packet payload into a uint32_t value.
+ *
+ * @param data   Pointer to the status packet's data area, where data[0] is
+ *               the device-error byte and data[1..] is the value payload.
+ * @param width  Register width in bytes. Must be 1, 2, or 4.
+ * @param out    On success, receives the value as a uint32_t (LE-decoded).
+ *
+ * @pre out must not be NULL.
+ *
+ * @retval 0       Device replied success and *out is valid.
+ * @retval >0      Device-error byte (see enum dxl_error). *out untouched.
+ * @retval -EINVAL Unsupported width.
+ */
+int dxl_parse_status_payload(const uint8_t *data, uint8_t width, uint32_t *out);
+
 #endif /* ZEPHYR_INCLUDE_DYNAMIXEL_INTERNAL_H_ */

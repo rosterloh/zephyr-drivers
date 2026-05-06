@@ -8,9 +8,12 @@ project(test_dynamixel)
 target_sources(app PRIVATE
     src/main.c
     src/fake_servo.c
+    src/fake_bus.c
     src/test_protocol.c
     src/test_tables.c
     src/test_motors.c
+    src/test_sync.c
+    src/test_bulk.c
 )
 
 zephyr_include_directories(./src)

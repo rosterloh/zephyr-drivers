@@ -13,9 +13,17 @@ if DYNAMIXEL
 config DYNAMIXEL_BUFFER_SIZE
 	int "Dynamixel buffer size"
 	default 256
-	range 64 256
+	range 64 1024
 	help
-	  Dynamixel buffer size.
+	  Maximum frame size (bytes) for the Dynamixel TX/RX buffers.
+	  Must be large enough for the largest packet you intend to send.
+
+	  SYNC_WRITE  ~= 14 + N * (1 + L)
+	  BULK_WRITE  ~= 10 + N * (5 + L)
+
+	  where N is the number of servos addressed and L is the register
+	  width in bytes. The default of 256 covers ~12 servos x 4-byte
+	  writes; raise it if you need more.
 
 module = DYNAMIXEL
 module-str = dynamixel
