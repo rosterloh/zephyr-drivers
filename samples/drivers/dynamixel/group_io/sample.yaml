@@ -1,0 +1,16 @@
+sample:
+  name: Dynamixel group I/O
+  description: |
+    Demonstrates the SYNC_READ, SYNC_WRITE, BULK_READ and BULK_WRITE group
+    instructions across multiple servos in single transactions.
+
+tests:
+  sample.drivers.dynamixel.group_io:
+    tags:
+      - drivers
+      - dynamixel
+      - samples
+    integration_platforms:
+      - arduino_mkrzero
+    filter: dt_compat_enabled("robotis,dynamixel")
+    harness: keyboard
