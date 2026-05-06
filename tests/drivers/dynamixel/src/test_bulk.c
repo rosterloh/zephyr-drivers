@@ -76,3 +76,39 @@ ZTEST(dynamixel_bulk, test_bulk_read_happy_mixed_widths)
 	zassert_equal(errs[2], 0, "errs[2]");
 	zassert_equal(errs[3], 0, "errs[3]");
 }
+
+ZTEST(dynamixel_bulk, test_bulk_read_validation_einval)
+{
+	const struct dxl_bulk_read_entry req[] = {
+		{ .id = 1, .item = PRESENT_POSITION },
+		{ .id = 2, .item = PRESENT_POSITION },
+	};
+	const struct dxl_bulk_read_entry bad_req[] = {
+		{ .id = 1, .item = (enum dxl_control)9999 },
+	};
+	uint32_t vals[2] = {0};
+
+	zassert_equal(dxl_bulk_read(iface, req, vals, NULL, 0),
+		      -EINVAL, "n=0");
+	zassert_equal(dxl_bulk_read(iface, NULL, vals, NULL, 2),
+		      -EINVAL, "NULL req");
+	zassert_equal(dxl_bulk_read(iface, req, NULL, NULL, 2),
+		      -EINVAL, "NULL vals");
+	zassert_equal(dxl_bulk_read(iface, bad_req, vals, NULL, 1),
+		      -EINVAL, "bad item");
+}
+
+ZTEST(dynamixel_bulk, test_bulk_read_enospc_when_oversized)
+{
+	struct dxl_bulk_read_entry req[64];
+	uint32_t vals[64];
+	for (size_t i = 0; i < ARRAY_SIZE(req); i++) {
+		req[i].id = (uint8_t)((i % 250) + 1);
+		req[i].item = PRESENT_POSITION;
+		vals[i] = 0;
+	}
+
+	/* BULK_READ packet is 10 + N*5 bytes. For N=64 -> 330 > 256 default. */
+	zassert_equal(dxl_bulk_read(iface, req, vals, NULL, 64),
+		      -ENOSPC, "oversized BULK_READ must return -ENOSPC");
+}
