@@ -96,8 +96,7 @@ static void dispatch_bulk_write(struct fake_bus *bus, const uint8_t *pkt, size_t
  * READ instruction packet for that servo. This way fake_servo's existing
  * drop_response / corrupt_crc / error_byte knobs apply automatically.
  */
-static void emit_status_via_synthetic_read(struct fake_servo *s,
-					   uint16_t addr, uint16_t length)
+static void emit_status_via_synthetic_read(struct fake_servo *s, uint16_t addr, uint16_t length)
 {
 	uint8_t synth[14];
 	uint16_t length_field = 1 /* inst */ + 4 /* params */ + 2 /* crc */;
@@ -138,9 +137,9 @@ static void dispatch_bulk_read(struct fake_bus *bus, const uint8_t *pkt, size_t 
 	bus->prev_dropped = false;
 
 	while (p + 5 <= end && entries < FAKE_BUS_MAX_SERVOS) {
-		bus->pending_ids[entries]   = p[0];
+		bus->pending_ids[entries] = p[0];
 		bus->pending_addrs[entries] = sys_get_le16(&p[1]);
-		bus->pending_lens[entries]  = sys_get_le16(&p[3]);
+		bus->pending_lens[entries] = sys_get_le16(&p[3]);
 		entries++;
 		p += 5;
 	}
@@ -323,8 +322,7 @@ static void inject_work_fn(struct k_work *w)
 	bus->prev_dropped = dropped;
 
 	if (bus->pending_idx < bus->pending_n) {
-		uint32_t gap = bus->prev_dropped ? FAKE_BUS_DROP_GAP_US
-						 : FAKE_BUS_SLOT_GAP_US;
+		uint32_t gap = bus->prev_dropped ? FAKE_BUS_DROP_GAP_US : FAKE_BUS_SLOT_GAP_US;
 		k_work_reschedule(&bus->inject_work, K_USEC(gap));
 	} else {
 		bus->pending_active = false;

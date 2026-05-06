@@ -234,12 +234,12 @@ int dxl_write_u32(int iface, uint8_t id, enum dxl_control item, uint32_t val);
  * @retval -ENOSPC Computed packet exceeds CONFIG_DYNAMIXEL_BUFFER_SIZE.
  * @retval -ENODEV Interface not initialised.
  */
-int dxl_sync_write_u8 (int iface, enum dxl_control item,
-		       const uint8_t ids[], const uint8_t  vals[], size_t n);
-int dxl_sync_write_u16(int iface, enum dxl_control item,
-		       const uint8_t ids[], const uint16_t vals[], size_t n);
-int dxl_sync_write_u32(int iface, enum dxl_control item,
-		       const uint8_t ids[], const uint32_t vals[], size_t n);
+int dxl_sync_write_u8(int iface, enum dxl_control item, const uint8_t ids[], const uint8_t vals[],
+		      size_t n);
+int dxl_sync_write_u16(int iface, enum dxl_control item, const uint8_t ids[], const uint16_t vals[],
+		       size_t n);
+int dxl_sync_write_u32(int iface, enum dxl_control item, const uint8_t ids[], const uint32_t vals[],
+		       size_t n);
 
 /**
  * @brief Read the same register from multiple servos in one transaction.
@@ -263,14 +263,11 @@ int dxl_sync_write_u32(int iface, enum dxl_control item,
  * @retval -ENOSPC Computed packet exceeds CONFIG_DYNAMIXEL_BUFFER_SIZE.
  * @retval -ENODEV Interface not initialised.
  */
-int dxl_sync_read_u8 (int iface, enum dxl_control item,
-		      const uint8_t ids[], uint8_t  vals[],
+int dxl_sync_read_u8(int iface, enum dxl_control item, const uint8_t ids[], uint8_t vals[],
+		     int errs[], size_t n);
+int dxl_sync_read_u16(int iface, enum dxl_control item, const uint8_t ids[], uint16_t vals[],
 		      int errs[], size_t n);
-int dxl_sync_read_u16(int iface, enum dxl_control item,
-		      const uint8_t ids[], uint16_t vals[],
-		      int errs[], size_t n);
-int dxl_sync_read_u32(int iface, enum dxl_control item,
-		      const uint8_t ids[], uint32_t vals[],
+int dxl_sync_read_u32(int iface, enum dxl_control item, const uint8_t ids[], uint32_t vals[],
 		      int errs[], size_t n);
 
 /**
@@ -311,8 +308,8 @@ struct dxl_bulk_write_entry {
  * @retval -ENOSPC Computed packet exceeds CONFIG_DYNAMIXEL_BUFFER_SIZE.
  * @retval -ENODEV Interface not initialised.
  */
-int dxl_bulk_read(int iface, const struct dxl_bulk_read_entry req[],
-		  uint32_t vals[], int errs[], size_t n);
+int dxl_bulk_read(int iface, const struct dxl_bulk_read_entry req[], uint32_t vals[], int errs[],
+		  size_t n);
 
 /**
  * @brief Write different registers to multiple servos in one transaction.

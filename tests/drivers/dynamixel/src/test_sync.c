@@ -116,12 +116,12 @@ ZTEST(dynamixel_sync, test_sync_write_width_mismatch_returns_einval)
 	const uint16_t vals_u16[] = {0, 0};
 
 	/* u8 helper called on a 4-byte register (GOAL_POSITION). */
-	zassert_equal(dxl_sync_write_u8(iface, GOAL_POSITION, ids, vals_u8, 2),
-		      -EINVAL, "u8 on 4-byte register");
+	zassert_equal(dxl_sync_write_u8(iface, GOAL_POSITION, ids, vals_u8, 2), -EINVAL,
+		      "u8 on 4-byte register");
 
 	/* u16 helper called on a 1-byte register (TORQUE_ENABLE). */
-	zassert_equal(dxl_sync_write_u16(iface, TORQUE_ENABLE, ids, vals_u16, 2),
-		      -EINVAL, "u16 on 1-byte register");
+	zassert_equal(dxl_sync_write_u16(iface, TORQUE_ENABLE, ids, vals_u16, 2), -EINVAL,
+		      "u16 on 1-byte register");
 }
 
 ZTEST(dynamixel_sync, test_sync_write_validation_einval)
@@ -130,20 +130,17 @@ ZTEST(dynamixel_sync, test_sync_write_validation_einval)
 	const uint32_t vals[] = {0, 0};
 
 	/* n = 0 is invalid. */
-	zassert_equal(dxl_sync_write_u32(iface, GOAL_POSITION, ids, vals, 0),
-		      -EINVAL, "n=0");
+	zassert_equal(dxl_sync_write_u32(iface, GOAL_POSITION, ids, vals, 0), -EINVAL, "n=0");
 
 	/* NULL ids. */
-	zassert_equal(dxl_sync_write_u32(iface, GOAL_POSITION, NULL, vals, 2),
-		      -EINVAL, "NULL ids");
+	zassert_equal(dxl_sync_write_u32(iface, GOAL_POSITION, NULL, vals, 2), -EINVAL, "NULL ids");
 
 	/* NULL vals. */
-	zassert_equal(dxl_sync_write_u32(iface, GOAL_POSITION, ids, NULL, 2),
-		      -EINVAL, "NULL vals");
+	zassert_equal(dxl_sync_write_u32(iface, GOAL_POSITION, ids, NULL, 2), -EINVAL, "NULL vals");
 
 	/* Out-of-range item. */
-	zassert_equal(dxl_sync_write_u32(iface, (enum dxl_control)9999, ids, vals, 2),
-		      -EINVAL, "bad item");
+	zassert_equal(dxl_sync_write_u32(iface, (enum dxl_control)9999, ids, vals, 2), -EINVAL,
+		      "bad item");
 }
 
 ZTEST(dynamixel_sync, test_sync_write_enospc_when_oversized)
@@ -160,8 +157,8 @@ ZTEST(dynamixel_sync, test_sync_write_enospc_when_oversized)
 		vals[i] = 0;
 	}
 
-	zassert_equal(dxl_sync_write_u32(iface, GOAL_POSITION, ids, vals, 64),
-		      -ENOSPC, "oversized request must return -ENOSPC");
+	zassert_equal(dxl_sync_write_u32(iface, GOAL_POSITION, ids, vals, 64), -ENOSPC,
+		      "oversized request must return -ENOSPC");
 }
 
 ZTEST(dynamixel_sync, test_sync_read_u32_happy)
@@ -176,8 +173,7 @@ ZTEST(dynamixel_sync, test_sync_read_u32_happy)
 	fake_bus_set_u32(&bus, 3, 132, 0x33333333);
 	fake_bus_set_u32(&bus, 4, 132, 0x44444444);
 
-	int rc = dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, errs,
-				   ARRAY_SIZE(ids));
+	int rc = dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, errs, ARRAY_SIZE(ids));
 	zassert_ok(rc, "sync_read returned %d", rc);
 
 	zassert_equal(vals[0], 0x11111111, "vals[0]");
@@ -202,8 +198,7 @@ ZTEST(dynamixel_sync, test_sync_read_u8_happy)
 	fake_bus_set_u8(&bus, 3, 64, 1);
 	fake_bus_set_u8(&bus, 4, 64, 0);
 
-	zassert_ok(dxl_sync_read_u8(iface, TORQUE_ENABLE, ids, vals, errs,
-				    ARRAY_SIZE(ids)),
+	zassert_ok(dxl_sync_read_u8(iface, TORQUE_ENABLE, ids, vals, errs, ARRAY_SIZE(ids)),
 		   "sync_read_u8 failed");
 	zassert_equal(vals[0], 1, "");
 	zassert_equal(vals[1], 0, "");
@@ -223,8 +218,7 @@ ZTEST(dynamixel_sync, test_sync_read_u16_happy)
 	fake_bus_set_u16(&bus, 3, 100, 0x3333);
 	fake_bus_set_u16(&bus, 4, 100, 0x4444);
 
-	zassert_ok(dxl_sync_read_u16(iface, GOAL_PWM, ids, vals, errs,
-				     ARRAY_SIZE(ids)),
+	zassert_ok(dxl_sync_read_u16(iface, GOAL_PWM, ids, vals, errs, ARRAY_SIZE(ids)),
 		   "sync_read_u16 failed");
 	zassert_equal(vals[0], 0x1111, "");
 	zassert_equal(vals[1], 0x2222, "");
@@ -246,8 +240,7 @@ ZTEST(dynamixel_sync, test_sync_read_partial_drop)
 	/* Servo 3 silently fails to respond. Servos 1/2/4 reply normally. */
 	fake_bus_get(&bus, 3)->drop_response = true;
 
-	int rc = dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, errs,
-				   ARRAY_SIZE(ids));
+	int rc = dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, errs, ARRAY_SIZE(ids));
 
 	zassert_equal(rc, -EIO, "summary must be -EIO when any slot fails, got %d", rc);
 	zassert_equal(errs[0], 0, "errs[0]");
@@ -277,13 +270,12 @@ ZTEST(dynamixel_sync, test_sync_read_device_error_byte)
 	 */
 	fake_bus_get(&bus, 2)->error_byte = DXL_ERR_DATA_RANGE;
 
-	int rc = dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, errs,
-				   ARRAY_SIZE(ids));
+	int rc = dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, errs, ARRAY_SIZE(ids));
 
 	zassert_equal(rc, -EIO, "summary must be -EIO");
 	zassert_equal(errs[0], 0, "errs[0]");
-	zassert_equal(errs[1], DXL_ERR_DATA_RANGE,
-		      "errs[1] must be device-error byte, got %d", errs[1]);
+	zassert_equal(errs[1], DXL_ERR_DATA_RANGE, "errs[1] must be device-error byte, got %d",
+		      errs[1]);
 	zassert_equal(errs[2], 0, "errs[2]");
 	zassert_equal(errs[3], 0, "errs[3]");
 	zassert_equal(vals[1], 0, "vals[1] must be untouched on dev err");
@@ -312,14 +304,13 @@ ZTEST(dynamixel_sync, test_sync_read_wrong_id_reply_is_timeout)
 	s3->id = 5; /* respond as id 5 even though id 3 was requested */
 	s3->answer_any_id = true;
 
-	int rc = dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, errs,
-				   ARRAY_SIZE(ids));
+	int rc = dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, errs, ARRAY_SIZE(ids));
 
 	zassert_equal(rc, -EIO, "summary must be -EIO");
 	zassert_equal(errs[0], 0, "errs[0]");
 	zassert_equal(errs[1], 0, "errs[1]");
-	zassert_equal(errs[2], -ETIMEDOUT,
-		      "errs[2] expected -ETIMEDOUT for wrong-id, got %d", errs[2]);
+	zassert_equal(errs[2], -ETIMEDOUT, "errs[2] expected -ETIMEDOUT for wrong-id, got %d",
+		      errs[2]);
 	zassert_equal(errs[3], 0, "errs[3]");
 }
 
@@ -338,12 +329,10 @@ ZTEST(dynamixel_sync, test_sync_read_errs_null_collapses_to_eio)
 	int rc = dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals,
 				   /*errs=*/NULL, ARRAY_SIZE(ids));
 
-	zassert_equal(rc, -EIO,
-		      "errs=NULL must still collapse failures to -EIO, got %d", rc);
+	zassert_equal(rc, -EIO, "errs=NULL must still collapse failures to -EIO, got %d", rc);
 	zassert_equal(vals[0], 0xAAAA0001, "vals[0]");
 	zassert_equal(vals[1], 0xAAAA0002, "vals[1]");
-	zassert_equal(vals[2], 0xFEEDFEED,
-		      "vals[2] must be untouched even when errs is NULL");
+	zassert_equal(vals[2], 0xFEEDFEED, "vals[2] must be untouched even when errs is NULL");
 	zassert_equal(vals[3], 0xAAAA0004, "vals[3]");
 }
 
@@ -352,18 +341,18 @@ ZTEST(dynamixel_sync, test_sync_read_validation_einval)
 	const uint8_t ids[] = {1, 2};
 	uint32_t vals[2] = {0};
 
-	zassert_equal(dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, NULL, 0),
-		      -EINVAL, "n=0");
-	zassert_equal(dxl_sync_read_u32(iface, PRESENT_POSITION, NULL, vals, NULL, 2),
-		      -EINVAL, "NULL ids");
-	zassert_equal(dxl_sync_read_u32(iface, PRESENT_POSITION, ids, NULL, NULL, 2),
-		      -EINVAL, "NULL vals");
-	zassert_equal(dxl_sync_read_u32(iface, (enum dxl_control)9999, ids, vals, NULL, 2),
-		      -EINVAL, "bad item");
+	zassert_equal(dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, NULL, 0), -EINVAL,
+		      "n=0");
+	zassert_equal(dxl_sync_read_u32(iface, PRESENT_POSITION, NULL, vals, NULL, 2), -EINVAL,
+		      "NULL ids");
+	zassert_equal(dxl_sync_read_u32(iface, PRESENT_POSITION, ids, NULL, NULL, 2), -EINVAL,
+		      "NULL vals");
+	zassert_equal(dxl_sync_read_u32(iface, (enum dxl_control)9999, ids, vals, NULL, 2), -EINVAL,
+		      "bad item");
 
 	uint8_t vals_u8[2] = {0};
-	zassert_equal(dxl_sync_read_u8(iface, PRESENT_POSITION, ids, vals_u8, NULL, 2),
-		      -EINVAL, "u8 on 4-byte register");
+	zassert_equal(dxl_sync_read_u8(iface, PRESENT_POSITION, ids, vals_u8, NULL, 2), -EINVAL,
+		      "u8 on 4-byte register");
 }
 
 ZTEST(dynamixel_sync, test_sync_read_enospc_when_oversized)
@@ -376,6 +365,6 @@ ZTEST(dynamixel_sync, test_sync_read_enospc_when_oversized)
 	}
 
 	/* SYNC_READ packet is 14 + N bytes. For N=256 -> 270 > 256 default. */
-	zassert_equal(dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, NULL, 256),
-		      -ENOSPC, "oversized SYNC_READ must return -ENOSPC");
+	zassert_equal(dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, NULL, 256), -ENOSPC,
+		      "oversized SYNC_READ must return -ENOSPC");
 }

@@ -51,21 +51,20 @@ ZTEST_SUITE(dynamixel_bulk, NULL, NULL, bulk_before_each, bulk_after_each, NULL)
 ZTEST(dynamixel_bulk, test_bulk_read_happy_mixed_widths)
 {
 	const struct dxl_bulk_read_entry req[] = {
-		{ .id = 1, .item = TORQUE_ENABLE    }, /* width 1, addr 64 */
-		{ .id = 2, .item = GOAL_PWM         }, /* width 2, addr 100 */
-		{ .id = 3, .item = PRESENT_POSITION }, /* width 4, addr 132 */
-		{ .id = 4, .item = TORQUE_ENABLE    }, /* width 1 */
+		{.id = 1, .item = TORQUE_ENABLE},    /* width 1, addr 64 */
+		{.id = 2, .item = GOAL_PWM},         /* width 2, addr 100 */
+		{.id = 3, .item = PRESENT_POSITION}, /* width 4, addr 132 */
+		{.id = 4, .item = TORQUE_ENABLE},    /* width 1 */
 	};
 	uint32_t vals[4] = {0};
 	int errs[4] = {-1, -1, -1, -1};
 
-	fake_bus_set_u8 (&bus, 1, 64,  1);
+	fake_bus_set_u8(&bus, 1, 64, 1);
 	fake_bus_set_u16(&bus, 2, 100, 0xCAFE);
 	fake_bus_set_u32(&bus, 3, 132, 0xDEADBEEF);
-	fake_bus_set_u8 (&bus, 4, 64,  0);
+	fake_bus_set_u8(&bus, 4, 64, 0);
 
-	zassert_ok(dxl_bulk_read(iface, req, vals, errs, ARRAY_SIZE(req)),
-		   "bulk_read failed");
+	zassert_ok(dxl_bulk_read(iface, req, vals, errs, ARRAY_SIZE(req)), "bulk_read failed");
 
 	zassert_equal(vals[0], 1, "vals[0]");
 	zassert_equal(vals[1], 0xCAFE, "vals[1]");
@@ -80,22 +79,18 @@ ZTEST(dynamixel_bulk, test_bulk_read_happy_mixed_widths)
 ZTEST(dynamixel_bulk, test_bulk_read_validation_einval)
 {
 	const struct dxl_bulk_read_entry req[] = {
-		{ .id = 1, .item = PRESENT_POSITION },
-		{ .id = 2, .item = PRESENT_POSITION },
+		{.id = 1, .item = PRESENT_POSITION},
+		{.id = 2, .item = PRESENT_POSITION},
 	};
 	const struct dxl_bulk_read_entry bad_req[] = {
-		{ .id = 1, .item = (enum dxl_control)9999 },
+		{.id = 1, .item = (enum dxl_control)9999},
 	};
 	uint32_t vals[2] = {0};
 
-	zassert_equal(dxl_bulk_read(iface, req, vals, NULL, 0),
-		      -EINVAL, "n=0");
-	zassert_equal(dxl_bulk_read(iface, NULL, vals, NULL, 2),
-		      -EINVAL, "NULL req");
-	zassert_equal(dxl_bulk_read(iface, req, NULL, NULL, 2),
-		      -EINVAL, "NULL vals");
-	zassert_equal(dxl_bulk_read(iface, bad_req, vals, NULL, 1),
-		      -EINVAL, "bad item");
+	zassert_equal(dxl_bulk_read(iface, req, vals, NULL, 0), -EINVAL, "n=0");
+	zassert_equal(dxl_bulk_read(iface, NULL, vals, NULL, 2), -EINVAL, "NULL req");
+	zassert_equal(dxl_bulk_read(iface, req, NULL, NULL, 2), -EINVAL, "NULL vals");
+	zassert_equal(dxl_bulk_read(iface, bad_req, vals, NULL, 1), -EINVAL, "bad item");
 }
 
 ZTEST(dynamixel_bulk, test_bulk_read_enospc_when_oversized)
@@ -109,21 +104,20 @@ ZTEST(dynamixel_bulk, test_bulk_read_enospc_when_oversized)
 	}
 
 	/* BULK_READ packet is 10 + N*5 bytes. For N=64 -> 330 > 256 default. */
-	zassert_equal(dxl_bulk_read(iface, req, vals, NULL, 64),
-		      -ENOSPC, "oversized BULK_READ must return -ENOSPC");
+	zassert_equal(dxl_bulk_read(iface, req, vals, NULL, 64), -ENOSPC,
+		      "oversized BULK_READ must return -ENOSPC");
 }
 
 ZTEST(dynamixel_bulk, test_bulk_write_happy_mixed_widths)
 {
 	const struct dxl_bulk_write_entry req[] = {
-		{ .id = 1, .item = TORQUE_ENABLE,    .value = 1          },
-		{ .id = 2, .item = GOAL_PWM,         .value = 0x0BEE     },
-		{ .id = 3, .item = GOAL_POSITION,    .value = 0xDEADBEEF },
-		{ .id = 4, .item = TORQUE_ENABLE,    .value = 0          },
+		{.id = 1, .item = TORQUE_ENABLE, .value = 1},
+		{.id = 2, .item = GOAL_PWM, .value = 0x0BEE},
+		{.id = 3, .item = GOAL_POSITION, .value = 0xDEADBEEF},
+		{.id = 4, .item = TORQUE_ENABLE, .value = 0},
 	};
 
-	zassert_ok(dxl_bulk_write(iface, req, ARRAY_SIZE(req)),
-		   "bulk_write failed");
+	zassert_ok(dxl_bulk_write(iface, req, ARRAY_SIZE(req)), "bulk_write failed");
 
 	/* BULK_WRITE is fire-and-forget at the protocol layer. The emulated
 	 * UART drains TX bytes through a worker thread, so we yield long
@@ -132,27 +126,24 @@ ZTEST(dynamixel_bulk, test_bulk_write_happy_mixed_widths)
 	 */
 	k_sleep(K_MSEC(2));
 
-	zassert_equal(fake_servo_get_u8 (fake_bus_get(&bus, 1), 64),  1,          "id 1");
-	zassert_equal(fake_servo_get_u16(fake_bus_get(&bus, 2), 100), 0x0BEE,     "id 2");
+	zassert_equal(fake_servo_get_u8(fake_bus_get(&bus, 1), 64), 1, "id 1");
+	zassert_equal(fake_servo_get_u16(fake_bus_get(&bus, 2), 100), 0x0BEE, "id 2");
 	zassert_equal(fake_servo_get_u32(fake_bus_get(&bus, 3), 116), 0xDEADBEEF, "id 3");
-	zassert_equal(fake_servo_get_u8 (fake_bus_get(&bus, 4), 64),  0,          "id 4");
+	zassert_equal(fake_servo_get_u8(fake_bus_get(&bus, 4), 64), 0, "id 4");
 }
 
 ZTEST(dynamixel_bulk, test_bulk_write_validation_einval)
 {
 	const struct dxl_bulk_write_entry req[] = {
-		{ .id = 1, .item = GOAL_POSITION, .value = 0 },
+		{.id = 1, .item = GOAL_POSITION, .value = 0},
 	};
 	const struct dxl_bulk_write_entry bad_req[] = {
-		{ .id = 1, .item = (enum dxl_control)9999, .value = 0 },
+		{.id = 1, .item = (enum dxl_control)9999, .value = 0},
 	};
 
-	zassert_equal(dxl_bulk_write(iface, req, 0),
-		      -EINVAL, "n=0");
-	zassert_equal(dxl_bulk_write(iface, NULL, 1),
-		      -EINVAL, "NULL req");
-	zassert_equal(dxl_bulk_write(iface, bad_req, 1),
-		      -EINVAL, "bad item");
+	zassert_equal(dxl_bulk_write(iface, req, 0), -EINVAL, "n=0");
+	zassert_equal(dxl_bulk_write(iface, NULL, 1), -EINVAL, "NULL req");
+	zassert_equal(dxl_bulk_write(iface, bad_req, 1), -EINVAL, "bad item");
 }
 
 ZTEST(dynamixel_bulk, test_bulk_write_enospc_when_oversized)
@@ -165,6 +156,6 @@ ZTEST(dynamixel_bulk, test_bulk_write_enospc_when_oversized)
 	}
 
 	/* BULK_WRITE packet is 10 + N*(5+L). For N=32, L=4 -> 298 > 256 default. */
-	zassert_equal(dxl_bulk_write(iface, req, 32),
-		      -ENOSPC, "oversized BULK_WRITE must return -ENOSPC");
+	zassert_equal(dxl_bulk_write(iface, req, 32), -ENOSPC,
+		      "oversized BULK_WRITE must return -ENOSPC");
 }

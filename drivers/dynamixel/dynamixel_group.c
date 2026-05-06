@@ -13,10 +13,10 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(dynamixel, CONFIG_DYNAMIXEL_LOG_LEVEL);
 
-#define DXL_INST_SYNC_READ   0x82
-#define DXL_INST_SYNC_WRITE  0x83
-#define DXL_INST_BULK_READ   0x92
-#define DXL_INST_BULK_WRITE  0x93
+#define DXL_INST_SYNC_READ  0x82
+#define DXL_INST_SYNC_WRITE 0x83
+#define DXL_INST_BULK_READ  0x92
+#define DXL_INST_BULK_WRITE 0x93
 
 /* Driver-side cap on per-call entries for BULK paths. Bounds the
  * stack-allocated `addrs[]` and `widths[]` working arrays. Sync paths do not
@@ -28,10 +28,17 @@ LOG_MODULE_DECLARE(dynamixel, CONFIG_DYNAMIXEL_LOG_LEVEL);
 static inline void pack_le(uint8_t *dst, uint8_t width, uint32_t v)
 {
 	switch (width) {
-	case 1: dst[0] = (uint8_t)v; break;
-	case 2: sys_put_le16((uint16_t)v, dst); break;
-	case 4: sys_put_le32(v, dst); break;
-	default: break;
+	case 1:
+		dst[0] = (uint8_t)v;
+		break;
+	case 2:
+		sys_put_le16((uint16_t)v, dst);
+		break;
+	case 4:
+		sys_put_le32(v, dst);
+		break;
+	default:
+		break;
 	}
 }
 
@@ -82,9 +89,15 @@ static int sync_write_n(int iface, enum dxl_control item, uint8_t expected_width
 	for (size_t i = 0; i < n; i++) {
 		*p++ = ids[i];
 		switch (width) {
-		case 1: pack_le(p, 1, vbytes[i]); break;
-		case 2: pack_le(p, 2, v16[i]);    break;
-		case 4: pack_le(p, 4, v32[i]);    break;
+		case 1:
+			pack_le(p, 1, vbytes[i]);
+			break;
+		case 2:
+			pack_le(p, 2, v16[i]);
+			break;
+		case 4:
+			pack_le(p, 4, v32[i]);
+			break;
 		}
 		p += width;
 	}
@@ -99,20 +112,20 @@ static int sync_write_n(int iface, enum dxl_control item, uint8_t expected_width
 	return 0;
 }
 
-int dxl_sync_write_u8(int iface, enum dxl_control item,
-		      const uint8_t ids[], const uint8_t vals[], size_t n)
+int dxl_sync_write_u8(int iface, enum dxl_control item, const uint8_t ids[], const uint8_t vals[],
+		      size_t n)
 {
 	return sync_write_n(iface, item, 1, ids, vals, n);
 }
 
-int dxl_sync_write_u16(int iface, enum dxl_control item,
-		       const uint8_t ids[], const uint16_t vals[], size_t n)
+int dxl_sync_write_u16(int iface, enum dxl_control item, const uint8_t ids[], const uint16_t vals[],
+		       size_t n)
 {
 	return sync_write_n(iface, item, 2, ids, vals, n);
 }
 
-int dxl_sync_write_u32(int iface, enum dxl_control item,
-		       const uint8_t ids[], const uint32_t vals[], size_t n)
+int dxl_sync_write_u32(int iface, enum dxl_control item, const uint8_t ids[], const uint32_t vals[],
+		       size_t n)
 {
 	return sync_write_n(iface, item, 4, ids, vals, n);
 }
@@ -120,9 +133,15 @@ int dxl_sync_write_u32(int iface, enum dxl_control item,
 static void unpack_to_typed(void *vals, size_t i, uint8_t width, uint32_t v)
 {
 	switch (width) {
-	case 1: ((uint8_t  *)vals)[i] = (uint8_t)v;  break;
-	case 2: ((uint16_t *)vals)[i] = (uint16_t)v; break;
-	case 4: ((uint32_t *)vals)[i] = v;           break;
+	case 1:
+		((uint8_t *)vals)[i] = (uint8_t)v;
+		break;
+	case 2:
+		((uint16_t *)vals)[i] = (uint16_t)v;
+		break;
+	case 4:
+		((uint32_t *)vals)[i] = v;
+		break;
 	}
 }
 
@@ -182,8 +201,7 @@ static int sync_read_n(int iface, enum dxl_control item, uint8_t expected_width,
 			err = dxl_tx_wait_rx(ctx);
 		} else {
 			dxl_serial_rx_enable(ctx);
-			if (k_sem_take(&ctx->wait_sem,
-				       K_USEC(ctx->rxwait_to)) != 0) {
+			if (k_sem_take(&ctx->wait_sem, K_USEC(ctx->rxwait_to)) != 0) {
 				err = -ETIMEDOUT;
 			} else {
 				err = ctx->rx_frame_err;
@@ -213,26 +231,26 @@ static int sync_read_n(int iface, enum dxl_control item, uint8_t expected_width,
 	return summary;
 }
 
-int dxl_sync_read_u8(int iface, enum dxl_control item,
-		     const uint8_t ids[], uint8_t vals[], int errs[], size_t n)
+int dxl_sync_read_u8(int iface, enum dxl_control item, const uint8_t ids[], uint8_t vals[],
+		     int errs[], size_t n)
 {
 	return sync_read_n(iface, item, 1, ids, vals, errs, n);
 }
 
-int dxl_sync_read_u16(int iface, enum dxl_control item,
-		      const uint8_t ids[], uint16_t vals[], int errs[], size_t n)
+int dxl_sync_read_u16(int iface, enum dxl_control item, const uint8_t ids[], uint16_t vals[],
+		      int errs[], size_t n)
 {
 	return sync_read_n(iface, item, 2, ids, vals, errs, n);
 }
 
-int dxl_sync_read_u32(int iface, enum dxl_control item,
-		      const uint8_t ids[], uint32_t vals[], int errs[], size_t n)
+int dxl_sync_read_u32(int iface, enum dxl_control item, const uint8_t ids[], uint32_t vals[],
+		      int errs[], size_t n)
 {
 	return sync_read_n(iface, item, 4, ids, vals, errs, n);
 }
 
-int dxl_bulk_read(int iface, const struct dxl_bulk_read_entry req[],
-		  uint32_t vals[], int errs[], size_t n)
+int dxl_bulk_read(int iface, const struct dxl_bulk_read_entry req[], uint32_t vals[], int errs[],
+		  size_t n)
 {
 	if (iface < 0 || n == 0 || req == NULL || vals == NULL) {
 		return -EINVAL;
@@ -248,12 +266,12 @@ int dxl_bulk_read(int iface, const struct dxl_bulk_read_entry req[],
 	}
 
 	uint16_t addrs[DXL_BULK_MAX_ENTRIES];
-	uint8_t  widths[DXL_BULK_MAX_ENTRIES];
+	uint8_t widths[DXL_BULK_MAX_ENTRIES];
 	size_t total_params = 0;
 
 	for (size_t i = 0; i < n; i++) {
 		uint16_t a;
-		uint8_t  w;
+		uint8_t w;
 		if (dxl_table_lookup(req[i].item, &a, &w) != 0) {
 			return -EINVAL;
 		}
@@ -275,8 +293,10 @@ int dxl_bulk_read(int iface, const struct dxl_bulk_read_entry req[],
 	uint8_t *p = &ctx->tx_frame.data[0];
 	for (size_t i = 0; i < n; i++) {
 		*p++ = req[i].id;
-		sys_put_le16(addrs[i], p);  p += 2;
-		sys_put_le16(widths[i], p); p += 2;
+		sys_put_le16(addrs[i], p);
+		p += 2;
+		sys_put_le16(widths[i], p);
+		p += 2;
 	}
 
 	int summary = 0;
@@ -288,8 +308,7 @@ int dxl_bulk_read(int iface, const struct dxl_bulk_read_entry req[],
 			err = dxl_tx_wait_rx(ctx);
 		} else {
 			dxl_serial_rx_enable(ctx);
-			if (k_sem_take(&ctx->wait_sem,
-				       K_USEC(ctx->rxwait_to)) != 0) {
+			if (k_sem_take(&ctx->wait_sem, K_USEC(ctx->rxwait_to)) != 0) {
 				err = -ETIMEDOUT;
 			} else {
 				err = ctx->rx_frame_err;
@@ -299,8 +318,7 @@ int dxl_bulk_read(int iface, const struct dxl_bulk_read_entry req[],
 		int slot_rc;
 		if (err == 0) {
 			uint32_t v = 0;
-			slot_rc = dxl_parse_status_payload(ctx->rx_frame.data,
-							   widths[i], &v);
+			slot_rc = dxl_parse_status_payload(ctx->rx_frame.data, widths[i], &v);
 			if (slot_rc == 0) {
 				vals[i] = v;
 			}
@@ -336,12 +354,12 @@ int dxl_bulk_write(int iface, const struct dxl_bulk_write_entry req[], size_t n)
 	}
 
 	uint16_t addrs[DXL_BULK_MAX_ENTRIES];
-	uint8_t  widths[DXL_BULK_MAX_ENTRIES];
+	uint8_t widths[DXL_BULK_MAX_ENTRIES];
 	size_t total_params = 0;
 
 	for (size_t i = 0; i < n; i++) {
 		uint16_t a;
-		uint8_t  w;
+		uint8_t w;
 		if (dxl_table_lookup(req[i].item, &a, &w) != 0) {
 			return -EINVAL;
 		}
@@ -363,8 +381,10 @@ int dxl_bulk_write(int iface, const struct dxl_bulk_write_entry req[], size_t n)
 	uint8_t *p = &ctx->tx_frame.data[0];
 	for (size_t i = 0; i < n; i++) {
 		*p++ = req[i].id;
-		sys_put_le16(addrs[i], p);  p += 2;
-		sys_put_le16(widths[i], p); p += 2;
+		sys_put_le16(addrs[i], p);
+		p += 2;
+		sys_put_le16(widths[i], p);
+		p += 2;
 		pack_le(p, widths[i], req[i].value);
 		p += widths[i];
 	}
