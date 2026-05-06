@@ -217,6 +217,63 @@ int dxl_write_u16(int iface, uint8_t id, enum dxl_control item, uint16_t val);
 int dxl_write_u32(int iface, uint8_t id, enum dxl_control item, uint32_t val);
 
 /**
+ * @brief Write the same register on multiple servos in one transaction.
+ *
+ * SYNC_WRITE (Protocol-2 0x83) is broadcast and produces no status replies.
+ * Per-servo failure (e.g. servo unplugged, register read-only) is not
+ * detectable without a follow-up read.
+ *
+ * @param iface Dynamixel interface index.
+ * @param item  Control register identifier (must match the typed width).
+ * @param ids   Array of N servo bus IDs.
+ * @param vals  Array of N values to write.
+ * @param n     Number of servos (must be > 0).
+ *
+ * @retval 0       All bytes written to the bus.
+ * @retval -EINVAL n=0, NULL pointers, or item width mismatch.
+ * @retval -ENOSPC Computed packet exceeds CONFIG_DYNAMIXEL_BUFFER_SIZE.
+ * @retval -ENODEV Interface not initialised.
+ */
+int dxl_sync_write_u8 (int iface, enum dxl_control item,
+		       const uint8_t ids[], const uint8_t  vals[], size_t n);
+int dxl_sync_write_u16(int iface, enum dxl_control item,
+		       const uint8_t ids[], const uint16_t vals[], size_t n);
+int dxl_sync_write_u32(int iface, enum dxl_control item,
+		       const uint8_t ids[], const uint32_t vals[], size_t n);
+
+/**
+ * @brief Read the same register from multiple servos in one transaction.
+ *
+ * SYNC_READ (Protocol-2 0x82) sends a broadcast instruction; each addressed
+ * servo replies with its own status packet in ID-list order.
+ *
+ * @param iface Dynamixel interface index.
+ * @param item  Control register identifier (must match the typed width).
+ * @param ids   Array of N servo bus IDs.
+ * @param vals  On per-slot success, receives that servo's value.
+ * @param errs  Optional. If non-NULL, receives per-slot result:
+ *              0 = ok, >0 = device-error byte, <0 = transport error.
+ *              Pass NULL to opt out of per-slot detail; failed slots leave
+ *              vals[i] untouched.
+ * @param n     Number of servos (must be > 0).
+ *
+ * @retval 0       All servos succeeded.
+ * @retval -EIO    At least one servo failed; check errs[] if non-NULL.
+ * @retval -EINVAL n=0, NULL ids/vals, or item width mismatch.
+ * @retval -ENOSPC Computed packet exceeds CONFIG_DYNAMIXEL_BUFFER_SIZE.
+ * @retval -ENODEV Interface not initialised.
+ */
+int dxl_sync_read_u8 (int iface, enum dxl_control item,
+		      const uint8_t ids[], uint8_t  vals[],
+		      int errs[], size_t n);
+int dxl_sync_read_u16(int iface, enum dxl_control item,
+		      const uint8_t ids[], uint16_t vals[],
+		      int errs[], size_t n);
+int dxl_sync_read_u32(int iface, enum dxl_control item,
+		      const uint8_t ids[], uint32_t vals[],
+		      int errs[], size_t n);
+
+/**
  * @brief Get Dynamixel interface index according to interface name
  *
  * If there is more than one interface, it can be used to clearly

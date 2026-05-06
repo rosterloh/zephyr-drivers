@@ -5,4 +5,5 @@ zephyr_library_sources(
   dynamixel_serial.c
   dynamixel_protocol.c
   dynamixel_tables.c
+  dynamixel_group.c
 )
