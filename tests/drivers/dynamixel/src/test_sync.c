@@ -231,3 +231,32 @@ ZTEST(dynamixel_sync, test_sync_read_u16_happy)
 	zassert_equal(vals[2], 0x3333, "");
 	zassert_equal(vals[3], 0x4444, "");
 }
+
+ZTEST(dynamixel_sync, test_sync_read_partial_drop)
+{
+	const uint8_t ids[] = {1, 2, 3, 4};
+	uint32_t vals[4] = {0xFEEDFEED, 0xFEEDFEED, 0xFEEDFEED, 0xFEEDFEED};
+	int errs[4] = {0};
+
+	fake_bus_set_u32(&bus, 1, 132, 0xAAAA0001);
+	fake_bus_set_u32(&bus, 2, 132, 0xAAAA0002);
+	fake_bus_set_u32(&bus, 3, 132, 0xAAAA0003);
+	fake_bus_set_u32(&bus, 4, 132, 0xAAAA0004);
+
+	/* Servo 3 silently fails to respond. Servos 1/2/4 reply normally. */
+	fake_bus_get(&bus, 3)->drop_response = true;
+
+	int rc = dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, errs,
+				   ARRAY_SIZE(ids));
+
+	zassert_equal(rc, -EIO, "summary must be -EIO when any slot fails, got %d", rc);
+	zassert_equal(errs[0], 0, "errs[0]");
+	zassert_equal(errs[1], 0, "errs[1]");
+	zassert_equal(errs[2], -ETIMEDOUT, "errs[2] expected -ETIMEDOUT, got %d", errs[2]);
+	zassert_equal(errs[3], 0, "errs[3]");
+
+	zassert_equal(vals[0], 0xAAAA0001, "vals[0]");
+	zassert_equal(vals[1], 0xAAAA0002, "vals[1]");
+	zassert_equal(vals[2], 0xFEEDFEED, "vals[2] must be untouched on drop");
+	zassert_equal(vals[3], 0xAAAA0004, "vals[3]");
+}
