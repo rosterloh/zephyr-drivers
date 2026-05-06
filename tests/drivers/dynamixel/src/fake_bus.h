@@ -18,9 +18,23 @@
 
 #define FAKE_BUS_MAX_SERVOS  4
 
-/* Inter-packet timing for sync/bulk read injection. See plan/spec for rationale. */
+/* Inter-packet timing for sync/bulk read injection.
+ *
+ * SLOT_GAP_US: gap between consecutive injected status packets in the
+ *   happy-path case. Must exceed the driver's inter-frame packet_timeout
+ *   (~1003 us at 115200 baud) so the packet_timer fires between frames.
+ *
+ * DROP_GAP_US: gap when the previous slot was a drop. Must satisfy
+ *   (rxwait_to - SLOT_GAP) < DROP_GAP < (2*rxwait_to - packet_timer):
+ *   - lower bound prevents the next inject arriving while the dropped slot
+ *     k_sem_take is still active (would corrupt expected_id matching);
+ *   - upper bound ensures the next inject arrives inside the next slot's
+ *     k_sem_take window with margin for the inter-frame packet_timer.
+ *   With rxwait_to = 10 ms, the safe range is roughly 7..14 ms; 12 ms gives
+ *   ~3 ms margin on both sides.
+ */
 #define FAKE_BUS_SLOT_GAP_US  5000U
-#define FAKE_BUS_DROP_GAP_US  15000U
+#define FAKE_BUS_DROP_GAP_US  12000U
 
 struct fake_bus {
 	struct fake_servo srv[FAKE_BUS_MAX_SERVOS];
