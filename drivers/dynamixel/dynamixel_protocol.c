@@ -7,7 +7,7 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(dynamixel, CONFIG_DYNAMIXEL_LOG_LEVEL);
 
-int parse_status_payload(const uint8_t *data, uint8_t width, uint32_t *out)
+int dxl_parse_status_payload(const uint8_t *data, uint8_t width, uint32_t *out)
 {
 	uint8_t dev_err = data[0];
 
@@ -112,7 +112,7 @@ static int dxl_read_n(int iface, uint8_t id, enum dxl_control item, uint8_t expe
 
 	err = dxl_tx_wait_rx(ctx);
 	if (err == 0) {
-		err = parse_status_payload(ctx->rx_frame.data, length, out);
+		err = dxl_parse_status_payload(ctx->rx_frame.data, length, out);
 	}
 
 	k_mutex_unlock(&ctx->iface_lock);

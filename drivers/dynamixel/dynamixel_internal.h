@@ -167,10 +167,12 @@ extern const struct dxl_model_info dxl_info_x330;
  * @param width  Register width in bytes. Must be 1, 2, or 4.
  * @param out    On success, receives the value as a uint32_t (LE-decoded).
  *
+ * @pre out must not be NULL.
+ *
  * @retval 0       Device replied success and *out is valid.
  * @retval >0      Device-error byte (see enum dxl_error). *out untouched.
  * @retval -EINVAL Unsupported width.
  */
-int parse_status_payload(const uint8_t *data, uint8_t width, uint32_t *out);
+int dxl_parse_status_payload(const uint8_t *data, uint8_t width, uint32_t *out);
 
 #endif /* ZEPHYR_INCLUDE_DYNAMIXEL_INTERNAL_H_ */
