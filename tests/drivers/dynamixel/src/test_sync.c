@@ -56,6 +56,15 @@ ZTEST(dynamixel_sync, test_sync_write_u32_happy)
 	zassert_ok(dxl_sync_write_u32(iface, GOAL_POSITION, ids, vals, ARRAY_SIZE(ids)),
 		   "sync_write failed");
 
+	/* SYNC_WRITE is fire-and-forget at the protocol layer. The emulated
+	 * UART drains TX bytes through a worker thread, so we yield long
+	 * enough for the bytes to reach the fake_bus dispatcher before
+	 * checking register state. 2 ms is far more than the ~30-byte packet
+	 * needs at 115200 baud (~2.6 ms wall) and far less than the test
+	 * fixture's rxwait_to.
+	 */
+	k_sleep(K_MSEC(2));
+
 	/* GOAL_POSITION is at addr 116 (4 bytes). Each servo should have its slice. */
 	zassert_equal(fake_servo_get_u32(fake_bus_get(&bus, 1), 116), 0x100, "id 1");
 	zassert_equal(fake_servo_get_u32(fake_bus_get(&bus, 2), 116), 0x200, "id 2");

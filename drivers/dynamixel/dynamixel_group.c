@@ -89,19 +89,14 @@ static int sync_write_n(int iface, enum dxl_control item, uint8_t expected_width
 		p += width;
 	}
 
-	/* SYNC_WRITE is broadcast; no status reply.  Send the frame and then
-	 * wait for the RX timeout so the work-queue thread has time to finish
-	 * flushing the TX FIFO before we return.  -ETIMEDOUT is expected and
-	 * means success here.
+	/* SYNC_WRITE is broadcast; no status reply. The TX is IRQ-driven and
+	 * runs to completion asynchronously after we release the mutex; the
+	 * caller does not need to wait.
 	 */
-	int rc = dxl_tx_wait_rx(ctx);
-
-	if (rc == -ETIMEDOUT) {
-		rc = 0;
-	}
+	dxl_serial_tx(ctx);
 
 	k_mutex_unlock(&ctx->iface_lock);
-	return rc;
+	return 0;
 }
 
 int dxl_sync_write_u8(int iface, enum dxl_control item,
