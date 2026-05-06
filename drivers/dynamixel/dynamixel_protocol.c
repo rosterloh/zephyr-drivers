@@ -7,6 +7,28 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(dynamixel, CONFIG_DYNAMIXEL_LOG_LEVEL);
 
+int parse_status_payload(const uint8_t *data, uint8_t width, uint32_t *out)
+{
+	uint8_t dev_err = data[0];
+
+	if (dev_err != 0) {
+		return (int)dev_err;
+	}
+	switch (width) {
+	case 1:
+		*out = data[1];
+		return 0;
+	case 2:
+		*out = sys_get_le16(&data[1]);
+		return 0;
+	case 4:
+		*out = sys_get_le32(&data[1]);
+		return 0;
+	default:
+		return -EINVAL;
+	}
+}
+
 /* https://emanual.robotis.com/docs/en/dxl/protocol2/#ping-0x01 */
 int dxl_ping(const int iface, const uint8_t id)
 {
@@ -90,25 +112,7 @@ static int dxl_read_n(int iface, uint8_t id, enum dxl_control item, uint8_t expe
 
 	err = dxl_tx_wait_rx(ctx);
 	if (err == 0) {
-		uint8_t dev_err = ctx->rx_frame.data[0];
-		if (dev_err == 0) {
-			switch (length) {
-			case 1:
-				*out = ctx->rx_frame.data[1];
-				break;
-			case 2:
-				*out = sys_get_le16(&ctx->rx_frame.data[1]);
-				break;
-			case 4:
-				*out = sys_get_le32(&ctx->rx_frame.data[1]);
-				break;
-			default:
-				err = -EINVAL;
-				break;
-			}
-		} else {
-			err = (int)dev_err;
-		}
+		err = parse_status_payload(ctx->rx_frame.data, length, out);
 	}
 
 	k_mutex_unlock(&ctx->iface_lock);
