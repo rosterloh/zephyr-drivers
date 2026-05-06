@@ -189,3 +189,45 @@ ZTEST(dynamixel_sync, test_sync_read_u32_happy)
 	zassert_equal(errs[2], 0, "errs[2]");
 	zassert_equal(errs[3], 0, "errs[3]");
 }
+
+ZTEST(dynamixel_sync, test_sync_read_u8_happy)
+{
+	const uint8_t ids[] = {1, 2, 3, 4};
+	uint8_t vals[4] = {0};
+	int errs[4] = {-1, -1, -1, -1};
+
+	/* TORQUE_ENABLE at addr 64 (1 byte). */
+	fake_bus_set_u8(&bus, 1, 64, 1);
+	fake_bus_set_u8(&bus, 2, 64, 0);
+	fake_bus_set_u8(&bus, 3, 64, 1);
+	fake_bus_set_u8(&bus, 4, 64, 0);
+
+	zassert_ok(dxl_sync_read_u8(iface, TORQUE_ENABLE, ids, vals, errs,
+				    ARRAY_SIZE(ids)),
+		   "sync_read_u8 failed");
+	zassert_equal(vals[0], 1, "");
+	zassert_equal(vals[1], 0, "");
+	zassert_equal(vals[2], 1, "");
+	zassert_equal(vals[3], 0, "");
+}
+
+ZTEST(dynamixel_sync, test_sync_read_u16_happy)
+{
+	const uint8_t ids[] = {1, 2, 3, 4};
+	uint16_t vals[4] = {0};
+	int errs[4] = {-1, -1, -1, -1};
+
+	/* GOAL_PWM at addr 100 (2 bytes). */
+	fake_bus_set_u16(&bus, 1, 100, 0x1111);
+	fake_bus_set_u16(&bus, 2, 100, 0x2222);
+	fake_bus_set_u16(&bus, 3, 100, 0x3333);
+	fake_bus_set_u16(&bus, 4, 100, 0x4444);
+
+	zassert_ok(dxl_sync_read_u16(iface, GOAL_PWM, ids, vals, errs,
+				     ARRAY_SIZE(ids)),
+		   "sync_read_u16 failed");
+	zassert_equal(vals[0], 0x1111, "");
+	zassert_equal(vals[1], 0x2222, "");
+	zassert_equal(vals[2], 0x3333, "");
+	zassert_equal(vals[3], 0x4444, "");
+}
