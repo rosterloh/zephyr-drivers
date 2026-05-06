@@ -14,6 +14,8 @@
 LOG_MODULE_REGISTER(fake_bus, LOG_LEVEL_INF);
 
 #define DXL_BROADCAST_ID 0xFE
+#define INST_SYNC_READ   0x82
+#define INST_BULK_READ   0x92
 #define INST_SYNC_WRITE  0x83
 #define INST_BULK_WRITE  0x93
 
@@ -87,6 +89,74 @@ static void dispatch_bulk_write(struct fake_bus *bus, const uint8_t *pkt, size_t
 	}
 }
 
+/* Helper: directly emit a status reply for one fake. Mirrors fake_servo's
+ * own send_status path but is reachable from outside the per-fake module.
+ *
+ * Implementation: reuses fake_servo_handle_packet by feeding it a synthetic
+ * READ instruction packet for that servo. This way fake_servo's existing
+ * drop_response / corrupt_crc / error_byte knobs apply automatically.
+ */
+static void emit_status_via_synthetic_read(struct fake_servo *s,
+					   uint16_t addr, uint16_t length)
+{
+	uint8_t synth[14];
+	uint16_t length_field = 1 /* inst */ + 4 /* params */ + 2 /* crc */;
+
+	synth[0] = 0xFF;
+	synth[1] = 0xFF;
+	synth[2] = 0xFD;
+	synth[3] = 0x00;
+	synth[4] = s->id;
+	sys_put_le16(length_field, &synth[5]);
+	synth[7] = 0x02; /* INST_READ */
+	sys_put_le16(addr, &synth[8]);
+	sys_put_le16(length, &synth[10]);
+	/* CRC bytes left zero — fake_servo_handle_packet doesn't validate the
+	 * inbound CRC, only header + instruction. The bytes at &synth[12] are
+	 * "CRC", but handle_packet treats pkt[8..11] as params and ignores
+	 * trailing bytes for READ.
+	 */
+
+	fake_servo_handle_packet(s, synth, sizeof(synth));
+}
+
+/* SYNC_READ param layout (after instruction byte):
+ *   addr_le16 ‖ data_len_le16 ‖ id[0..n-1]
+ */
+static void dispatch_sync_read(struct fake_bus *bus, const uint8_t *pkt, size_t len)
+{
+	if (len < 14) {
+		return;
+	}
+	uint16_t addr = sys_get_le16(&pkt[8]);
+	uint16_t data_len = sys_get_le16(&pkt[10]);
+	const uint8_t *id_list = &pkt[12];
+	const uint8_t *end = &pkt[len - 2]; /* before CRC */
+	size_t n = (size_t)(end - id_list);
+
+	if (n == 0 || n > FAKE_BUS_MAX_SERVOS) {
+		return;
+	}
+
+	bus->pending_active = true;
+	bus->pending_is_bulk = false;
+	bus->pending_addr_uniform = addr;
+	bus->pending_len_uniform = data_len;
+	bus->pending_n = n;
+	bus->pending_idx = 0;
+	bus->prev_dropped = false;
+	for (size_t i = 0; i < n; i++) {
+		bus->pending_ids[i] = id_list[i];
+	}
+
+	/* Kick off the first injection at K_NO_WAIT so it runs after the test
+	 * thread has returned from dxl_sync_read_*'s TX call and entered the
+	 * first k_sem_take. K_NO_WAIT is fine because the work item runs on the
+	 * system workqueue which can't pre-empt the test thread mid-sem-take.
+	 */
+	k_work_reschedule(&bus->inject_work, K_NO_WAIT);
+}
+
 static void dispatch_single_target(struct fake_bus *bus, const uint8_t *pkt, size_t len)
 {
 	uint8_t target_id = pkt[4];
@@ -131,6 +201,9 @@ static void tx_data_ready_cb(const struct device *dev, size_t size, void *user_d
 	uint8_t inst = buf[7];
 
 	switch (inst) {
+	case INST_SYNC_READ:
+		dispatch_sync_read(bus, buf, got);
+		break;
 	case INST_SYNC_WRITE:
 		dispatch_sync_write(bus, buf, got);
 		break;
@@ -188,6 +261,35 @@ void fake_bus_set_u32(struct fake_bus *bus, uint8_t id, uint16_t addr, uint32_t 
 
 static void inject_work_fn(struct k_work *w)
 {
-	/* Filled in by Tasks 9 / 11 / 12 (SYNC_READ / BULK_READ injection). */
-	ARG_UNUSED(w);
+	struct k_work_delayable *dw = k_work_delayable_from_work(w);
+	struct fake_bus *bus = CONTAINER_OF(dw, struct fake_bus, inject_work);
+
+	if (!bus->pending_active || bus->pending_idx >= bus->pending_n) {
+		bus->pending_active = false;
+		return;
+	}
+
+	uint8_t id = bus->pending_ids[bus->pending_idx];
+	uint16_t addr = bus->pending_is_bulk ? bus->pending_addrs[bus->pending_idx]
+					     : bus->pending_addr_uniform;
+	uint16_t length = bus->pending_is_bulk ? bus->pending_lens[bus->pending_idx]
+					       : bus->pending_len_uniform;
+
+	struct fake_servo *s = fake_bus_get(bus, id);
+	bool dropped = (s == NULL) || s->drop_response;
+
+	if (s != NULL) {
+		emit_status_via_synthetic_read(s, addr, length);
+	}
+
+	bus->pending_idx++;
+	bus->prev_dropped = dropped;
+
+	if (bus->pending_idx < bus->pending_n) {
+		uint32_t gap = bus->prev_dropped ? FAKE_BUS_DROP_GAP_US
+						 : FAKE_BUS_SLOT_GAP_US;
+		k_work_reschedule(&bus->inject_work, K_USEC(gap));
+	} else {
+		bus->pending_active = false;
+	}
 }
