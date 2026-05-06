@@ -274,6 +274,63 @@ int dxl_sync_read_u32(int iface, enum dxl_control item,
 		      int errs[], size_t n);
 
 /**
+ * @brief Per-entry record for BULK_READ.
+ */
+struct dxl_bulk_read_entry {
+	uint8_t id;
+	enum dxl_control item;
+};
+
+/**
+ * @brief Per-entry record for BULK_WRITE.
+ *
+ * @c value is interpreted at the width returned by @c dxl_table_lookup(item).
+ */
+struct dxl_bulk_write_entry {
+	uint8_t id;
+	enum dxl_control item;
+	uint32_t value;
+};
+
+/**
+ * @brief Read different registers from multiple servos in one transaction.
+ *
+ * BULK_READ (Protocol-2 0x92) sends a broadcast instruction; each addressed
+ * servo replies with its own status packet in entry order.
+ *
+ * @param iface Dynamixel interface index.
+ * @param req   Array of N {id, item} entries.
+ * @param vals  On per-slot success, receives that entry's value as uint32_t.
+ *              All current control-table items fit in 32 bits.
+ * @param errs  Optional. Same semantics as dxl_sync_read_*.
+ * @param n     Number of entries (must be > 0).
+ *
+ * @retval 0       All entries succeeded.
+ * @retval -EIO    At least one entry failed; check errs[] if non-NULL.
+ * @retval -EINVAL n=0, NULL pointers, or any req[i].item out of range.
+ * @retval -ENOSPC Computed packet exceeds CONFIG_DYNAMIXEL_BUFFER_SIZE.
+ * @retval -ENODEV Interface not initialised.
+ */
+int dxl_bulk_read(int iface, const struct dxl_bulk_read_entry req[],
+		  uint32_t vals[], int errs[], size_t n);
+
+/**
+ * @brief Write different registers to multiple servos in one transaction.
+ *
+ * BULK_WRITE (Protocol-2 0x93) is broadcast and produces no status replies.
+ *
+ * @param iface Dynamixel interface index.
+ * @param req   Array of N {id, item, value} entries.
+ * @param n     Number of entries (must be > 0).
+ *
+ * @retval 0       All bytes written to the bus.
+ * @retval -EINVAL n=0, NULL req, or any req[i].item out of range.
+ * @retval -ENOSPC Computed packet exceeds CONFIG_DYNAMIXEL_BUFFER_SIZE.
+ * @retval -ENODEV Interface not initialised.
+ */
+int dxl_bulk_write(int iface, const struct dxl_bulk_write_entry req[], size_t n);
+
+/**
  * @brief Get Dynamixel interface index according to interface name
  *
  * If there is more than one interface, it can be used to clearly

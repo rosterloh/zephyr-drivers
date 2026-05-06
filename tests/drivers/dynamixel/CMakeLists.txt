@@ -13,6 +13,7 @@ target_sources(app PRIVATE
     src/test_tables.c
     src/test_motors.c
     src/test_sync.c
+    src/test_bulk.c
 )
 
 zephyr_include_directories(./src)

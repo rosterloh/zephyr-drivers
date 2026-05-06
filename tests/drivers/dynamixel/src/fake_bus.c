@@ -120,6 +120,40 @@ static void emit_status_via_synthetic_read(struct fake_servo *s,
 	fake_servo_handle_packet(s, synth, sizeof(synth));
 }
 
+/* BULK_READ param layout (after instruction byte):
+ *   {id, addr_le16, len_le16} × N
+ */
+static void dispatch_bulk_read(struct fake_bus *bus, const uint8_t *pkt, size_t len)
+{
+	if (len < 10) {
+		return;
+	}
+	const uint8_t *p = &pkt[8];
+	const uint8_t *end = &pkt[len - 2];
+	size_t entries = 0;
+
+	bus->pending_active = true;
+	bus->pending_is_bulk = true;
+	bus->pending_idx = 0;
+	bus->prev_dropped = false;
+
+	while (p + 5 <= end && entries < FAKE_BUS_MAX_SERVOS) {
+		bus->pending_ids[entries]   = p[0];
+		bus->pending_addrs[entries] = sys_get_le16(&p[1]);
+		bus->pending_lens[entries]  = sys_get_le16(&p[3]);
+		entries++;
+		p += 5;
+	}
+
+	if (entries == 0) {
+		bus->pending_active = false;
+		return;
+	}
+
+	bus->pending_n = entries;
+	k_work_reschedule(&bus->inject_work, K_NO_WAIT);
+}
+
 /* SYNC_READ param layout (after instruction byte):
  *   addr_le16 ‖ data_len_le16 ‖ id[0..n-1]
  */
@@ -206,6 +240,9 @@ static void tx_data_ready_cb(const struct device *dev, size_t size, void *user_d
 		break;
 	case INST_SYNC_WRITE:
 		dispatch_sync_write(bus, buf, got);
+		break;
+	case INST_BULK_READ:
+		dispatch_bulk_read(bus, buf, got);
 		break;
 	case INST_BULK_WRITE:
 		dispatch_bulk_write(bus, buf, got);

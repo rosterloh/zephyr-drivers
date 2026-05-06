@@ -230,3 +230,22 @@ int dxl_sync_read_u32(int iface, enum dxl_control item,
 {
 	return sync_read_n(iface, item, 4, ids, vals, errs, n);
 }
+
+int dxl_bulk_read(int iface, const struct dxl_bulk_read_entry req[],
+		  uint32_t vals[], int errs[], size_t n)
+{
+	ARG_UNUSED(iface);
+	ARG_UNUSED(req);
+	ARG_UNUSED(vals);
+	ARG_UNUSED(errs);
+	ARG_UNUSED(n);
+	return -ENOSYS;
+}
+
+int dxl_bulk_write(int iface, const struct dxl_bulk_write_entry req[], size_t n)
+{
+	ARG_UNUSED(iface);
+	ARG_UNUSED(req);
+	ARG_UNUSED(n);
+	return -ENOSYS;
+}
