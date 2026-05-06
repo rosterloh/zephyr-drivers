@@ -260,3 +260,65 @@ ZTEST(dynamixel_sync, test_sync_read_partial_drop)
 	zassert_equal(vals[2], 0xFEEDFEED, "vals[2] must be untouched on drop");
 	zassert_equal(vals[3], 0xAAAA0004, "vals[3]");
 }
+
+ZTEST(dynamixel_sync, test_sync_read_device_error_byte)
+{
+	const uint8_t ids[] = {1, 2, 3, 4};
+	uint32_t vals[4] = {0};
+	int errs[4] = {0};
+
+	fake_bus_set_u32(&bus, 1, 132, 0xAAAA0001);
+	fake_bus_set_u32(&bus, 2, 132, 0xAAAA0002);
+	fake_bus_set_u32(&bus, 3, 132, 0xAAAA0003);
+	fake_bus_set_u32(&bus, 4, 132, 0xAAAA0004);
+
+	/* Servo 2 returns a device-error byte. The driver treats it as a
+	 * positive return code in errs[1]; vals[1] is left untouched.
+	 */
+	fake_bus_get(&bus, 2)->error_byte = DXL_ERR_DATA_RANGE;
+
+	int rc = dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, errs,
+				   ARRAY_SIZE(ids));
+
+	zassert_equal(rc, -EIO, "summary must be -EIO");
+	zassert_equal(errs[0], 0, "errs[0]");
+	zassert_equal(errs[1], DXL_ERR_DATA_RANGE,
+		      "errs[1] must be device-error byte, got %d", errs[1]);
+	zassert_equal(errs[2], 0, "errs[2]");
+	zassert_equal(errs[3], 0, "errs[3]");
+	zassert_equal(vals[1], 0, "vals[1] must be untouched on dev err");
+	zassert_equal(vals[0], 0xAAAA0001, "vals[0]");
+	zassert_equal(vals[2], 0xAAAA0003, "vals[2]");
+	zassert_equal(vals[3], 0xAAAA0004, "vals[3]");
+}
+
+ZTEST(dynamixel_sync, test_sync_read_wrong_id_reply_is_timeout)
+{
+	const uint8_t ids[] = {1, 2, 3, 4};
+	uint32_t vals[4] = {0};
+	int errs[4] = {0};
+
+	fake_bus_set_u32(&bus, 1, 132, 0xAAAA0001);
+	fake_bus_set_u32(&bus, 2, 132, 0xAAAA0002);
+	fake_bus_set_u32(&bus, 3, 132, 0xAAAA0003);
+	fake_bus_set_u32(&bus, 4, 132, 0xAAAA0004);
+
+	/* For slot 2 (id=3 expected), make servo 3 reply with a different id (5).
+	 * The driver discards the wrong-id frame in dxl_rx_handler (-EBADMSG)
+	 * and silently re-enables RX. With no other reply incoming, the slot
+	 * times out as -ETIMEDOUT. Subsequent slots still proceed.
+	 */
+	struct fake_servo *s3 = fake_bus_get(&bus, 3);
+	s3->id = 5; /* respond as id 5 even though id 3 was requested */
+	s3->answer_any_id = true;
+
+	int rc = dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, errs,
+				   ARRAY_SIZE(ids));
+
+	zassert_equal(rc, -EIO, "summary must be -EIO");
+	zassert_equal(errs[0], 0, "errs[0]");
+	zassert_equal(errs[1], 0, "errs[1]");
+	zassert_equal(errs[2], -ETIMEDOUT,
+		      "errs[2] expected -ETIMEDOUT for wrong-id, got %d", errs[2]);
+	zassert_equal(errs[3], 0, "errs[3]");
+}
