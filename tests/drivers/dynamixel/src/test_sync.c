@@ -322,3 +322,60 @@ ZTEST(dynamixel_sync, test_sync_read_wrong_id_reply_is_timeout)
 		      "errs[2] expected -ETIMEDOUT for wrong-id, got %d", errs[2]);
 	zassert_equal(errs[3], 0, "errs[3]");
 }
+
+ZTEST(dynamixel_sync, test_sync_read_errs_null_collapses_to_eio)
+{
+	const uint8_t ids[] = {1, 2, 3, 4};
+	uint32_t vals[4] = {0xFEEDFEED, 0xFEEDFEED, 0xFEEDFEED, 0xFEEDFEED};
+
+	fake_bus_set_u32(&bus, 1, 132, 0xAAAA0001);
+	fake_bus_set_u32(&bus, 2, 132, 0xAAAA0002);
+	fake_bus_set_u32(&bus, 3, 132, 0xAAAA0003);
+	fake_bus_set_u32(&bus, 4, 132, 0xAAAA0004);
+
+	fake_bus_get(&bus, 3)->drop_response = true;
+
+	int rc = dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals,
+				   /*errs=*/NULL, ARRAY_SIZE(ids));
+
+	zassert_equal(rc, -EIO,
+		      "errs=NULL must still collapse failures to -EIO, got %d", rc);
+	zassert_equal(vals[0], 0xAAAA0001, "vals[0]");
+	zassert_equal(vals[1], 0xAAAA0002, "vals[1]");
+	zassert_equal(vals[2], 0xFEEDFEED,
+		      "vals[2] must be untouched even when errs is NULL");
+	zassert_equal(vals[3], 0xAAAA0004, "vals[3]");
+}
+
+ZTEST(dynamixel_sync, test_sync_read_validation_einval)
+{
+	const uint8_t ids[] = {1, 2};
+	uint32_t vals[2] = {0};
+
+	zassert_equal(dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, NULL, 0),
+		      -EINVAL, "n=0");
+	zassert_equal(dxl_sync_read_u32(iface, PRESENT_POSITION, NULL, vals, NULL, 2),
+		      -EINVAL, "NULL ids");
+	zassert_equal(dxl_sync_read_u32(iface, PRESENT_POSITION, ids, NULL, NULL, 2),
+		      -EINVAL, "NULL vals");
+	zassert_equal(dxl_sync_read_u32(iface, (enum dxl_control)9999, ids, vals, NULL, 2),
+		      -EINVAL, "bad item");
+
+	uint8_t vals_u8[2] = {0};
+	zassert_equal(dxl_sync_read_u8(iface, PRESENT_POSITION, ids, vals_u8, NULL, 2),
+		      -EINVAL, "u8 on 4-byte register");
+}
+
+ZTEST(dynamixel_sync, test_sync_read_enospc_when_oversized)
+{
+	uint8_t ids[256];
+	uint32_t vals[256];
+	for (size_t i = 0; i < ARRAY_SIZE(ids); i++) {
+		ids[i] = (uint8_t)((i % 250) + 1);
+		vals[i] = 0;
+	}
+
+	/* SYNC_READ packet is 14 + N bytes. For N=256 -> 270 > 256 default. */
+	zassert_equal(dxl_sync_read_u32(iface, PRESENT_POSITION, ids, vals, NULL, 256),
+		      -ENOSPC, "oversized SYNC_READ must return -ENOSPC");
+}
