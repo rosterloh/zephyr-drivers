@@ -137,3 +137,34 @@ ZTEST(dynamixel_bulk, test_bulk_write_happy_mixed_widths)
 	zassert_equal(fake_servo_get_u32(fake_bus_get(&bus, 3), 116), 0xDEADBEEF, "id 3");
 	zassert_equal(fake_servo_get_u8 (fake_bus_get(&bus, 4), 64),  0,          "id 4");
 }
+
+ZTEST(dynamixel_bulk, test_bulk_write_validation_einval)
+{
+	const struct dxl_bulk_write_entry req[] = {
+		{ .id = 1, .item = GOAL_POSITION, .value = 0 },
+	};
+	const struct dxl_bulk_write_entry bad_req[] = {
+		{ .id = 1, .item = (enum dxl_control)9999, .value = 0 },
+	};
+
+	zassert_equal(dxl_bulk_write(iface, req, 0),
+		      -EINVAL, "n=0");
+	zassert_equal(dxl_bulk_write(iface, NULL, 1),
+		      -EINVAL, "NULL req");
+	zassert_equal(dxl_bulk_write(iface, bad_req, 1),
+		      -EINVAL, "bad item");
+}
+
+ZTEST(dynamixel_bulk, test_bulk_write_enospc_when_oversized)
+{
+	struct dxl_bulk_write_entry req[32];
+	for (size_t i = 0; i < ARRAY_SIZE(req); i++) {
+		req[i].id = (uint8_t)((i % 250) + 1);
+		req[i].item = GOAL_POSITION; /* width 4 */
+		req[i].value = 0;
+	}
+
+	/* BULK_WRITE packet is 10 + N*(5+L). For N=32, L=4 -> 298 > 256 default. */
+	zassert_equal(dxl_bulk_write(iface, req, 32),
+		      -ENOSPC, "oversized BULK_WRITE must return -ENOSPC");
+}
