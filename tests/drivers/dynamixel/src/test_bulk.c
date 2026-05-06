@@ -112,3 +112,28 @@ ZTEST(dynamixel_bulk, test_bulk_read_enospc_when_oversized)
 	zassert_equal(dxl_bulk_read(iface, req, vals, NULL, 64),
 		      -ENOSPC, "oversized BULK_READ must return -ENOSPC");
 }
+
+ZTEST(dynamixel_bulk, test_bulk_write_happy_mixed_widths)
+{
+	const struct dxl_bulk_write_entry req[] = {
+		{ .id = 1, .item = TORQUE_ENABLE,    .value = 1          },
+		{ .id = 2, .item = GOAL_PWM,         .value = 0x0BEE     },
+		{ .id = 3, .item = GOAL_POSITION,    .value = 0xDEADBEEF },
+		{ .id = 4, .item = TORQUE_ENABLE,    .value = 0          },
+	};
+
+	zassert_ok(dxl_bulk_write(iface, req, ARRAY_SIZE(req)),
+		   "bulk_write failed");
+
+	/* BULK_WRITE is fire-and-forget at the protocol layer. The emulated
+	 * UART drains TX bytes through a worker thread, so we yield long
+	 * enough for the bytes to reach the fake_bus dispatcher before
+	 * checking register state.
+	 */
+	k_sleep(K_MSEC(2));
+
+	zassert_equal(fake_servo_get_u8 (fake_bus_get(&bus, 1), 64),  1,          "id 1");
+	zassert_equal(fake_servo_get_u16(fake_bus_get(&bus, 2), 100), 0x0BEE,     "id 2");
+	zassert_equal(fake_servo_get_u32(fake_bus_get(&bus, 3), 116), 0xDEADBEEF, "id 3");
+	zassert_equal(fake_servo_get_u8 (fake_bus_get(&bus, 4), 64),  0,          "id 4");
+}

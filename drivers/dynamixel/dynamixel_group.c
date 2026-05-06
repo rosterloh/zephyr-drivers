@@ -322,8 +322,54 @@ int dxl_bulk_read(int iface, const struct dxl_bulk_read_entry req[],
 
 int dxl_bulk_write(int iface, const struct dxl_bulk_write_entry req[], size_t n)
 {
-	ARG_UNUSED(iface);
-	ARG_UNUSED(req);
-	ARG_UNUSED(n);
-	return -ENOSYS;
+	if (iface < 0 || n == 0 || req == NULL) {
+		return -EINVAL;
+	}
+
+	struct dxl_context *ctx = dxl_get_context((uint8_t)iface);
+	if (ctx == NULL) {
+		return -ENODEV;
+	}
+
+	if (n > DXL_BULK_MAX_ENTRIES) {
+		return -EINVAL;
+	}
+
+	uint16_t addrs[DXL_BULK_MAX_ENTRIES];
+	uint8_t  widths[DXL_BULK_MAX_ENTRIES];
+	size_t total_params = 0;
+
+	for (size_t i = 0; i < n; i++) {
+		uint16_t a;
+		uint8_t  w;
+		if (dxl_table_lookup(req[i].item, &a, &w) != 0) {
+			return -EINVAL;
+		}
+		addrs[i] = a;
+		widths[i] = w;
+		total_params += 5U + w; /* id + addr + len + data */
+	}
+
+	size_t length_field = 1U + total_params + 2U;
+	if (length_field + 7U > CONFIG_DYNAMIXEL_BUFFER_SIZE) {
+		return -ENOSPC;
+	}
+
+	k_mutex_lock(&ctx->iface_lock, K_FOREVER);
+
+	ctx->tx_frame.id = 0xFE;
+	ctx->tx_frame.length = (uint16_t)length_field;
+	ctx->tx_frame.ic = DXL_INST_BULK_WRITE;
+	uint8_t *p = &ctx->tx_frame.data[0];
+	for (size_t i = 0; i < n; i++) {
+		*p++ = req[i].id;
+		sys_put_le16(addrs[i], p);  p += 2;
+		sys_put_le16(widths[i], p); p += 2;
+		pack_le(p, widths[i], req[i].value);
+		p += widths[i];
+	}
+
+	dxl_serial_tx(ctx);
+	k_mutex_unlock(&ctx->iface_lock);
+	return 0;
 }
