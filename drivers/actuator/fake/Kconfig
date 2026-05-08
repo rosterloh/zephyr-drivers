@@ -1,0 +1,4 @@
+config ACTUATOR_FAKE
+	bool "Fake actuator driver (for tests)"
+	depends on ACTUATOR
+	default n

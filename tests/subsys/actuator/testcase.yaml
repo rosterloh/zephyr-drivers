@@ -1,0 +1,5 @@
+common:
+  tags: [actuator, subsys]
+tests:
+  subsys.actuator.basic:
+    platform_allow: [native_sim]

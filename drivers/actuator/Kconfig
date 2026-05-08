@@ -3,6 +3,6 @@ if ACTUATOR
 # Per-backend Kconfigs added in later tasks:
 # rsource "dxl/Kconfig"
 # rsource "hbridge/Kconfig"
-# rsource "fake/Kconfig"
+rsource "fake/Kconfig"
 
 endif # ACTUATOR
