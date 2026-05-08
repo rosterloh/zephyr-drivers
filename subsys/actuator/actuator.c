@@ -153,3 +153,50 @@ int z_impl_actuator_set_limits(const struct device *dev, const struct actuator_l
 	k_spin_unlock(&cd->lock, key);
 	return 0;
 }
+
+static int set_setpoint_typed(const struct device *dev, enum actuator_mode mode, float value)
+{
+	struct actuator_common_data *cd = common(dev);
+
+	int err = actuator_cap_check_mode(cd->caps, mode);
+	if (err != 0) {
+		return err;
+	}
+
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	int rc = sm_step_locked(dev, ACTUATOR_SM_EVT_SETPOINT, 0);
+	if (rc >= 0) {
+		cd->current_mode = mode;
+	}
+	enum actuator_state new_state = cd->state;
+	k_spin_unlock(&cd->lock, key);
+
+	if (rc < 0) {
+		return rc;
+	}
+
+	err = api(dev)->set_setpoint(dev, mode, value);
+	if (err != 0) {
+		actuator_report_state(dev, ACTUATOR_SM_EVT_FAULT, ACTUATOR_FAULT_DRIVER(0));
+		return err;
+	}
+	if (rc == 1) {
+		actuator_callbacks_fire_state(dev, new_state);
+	}
+	return 0;
+}
+
+int z_impl_actuator_set_position(const struct device *dev, float rad)
+{
+	return set_setpoint_typed(dev, ACTUATOR_MODE_POSITION, rad);
+}
+
+int z_impl_actuator_set_velocity(const struct device *dev, float rad_s)
+{
+	return set_setpoint_typed(dev, ACTUATOR_MODE_VELOCITY, rad_s);
+}
+
+int z_impl_actuator_set_effort(const struct device *dev, float nm)
+{
+	return set_setpoint_typed(dev, ACTUATOR_MODE_EFFORT, nm);
+}
