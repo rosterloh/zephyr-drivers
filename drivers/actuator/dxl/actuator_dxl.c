@@ -138,7 +138,7 @@ static int dxl_actuator_enable(const struct device *dev)
 	if (err) {
 		return -EIO;
 	}
-	/* k_work_schedule for the periodic worker is added in T20. */
+	k_work_schedule(&d->feedback_work, K_MSEC(cfg->update_period_ms));
 	return 0;
 }
 
@@ -148,7 +148,7 @@ static int dxl_actuator_disable(const struct device *dev)
 	struct dxl_data *d = dev->data;
 
 	(void)dxl_write_u8(d->iface, cfg->bus_id, TORQUE_ENABLE, 0);
-	/* k_work_cancel for the periodic worker is added in T20. */
+	k_work_cancel_delayable(&d->feedback_work);
 	return 0;
 }
 
@@ -234,6 +234,22 @@ static const struct actuator_driver_api dxl_actuator_api = {
 	/* group_set_setpoints, group_read_feedback added in T21 */
 };
 
+static void dxl_feedback_work_handler(struct k_work *work)
+{
+	struct k_work_delayable *dw = k_work_delayable_from_work(work);
+	struct dxl_data *d = CONTAINER_OF(dw, struct dxl_data, feedback_work);
+	const struct device *dev = d->self;
+	const struct dxl_config *cfg = dev->config;
+
+	struct actuator_feedback fb;
+	if (dxl_actuator_read_feedback(dev, &fb) == 0) {
+		actuator_report_feedback(dev, &fb);
+	}
+	if (d->common.state != ACTUATOR_STATE_DISABLED) {
+		k_work_schedule(&d->feedback_work, K_MSEC(cfg->update_period_ms));
+	}
+}
+
 static int dxl_actuator_init(const struct device *dev)
 {
 	const struct dxl_config *cfg = dev->config;
@@ -251,6 +267,7 @@ static int dxl_actuator_init(const struct device *dev)
 	d->cb_storage.pool_n = DXL_CB_POOL;
 	atomic_set(&d->cb_storage.used, 0);
 	sys_slist_init(&d->cb_storage.list);
+	k_work_init_delayable(&d->feedback_work, dxl_feedback_work_handler);
 
 	if (cfg->profile_velocity >= 0) {
 		(void)dxl_write_u32(d->iface, cfg->bus_id, PROFILE_VELOCITY,
