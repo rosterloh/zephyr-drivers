@@ -1,0 +1,8 @@
+sample:
+  name: Actuator basic demo
+  description: Single-actuator hello using the generic actuator API.
+tests:
+  sample.actuator.basic:
+    tags: actuator
+    platform_allow: native_sim
+    build_only: true

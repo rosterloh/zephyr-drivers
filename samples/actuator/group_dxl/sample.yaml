@@ -1,0 +1,8 @@
+sample:
+  name: Actuator group_dxl demo
+  description: Multi-Dynamixel group with SYNC_WRITE/SYNC_READ via the actuator API.
+tests:
+  sample.actuator.group_dxl:
+    tags: actuator
+    platform_allow: native_sim
+    build_only: true
