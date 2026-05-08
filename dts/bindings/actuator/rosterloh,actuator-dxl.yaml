@@ -1,0 +1,11 @@
+description: Smart-servo actuator backed by the rosterloh dynamixel driver.
+
+compatible: "rosterloh,actuator-dxl"
+
+include: [actuator-common.yaml]
+
+properties:
+  reg:
+    type: int
+    required: true
+    description: Dynamixel bus ID (1..253).

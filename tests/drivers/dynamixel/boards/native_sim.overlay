@@ -16,14 +16,18 @@
 		dxl_bus: dxl-bus {
 			status = "okay";
 			compatible = "robotis,dynamixel";
+			#address-cells = <1>;
+			#size-cells = <0>;
 
-			alpha: alpha {
-				id = <1>;
+			alpha: motor@1 {
+				compatible = "rosterloh,actuator-dxl";
+				reg = <1>;
 				label = "ALPHA";
 			};
 
-			beta: beta {
-				id = <2>;
+			beta: motor@2 {
+				compatible = "rosterloh,actuator-dxl";
+				reg = <2>;
 				label = "BETA";
 			};
 		};
