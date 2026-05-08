@@ -23,6 +23,13 @@ config ACTUATOR_MAX_CALLBACKS_PER_DEVICE
 	  Combined limit for state and feedback callbacks per device.
 	  Each callback consumes one slot in the device's static slist.
 
+config ACTUATOR_MAX_GROUPS
+	int "Maximum number of actuator groups with non-default fault policy"
+	default 4
+	help
+	  Each group registered for fault-policy enforcement consumes one slot
+	  in a static array. Groups with default ISOLATE policy do not register.
+
 config ACTUATOR_SHELL
 	bool "Actuator subsystem shell"
 	depends on SHELL

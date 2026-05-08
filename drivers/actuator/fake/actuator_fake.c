@@ -101,3 +101,8 @@ static int fake_init(const struct device *dev)
 			      POST_KERNEL, CONFIG_ACTUATOR_INIT_PRIORITY, &fake_api);
 
 DT_INST_FOREACH_STATUS_OKAY(FAKE_DEFINE)
+
+void fake_force_fault(const struct device *dev)
+{
+	actuator_report_state(dev, ACTUATOR_SM_EVT_FAULT, ACTUATOR_FAULT_DRIVER(0));
+}

@@ -6,14 +6,21 @@
 #include <zephyr/ztest.h>
 #include <zephyr/device.h>
 #include <zephyr/actuator/actuator.h>
+#include <zephyr/actuator/actuator_group.h>
 
 #define FAKE0 DEVICE_DT_GET(DT_NODELABEL(fake0))
+#define FAKE1 DEVICE_DT_GET(DT_NODELABEL(fake1))
+
+ACTUATOR_GROUP_DEFINE(arm, FAKE0, FAKE1);
+
+extern void fake_force_fault(const struct device *dev);
 
 static void before_each(void *data)
 {
 	ARG_UNUSED(data);
 	/* Ensure each test starts from a known DISABLED state. */
 	actuator_disable(FAKE0);
+	actuator_disable(FAKE1);
 }
 
 ZTEST_SUITE(actuator_subsys, NULL, NULL, before_each, NULL, NULL);
@@ -72,4 +79,19 @@ ZTEST(actuator_subsys, test_get_feedback_returns_cached)
 
 	zassert_ok(actuator_get_feedback(FAKE0, &cached));
 	zassert_within(cached.position, 0.5f, 1e-6f);
+}
+
+ZTEST(actuator_subsys, test_group_disable_all_on_fault)
+{
+	zassert_ok(actuator_disable(FAKE0));
+	zassert_ok(actuator_disable(FAKE1));
+	zassert_ok(actuator_group_set_fault_policy(&arm, ACTUATOR_GROUP_POLICY_DISABLE_ALL));
+	zassert_ok(actuator_group_enable(&arm));
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_READY);
+	zassert_equal(actuator_get_state(FAKE1), ACTUATOR_STATE_READY);
+
+	fake_force_fault(FAKE0);
+
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_FAULT);
+	zassert_equal(actuator_get_state(FAKE1), ACTUATOR_STATE_DISABLED);
 }

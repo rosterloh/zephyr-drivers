@@ -68,6 +68,10 @@ void actuator_report_state(const struct device *dev, enum actuator_sm_event even
 	if (rc == 1) {
 		actuator_callbacks_fire_state(dev, new_state);
 	}
+	if (new_state == ACTUATOR_STATE_FAULT) {
+		extern void actuator_group_on_member_fault(const struct device *dev);
+		actuator_group_on_member_fault(dev);
+	}
 }
 
 int z_impl_actuator_enable(const struct device *dev)

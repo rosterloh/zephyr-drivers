@@ -6,4 +6,11 @@
 		default-mode = "position";
 		capabilities = <7>;
 	};
+	fake1: actuator1 {
+		compatible = "rosterloh,actuator-fake";
+		status = "okay";
+		label = "fake1";
+		default-mode = "position";
+		capabilities = <7>;
+	};
 };
