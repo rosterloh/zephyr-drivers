@@ -1,0 +1,45 @@
+description: H-bridge DC motor with optional encoder and current sense.
+
+compatible: "rosterloh,actuator-hbridge"
+
+include: [actuator-common.yaml]
+
+properties:
+  pwms:
+    type: phandle-array
+    required: true
+    description: PWM channel driving the H-bridge enable/PWM input.
+
+  dir-gpios:
+    type: phandle-array
+    required: true
+    description: GPIO controlling H-bridge direction.
+
+  io-channels:
+    type: phandle-array
+    description: |
+      Optional ADC channel for current sense. Enables CAP_EFFORT and
+      ACTUATOR_FAULT_OVERCURRENT detection.
+
+  encoder:
+    type: phandle
+    description: |
+      Optional phandle to a qdec sensor node. Enables CAP_POSITION and
+      CAP_VELOCITY.
+
+  torque-constant-mnm-per-a:
+    type: int
+  max-current-ma:
+    type: int
+
+  current-sense-mohms:
+    type: int
+    description: |
+      Shunt resistor value in milliohms used by the ADC current-sense path.
+      Required when io-channels is set and CONFIG_ACTUATOR_HBRIDGE_CURRENT_SENSE
+      is enabled. For an INA-style amplifier, set this to (R_shunt_mohms /
+      amp_gain).
+
+  pwm-period-ns:
+    type: int
+    default: 50000  # 20 kHz
