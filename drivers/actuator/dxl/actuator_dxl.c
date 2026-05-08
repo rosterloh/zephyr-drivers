@@ -6,6 +6,9 @@
 #define DT_DRV_COMPAT rosterloh_actuator_dxl
 
 #include <math.h>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 #include <stdint.h>
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
@@ -375,7 +378,7 @@ static int dxl_actuator_init(const struct device *dev)
 			{                                                                          \
 				.storage_offset = offsetof(struct dxl_data, cb_storage),           \
 			},                                                                         \
-		.parent_name = DEVICE_DT_NAME(DT_INST_BUS(inst)),                                  \
+		.parent_name = DEVICE_DT_NAME(DT_INST_PARENT(inst)),                               \
 		.bus_id = DT_INST_REG_ADDR(inst),                                                  \
 		.caps = DXL_CAPS(inst),                                                            \
 		.update_period_ms = DT_INST_PROP(inst, update_period_ms),                          \

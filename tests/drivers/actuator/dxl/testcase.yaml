@@ -1,6 +1,5 @@
 common:
   tags: [actuator, drivers]
 tests:
-  drivers.actuator.dxl.build_only:
+  drivers.actuator.dxl:
     platform_allow: [native_sim]
-    build_only: true
