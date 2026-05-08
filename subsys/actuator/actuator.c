@@ -3,4 +3,153 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Stub: actuator subsystem not yet implemented. */
+#include <errno.h>
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/actuator/actuator.h>
+#include <zephyr/actuator/internal/state_machine.h>
+#include <zephyr/actuator/internal/capabilities.h>
+
+#include "../../drivers/actuator/actuator_internal.h"
+
+LOG_MODULE_REGISTER(actuator, CONFIG_ACTUATOR_LOG_LEVEL);
+
+/* Implemented in actuator_callbacks.c. */
+void actuator_callbacks_fire_state(const struct device *dev, enum actuator_state new_state);
+
+static struct actuator_common_data *common(const struct device *dev)
+{
+	/* Backends place struct actuator_common_data as the first field of
+	 * their per-device data struct. */
+	return (struct actuator_common_data *)dev->data;
+}
+
+static const struct actuator_driver_api *api(const struct device *dev)
+{
+	return (const struct actuator_driver_api *)dev->api;
+}
+
+/* Step the state machine under the device lock. The caller MUST hold cd->lock.
+ * Returns:
+ *   0  no transition (event was a self-loop)
+ *   1  transition happened; caller should fire state callbacks AFTER unlocking
+ *  <0  rejected; *next is unchanged
+ */
+static int sm_step_locked(const struct device *dev, enum actuator_sm_event evt,
+			  uint32_t fault_flags)
+{
+	struct actuator_common_data *cd = common(dev);
+	enum actuator_state next;
+	int err = actuator_sm_step(cd->state, evt, cd->caps, &next);
+	if (err != 0) {
+		return err;
+	}
+	if (next == cd->state) {
+		return 0;
+	}
+	cd->state = next;
+	if (next == ACTUATOR_STATE_FAULT) {
+		cd->cached_fb.fault_flags |= fault_flags;
+	} else if (next == ACTUATOR_STATE_DISABLED) {
+		cd->cached_fb.fault_flags = 0;
+	}
+	return 1;
+}
+
+void actuator_report_state(const struct device *dev, enum actuator_sm_event event,
+			   uint32_t fault_flags)
+{
+	struct actuator_common_data *cd = common(dev);
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	int rc = sm_step_locked(dev, event, fault_flags);
+	enum actuator_state new_state = cd->state;
+	k_spin_unlock(&cd->lock, key);
+
+	if (rc == 1) {
+		actuator_callbacks_fire_state(dev, new_state);
+	}
+}
+
+int z_impl_actuator_enable(const struct device *dev)
+{
+	struct actuator_common_data *cd = common(dev);
+
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	int rc = sm_step_locked(dev, ACTUATOR_SM_EVT_ENABLE, 0);
+	enum actuator_state new_state = cd->state;
+	k_spin_unlock(&cd->lock, key);
+
+	if (rc < 0) {
+		return rc;
+	}
+	int err = api(dev)->enable(dev);
+	if (err != 0) {
+		actuator_report_state(dev, ACTUATOR_SM_EVT_FAULT, ACTUATOR_FAULT_DRIVER(0));
+		return err;
+	}
+	if (rc == 1) {
+		actuator_callbacks_fire_state(dev, new_state);
+	}
+	return 0;
+}
+
+int z_impl_actuator_disable(const struct device *dev)
+{
+	struct actuator_common_data *cd = common(dev);
+
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	int rc = sm_step_locked(dev, ACTUATOR_SM_EVT_DISABLE, 0);
+	enum actuator_state new_state = cd->state;
+	k_spin_unlock(&cd->lock, key);
+
+	int err = api(dev)->disable(dev);
+	if (rc == 1) {
+		actuator_callbacks_fire_state(dev, new_state);
+	}
+	return err;
+}
+
+int z_impl_actuator_clear_fault(const struct device *dev)
+{
+	struct actuator_common_data *cd = common(dev);
+
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	int rc = sm_step_locked(dev, ACTUATOR_SM_EVT_CLEAR_FAULT, 0);
+	enum actuator_state new_state = cd->state;
+	k_spin_unlock(&cd->lock, key);
+
+	if (rc == -ENOTSUP) {
+		/* Non-latching backend: clear is a no-op success. */
+		return 0;
+	}
+	if (rc < 0) {
+		return rc;
+	}
+	int err = api(dev)->clear_fault ? api(dev)->clear_fault(dev) : 0;
+	if (rc == 1) {
+		actuator_callbacks_fire_state(dev, new_state);
+	}
+	return err;
+}
+
+enum actuator_state z_impl_actuator_get_state(const struct device *dev)
+{
+	return common(dev)->state;
+}
+
+uint32_t z_impl_actuator_get_capabilities(const struct device *dev)
+{
+	return common(dev)->caps;
+}
+
+int z_impl_actuator_set_limits(const struct device *dev, const struct actuator_limits *limits)
+{
+	if (api(dev)->set_limits != NULL) {
+		return api(dev)->set_limits(dev, limits);
+	}
+	struct actuator_common_data *cd = common(dev);
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	cd->limits = *limits;
+	k_spin_unlock(&cd->lock, key);
+	return 0;
+}
