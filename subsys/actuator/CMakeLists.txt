@@ -1,0 +1,4 @@
+zephyr_library_named(actuator)
+zephyr_library_sources(actuator.c actuator_callbacks.c actuator_group.c)
+zephyr_library_sources_ifdef(CONFIG_ACTUATOR_SHELL actuator_shell.c)
+zephyr_library_link_libraries(actuator_lib)

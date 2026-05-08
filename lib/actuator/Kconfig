@@ -1,0 +1,6 @@
+config ACTUATOR_LIB
+	bool
+	default y if ACTUATOR
+	help
+	  Pure-logic helpers for the actuator subsystem (state machine,
+	  capability matching, unit conversion). No struct device dependencies.
