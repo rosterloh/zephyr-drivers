@@ -200,3 +200,39 @@ int z_impl_actuator_set_effort(const struct device *dev, float nm)
 {
 	return set_setpoint_typed(dev, ACTUATOR_MODE_EFFORT, nm);
 }
+
+/* Implemented in actuator_callbacks.c. */
+extern void actuator_callbacks_fire_feedback(const struct device *dev,
+					     const struct actuator_feedback *fb);
+
+void actuator_report_feedback(const struct device *dev, const struct actuator_feedback *fb)
+{
+	struct actuator_common_data *cd = common(dev);
+
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	cd->cached_fb = *fb;
+	k_spin_unlock(&cd->lock, key);
+
+	if (fb->fault_flags != 0) {
+		actuator_report_state(dev, ACTUATOR_SM_EVT_FAULT, fb->fault_flags);
+	}
+	actuator_callbacks_fire_feedback(dev, fb);
+}
+
+int z_impl_actuator_read_feedback(const struct device *dev, struct actuator_feedback *out)
+{
+	int err = api(dev)->read_feedback(dev, out);
+	if (err == 0) {
+		actuator_report_feedback(dev, out);
+	}
+	return err;
+}
+
+int z_impl_actuator_get_feedback(const struct device *dev, struct actuator_feedback *out)
+{
+	struct actuator_common_data *cd = common(dev);
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	*out = cd->cached_fb;
+	k_spin_unlock(&cd->lock, key);
+	return 0;
+}
