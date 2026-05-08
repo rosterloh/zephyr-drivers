@@ -225,13 +225,94 @@ static int dxl_actuator_read_feedback(const struct device *dev, struct actuator_
 	return 0;
 }
 
+static int dxl_group_set_setpoints(const struct device *const *devs, size_t n,
+				   enum actuator_mode mode, const float *values)
+{
+	if (n == 0) {
+		return 0;
+	}
+	const struct dxl_data *d0 = devs[0]->data;
+	uint8_t ids[n];
+	for (size_t i = 0; i < n; i++) {
+		const struct dxl_config *ci = devs[i]->config;
+		const struct dxl_data *di = devs[i]->data;
+		if (di->iface != d0->iface) {
+			/* Cross-iface group — fall back. */
+			return -ENOTSUP;
+		}
+		ids[i] = ci->bus_id;
+	}
+
+	switch (mode) {
+	case ACTUATOR_MODE_POSITION: {
+		uint32_t goals[n];
+		for (size_t i = 0; i < n; i++) {
+			goals[i] = rad_to_pos_ticks(devs[i]->config, values[i]);
+		}
+		return dxl_sync_write_u32(d0->iface, GOAL_POSITION, ids, goals, n) ? -EIO : 0;
+	}
+	case ACTUATOR_MODE_VELOCITY: {
+		uint32_t goals[n];
+		for (size_t i = 0; i < n; i++) {
+			goals[i] = (uint32_t)rad_s_to_vel_ticks(values[i]);
+		}
+		return dxl_sync_write_u32(d0->iface, GOAL_VELOCITY, ids, goals, n) ? -EIO : 0;
+	}
+	case ACTUATOR_MODE_EFFORT: {
+		uint16_t goals[n];
+		for (size_t i = 0; i < n; i++) {
+			goals[i] = (uint16_t)nm_to_current_ticks(
+				(const struct dxl_config *)devs[i]->config, values[i]);
+		}
+		return dxl_sync_write_u16(d0->iface, GOAL_CURRENT, ids, goals, n) ? -EIO : 0;
+	}
+	default:
+		return -ENOTSUP;
+	}
+}
+
+static int dxl_group_read_feedback(const struct device *const *devs, size_t n,
+				   struct actuator_feedback *out)
+{
+	if (n == 0) {
+		return 0;
+	}
+	const struct dxl_data *d0 = devs[0]->data;
+	uint8_t ids[n];
+	uint32_t positions[n];
+	int errs[n];
+
+	for (size_t i = 0; i < n; i++) {
+		const struct dxl_config *ci = devs[i]->config;
+		const struct dxl_data *di = devs[i]->data;
+		if (di->iface != d0->iface) {
+			return -ENOTSUP;
+		}
+		ids[i] = ci->bus_id;
+	}
+	int rc = dxl_sync_read_u32(d0->iface, PRESENT_POSITION, ids, positions, errs, n);
+	for (size_t i = 0; i < n; i++) {
+		if (errs[i] != 0) {
+			out[i] = (struct actuator_feedback){.valid_mask = 0};
+			continue;
+		}
+		out[i] = (struct actuator_feedback){
+			.valid_mask = ACTUATOR_FB_POSITION,
+			.position = pos_ticks_to_rad(devs[i]->config, positions[i]),
+			.timestamp_us = (uint64_t)k_uptime_get() * 1000,
+		};
+	}
+	return rc;
+}
+
 static const struct actuator_driver_api dxl_actuator_api = {
 	.enable = dxl_actuator_enable,
 	.disable = dxl_actuator_disable,
 	.clear_fault = dxl_actuator_clear_fault,
 	.set_setpoint = dxl_actuator_set_setpoint,
 	.read_feedback = dxl_actuator_read_feedback,
-	/* group_set_setpoints, group_read_feedback added in T21 */
+	.group_set_setpoints = dxl_group_set_setpoints,
+	.group_read_feedback = dxl_group_read_feedback,
 };
 
 static void dxl_feedback_work_handler(struct k_work *work)
