@@ -1,0 +1,7 @@
+config ACTUATOR_DXL
+	bool "Dynamixel actuator backend"
+	depends on ACTUATOR && DYNAMIXEL
+	default n
+	help
+	  Wraps the rosterloh dynamixel protocol driver and exposes each motor
+	  on the bus as an actuator device.
