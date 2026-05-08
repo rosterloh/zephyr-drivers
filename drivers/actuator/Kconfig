@@ -1,9 +1,8 @@
-menu "Actuator drivers"
-	depends on ACTUATOR
+if ACTUATOR
 
 # Per-backend Kconfigs added in later tasks:
 # rsource "dxl/Kconfig"
 # rsource "hbridge/Kconfig"
 # rsource "fake/Kconfig"
 
-endmenu
+endif # ACTUATOR

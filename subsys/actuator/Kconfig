@@ -12,10 +12,9 @@ config ACTUATOR_INIT_PRIORITY
 	help
 	  Must be after device drivers (default 50) and before the application.
 
-config ACTUATOR_LOG_LEVEL
-	int "Log level for the actuator subsystem"
-	default 2
-	range 0 4
+module = ACTUATOR
+module-str = actuator
+source "subsys/logging/Kconfig.template.log_config"
 
 config ACTUATOR_MAX_CALLBACKS_PER_DEVICE
 	int "Maximum number of callbacks per actuator device"
