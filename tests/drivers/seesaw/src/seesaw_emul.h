@@ -6,4 +6,7 @@
 int seesaw_mock_set_register(void *data_ptr, int reg, uint32_t value);
 int seesaw_mock_get_register(void *data_ptr, int reg, uint32_t *value_ptr);
 
+int mfd_seesaw_mock_set_register(void *data_ptr, int reg, uint32_t value);
+int mfd_seesaw_mock_get_register(void *data_ptr, int reg, uint32_t *value_ptr);
+
 #endif /* SEESAW_EMUL_H_ */
