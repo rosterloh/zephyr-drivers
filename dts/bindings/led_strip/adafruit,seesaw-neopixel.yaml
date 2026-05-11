@@ -1,0 +1,30 @@
+description: |
+  NeoPixel chain driven through an adafruit,seesaw-mfd MFD. Wraps the
+  SEESAW_NEOPIXEL_BASE module: pin assignment, speed select, buffer
+  length, framebuffer writes, and SHOW trigger.
+
+compatible: "adafruit,seesaw-neopixel"
+
+include: led-strip.yaml
+
+properties:
+  seesaw-pin:
+    type: int
+    required: true
+    description: Seesaw GPIO pin index that the NeoPixel data line is wired to.
+
+  frequency:
+    type: int
+    default: 800000
+    enum:
+      - 400000
+      - 800000
+    description: NeoPixel data rate (Hz). 400 kHz or 800 kHz.
+
+  pixel-buffer-size:
+    type: int
+    default: 64
+    description: |
+      Bytes reserved for the in-memory framebuffer. Must be at least
+      chain-length * 3. RGBW strips are not supported in this version
+      (LED_COLOR_ID_WHITE entries in color-mapping are written as zero).

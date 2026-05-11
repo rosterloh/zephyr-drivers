@@ -1,5 +1,6 @@
 menu "Drivers"
 rsource "adc/Kconfig"
+rsource "led_strip/Kconfig"
 rsource "actuator/Kconfig"
 rsource "dynamixel/Kconfig"
 rsource "gpio/Kconfig"

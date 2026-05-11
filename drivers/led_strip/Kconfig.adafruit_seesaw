@@ -1,0 +1,21 @@
+config LED_STRIP_ADAFRUIT_SEESAW
+	bool "Adafruit Seesaw NeoPixel"
+	default y
+	depends on DT_HAS_ADAFRUIT_SEESAW_NEOPIXEL_ENABLED
+	depends on MFD_ADAFRUIT_SEESAW
+	depends on LED_STRIP
+	help
+	  Adafruit Seesaw NeoPixel LED strip driver. Drives a chain of WS2812-
+	  family LEDs via the seesaw's NEOPIXEL module.
+
+if LED_STRIP_ADAFRUIT_SEESAW
+module = LED_STRIP_ADAFRUIT_SEESAW
+module-str = led_strip_adafruit_seesaw
+source "subsys/logging/Kconfig.template.log_config"
+
+config LED_STRIP_ADAFRUIT_SEESAW_INIT_PRIORITY
+	int "Init priority"
+	default 85
+	help
+	  Must be greater than MFD_ADAFRUIT_SEESAW_INIT_PRIORITY (80).
+endif

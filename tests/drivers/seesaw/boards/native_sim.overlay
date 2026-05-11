@@ -1,3 +1,5 @@
+#include <zephyr/dt-bindings/led/led.h>
+
 &i2c0 {
 	status = "okay";
 
@@ -28,6 +30,14 @@
 		pwm_child: pwm {
 			compatible = "adafruit,seesaw-pwm";
 			#pwm-cells = <3>;
+		};
+
+		led_child: neopixel {
+			compatible = "adafruit,seesaw-neopixel";
+			chain-length = <4>;
+			color-mapping = <LED_COLOR_ID_GREEN LED_COLOR_ID_RED LED_COLOR_ID_BLUE>;
+			seesaw-pin = <14>;
+			frequency = <800000>;
 		};
 	};
 };

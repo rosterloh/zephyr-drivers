@@ -1,4 +1,5 @@
 add_subdirectory_ifdef(CONFIG_ADC_ADAFRUIT_SEESAW adc)
+add_subdirectory_ifdef(CONFIG_LED_STRIP_ADAFRUIT_SEESAW led_strip)
 add_subdirectory_ifdef(CONFIG_PWM_ADAFRUIT_SEESAW pwm)
 add_subdirectory_ifdef(CONFIG_DYNAMIXEL dynamixel)
 add_subdirectory_ifdef(CONFIG_GPIO_ADAFRUIT_SEESAW gpio)
