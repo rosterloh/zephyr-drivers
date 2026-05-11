@@ -1,0 +1,2 @@
+zephyr_library_named(gpio_adafruit_seesaw)
+zephyr_library_sources_ifdef(CONFIG_GPIO_ADAFRUIT_SEESAW gpio_adafruit_seesaw.c)

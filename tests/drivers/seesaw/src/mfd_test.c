@@ -15,8 +15,7 @@ ZTEST(mfd_seesaw, test_device_ready)
 
 ZTEST(mfd_seesaw, test_hw_id_cached)
 {
-	/* Legacy emul initialises STATUS_HW_ID = 0x55 (SAMD09). Probe in init()
-	 * caches it. */
+	/* MFD emul seeds STATUS_HW_ID = 0x55 (SAMD09). Probe in init() caches it. */
 	zassert_equal(mfd_seesaw_hw_id(mfd), SEESAW_HW_ID_CODE_SAMD09,
 		      "expected cached HW ID = 0x%02x, got 0x%02x", SEESAW_HW_ID_CODE_SAMD09,
 		      mfd_seesaw_hw_id(mfd));

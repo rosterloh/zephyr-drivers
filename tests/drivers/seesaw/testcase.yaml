@@ -10,3 +10,4 @@ tests:
   drivers.seesaw.mfd:
     extra_configs:
       - CONFIG_MFD_ADAFRUIT_SEESAW=y
+      - CONFIG_GPIO_ADAFRUIT_SEESAW=y

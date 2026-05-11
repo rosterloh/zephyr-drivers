@@ -12,5 +12,12 @@
 		reg = <0x49>;
 		read-delay-us = <0>;
 		status = "okay";
+
+		gpio_child: gpio {
+			compatible = "adafruit,seesaw-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			ngpios = <16>;
+		};
 	};
 };

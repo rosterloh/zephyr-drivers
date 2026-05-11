@@ -1,0 +1,23 @@
+description: |
+  GPIO child of an adafruit,seesaw-mfd MFD. Exposes the seesaw chip's GPIO
+  module (SEESAW_GPIO_BASE) as a standard Zephyr GPIO controller.
+
+compatible: "adafruit,seesaw-gpio"
+
+include: [gpio-controller.yaml, base.yaml]
+
+properties:
+  ngpios:
+    type: int
+    default: 32
+    description: |
+      Number of GPIO pins. The seesaw GPIO module accepts a 32-bit bulk mask;
+      the actual chip exposes fewer (e.g. SAMD09: pins 0–24 minus reserved).
+      Apps should respect the chip-specific subset.
+
+  "#gpio-cells":
+    const: 2
+
+gpio-cells:
+  - pin
+  - flags
