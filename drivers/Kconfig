@@ -1,6 +1,10 @@
 menu "Drivers"
+rsource "adc/Kconfig"
+rsource "led_strip/Kconfig"
 rsource "actuator/Kconfig"
 rsource "dynamixel/Kconfig"
-rsource "seesaw/Kconfig"
+rsource "gpio/Kconfig"
+rsource "mfd/seesaw/Kconfig"
+rsource "pwm/Kconfig"
 rsource "sensor/Kconfig"
 endmenu

@@ -1,6 +1,18 @@
+common:
+  tags: drivers
+  platform_allow:
+    - native_sim
+
 tests:
-  drivers.seesaw:
-    tags:
-      - drivers
-    platform_allow:
-      - native_sim
+  drivers.seesaw.mfd:
+    extra_configs:
+      - CONFIG_MFD_ADAFRUIT_SEESAW=y
+      - CONFIG_GPIO_ADAFRUIT_SEESAW=y
+      - CONFIG_ADC=y
+      - CONFIG_ADC_ADAFRUIT_SEESAW=y
+      - CONFIG_PWM=y
+      - CONFIG_PWM_ADAFRUIT_SEESAW=y
+      - CONFIG_LED_STRIP=y
+      - CONFIG_LED_STRIP_ADAFRUIT_SEESAW=y
+      - CONFIG_SENSOR=y
+      - CONFIG_ADAFRUIT_SEESAW_ENCODER=y

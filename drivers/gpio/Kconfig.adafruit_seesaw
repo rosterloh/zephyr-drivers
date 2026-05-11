@@ -1,0 +1,19 @@
+config GPIO_ADAFRUIT_SEESAW
+	bool "Adafruit Seesaw GPIO"
+	default y
+	depends on DT_HAS_ADAFRUIT_SEESAW_GPIO_ENABLED
+	depends on MFD_ADAFRUIT_SEESAW
+	help
+	  Adafruit Seesaw GPIO child driver.
+
+if GPIO_ADAFRUIT_SEESAW
+module = GPIO_ADAFRUIT_SEESAW
+module-str = gpio_adafruit_seesaw
+source "subsys/logging/Kconfig.template.log_config"
+
+config GPIO_ADAFRUIT_SEESAW_INIT_PRIORITY
+	int "Init priority"
+	default 85
+	help
+	  Must be greater than MFD_ADAFRUIT_SEESAW_INIT_PRIORITY.
+endif

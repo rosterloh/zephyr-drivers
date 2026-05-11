@@ -1,0 +1,28 @@
+description: |
+  Adafruit Seesaw MFD parent. The chip is a SAMD09 or ATtiny8xx/16xx running
+  Adafruit's Seesaw firmware. Child nodes (gpio, adc, pwm, led_strip, encoder)
+  attach below this node and reference its register-transport API.
+
+compatible: "adafruit,seesaw-mfd"
+
+include: i2c-device.yaml
+
+properties:
+  int-gpios:
+    type: phandle-array
+    description: |
+      Host GPIO connected to the seesaw INT pin. Optional. If provided, the
+      MFD parent will fan interrupts out to children that opt in via
+      mfd_seesaw_add_int_callback().
+
+  read-delay-us:
+    type: int
+    default: 250
+    description: |
+      Microseconds to busy-wait between a register-address write and the
+      following read. Some firmware revisions need this; default 250 us.
+
+child-binding:
+  description: |
+    Generic child binding placeholder. Concrete child bindings are defined
+    per-subsystem (adafruit,seesaw-gpio, etc.).

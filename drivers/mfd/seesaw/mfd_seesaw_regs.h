@@ -1,11 +1,7 @@
-#ifndef ZEPHYR_DRIVERS_SEESAW_SEESAW_H_
-#define ZEPHYR_DRIVERS_SEESAW_SEESAW_H_
+#ifndef MFD_SEESAW_REGS_H_
+#define MFD_SEESAW_REGS_H_
 
-#include <zephyr/device.h>
-#include <zephyr/drivers/gpio.h>
-#include <zephyr/drivers/i2c.h>
-#include <drivers/seesaw.h>
-#include <zephyr/sys/util.h>
+#include <stdint.h>
 
 /** The module base addresses for different seesaw modules. */
 enum {
@@ -121,12 +117,8 @@ enum {
 
 /** Audio spectrum module function address registers */
 enum {
-	SEESAW_SPECTRUM_RESULTS_LOWER = 0x00, // Audio spectrum bins 0-31
-	SEESAW_SPECTRUM_RESULTS_UPPER = 0x01, // Audio spectrum bins 32-63
-	// If some future device supports a larger spectrum, can add additional
-	// "bins" working upward from here. Configurable setting registers then
-	// work downward from the top to avoid collision between spectrum bins
-	// and configurables.
+	SEESAW_SPECTRUM_RESULTS_LOWER = 0x00, /* Audio spectrum bins 0-31 */
+	SEESAW_SPECTRUM_RESULTS_UPPER = 0x01, /* Audio spectrum bins 32-63 */
 	SEESAW_SPECTRUM_CHANNEL = 0xFD,
 	SEESAW_SPECTRUM_RATE = 0xFE,
 	SEESAW_SPECTRUM_STATUS = 0xFF,
@@ -134,12 +126,10 @@ enum {
 
 /** soil moisture module function address registers */
 enum {
-	// 0x00..0x0F Global Settings
+	/* 0x00..0x0F Global Settings */
 	SEESAW_SOIL_STATUS = 0x00,
 	SEESAW_SOIL_RATE = 0x01,
-	// 0x10..0xF0 Sensor Settings
-	// lower four bits = sensor number
-	// upper four bits = setting type
+	/* 0x10..0xF0 Sensor Settings */
 	SEESAW_SOIL_VALUE = 0x10,
 	SEESAW_SOIL_SAMPLES = 0x20,
 	SEESAW_SOIL_XDELAY = 0x30,
@@ -154,23 +144,13 @@ enum {
 	SEESAW_PRODUCT_CRICKIT = 9999,
 };
 
-#define ADC_INPUT_0_PIN 2
-#define ADC_INPUT_1_PIN 3
-#define ADC_INPUT_2_PIN 4
-#define ADC_INPUT_3_PIN 5
-
-#define PWM_0_PIN 4
-#define PWM_1_PIN 5
-#define PWM_2_PIN 6
-#define PWM_3_PIN 7
-
-#define SEESAW_HW_ID_CODE_SAMD09   0x55 ///< seesaw HW ID code for SAMD09
-#define SEESAW_HW_ID_CODE_TINY806  0x84 ///< seesaw HW ID code for ATtiny806
-#define SEESAW_HW_ID_CODE_TINY807  0x85 ///< seesaw HW ID code for ATtiny807
-#define SEESAW_HW_ID_CODE_TINY816  0x86 ///< seesaw HW ID code for ATtiny816
-#define SEESAW_HW_ID_CODE_TINY817  0x87 ///< seesaw HW ID code for ATtiny817
-#define SEESAW_HW_ID_CODE_TINY1616 0x88 ///< seesaw HW ID code for ATtiny1616
-#define SEESAW_HW_ID_CODE_TINY1617 0x89 ///< seesaw HW ID code for ATtiny1617
+#define SEESAW_HW_ID_CODE_SAMD09   0x55 /* seesaw HW ID code for SAMD09 */
+#define SEESAW_HW_ID_CODE_TINY806  0x84 /* seesaw HW ID code for ATtiny806 */
+#define SEESAW_HW_ID_CODE_TINY807  0x85 /* seesaw HW ID code for ATtiny807 */
+#define SEESAW_HW_ID_CODE_TINY816  0x86 /* seesaw HW ID code for ATtiny816 */
+#define SEESAW_HW_ID_CODE_TINY817  0x87 /* seesaw HW ID code for ATtiny817 */
+#define SEESAW_HW_ID_CODE_TINY1616 0x88 /* seesaw HW ID code for ATtiny1616 */
+#define SEESAW_HW_ID_CODE_TINY1617 0x89 /* seesaw HW ID code for ATtiny1617 */
 
 /** raw key event stucture for keypad module */
 union keyEventRaw {
@@ -202,57 +182,4 @@ union keyState {
 #define SEESAW_WAIT_STARTUP_US       10000
 #define SEESAW_WAIT_INITIAL_RESET_US 10000
 
-struct seesaw_config {
-	struct i2c_dt_spec i2c;
-	uint32_t delay;
-#ifdef CONFIG_SEESAW_TRIGGER
-	struct gpio_dt_spec int_gpio;
-#endif
-};
-
-struct neopixel_config {
-	bool is_800khz;
-	bool is_rgb;
-	uint8_t w_offset;
-	uint8_t r_offset;
-	uint8_t g_offset;
-	uint8_t b_offset;
-	uint16_t num_bytes;
-	uint16_t num_leds;
-	uint8_t *pixels;
-	uint8_t pin;
-	uint8_t brightness;
-};
-
-struct seesaw_data {
-	uint8_t hw_id;
-	uint16_t pid;
-	uint32_t options;
-	struct neopixel_config neo_cfg;
-#ifdef CONFIG_SEESAW_TRIGGER
-	const struct device *dev;
-	struct gpio_callback gpio_cb;
-
-	seesaw_int_callback_t int_cb;
-
-#if defined(CONFIG_SEESAW_TRIGGER_OWN_THREAD)
-	K_THREAD_STACK_MEMBER(thread_stack, CONFIG_SEESAW_THREAD_STACK_SIZE);
-	struct k_sem gpio_sem;
-	struct k_thread thread;
-#elif defined(CONFIG_SEESAW_TRIGGER_GLOBAL_THREAD)
-	struct k_work work;
-#endif
-
-#endif /* CONFIG_SEESAW_TRIGGER */
-};
-
-int seesaw_read(const struct device *dev, uint8_t reg_high, uint8_t reg_low, uint8_t *buf,
-		uint8_t num, uint16_t delay);
-
-#ifdef CONFIG_SEESAW_TRIGGER
-int seesaw_set_int_callback(const struct device *dev, seesaw_int_callback_t handler);
-
-int seesaw_init_interrupt(const struct device *dev);
-#endif /* CONFIG_SEESAW_TRIGGER */
-
-#endif /* ZEPHYR_DRIVERS_SEESAW_SEESAW_H_ */
+#endif /* MFD_SEESAW_REGS_H_ */

@@ -1,0 +1,2 @@
+zephyr_library_named(led_strip_adafruit_seesaw)
+zephyr_library_sources_ifdef(CONFIG_LED_STRIP_ADAFRUIT_SEESAW led_strip_adafruit_seesaw.c)

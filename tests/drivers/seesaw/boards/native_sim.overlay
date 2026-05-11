@@ -1,9 +1,41 @@
+#include <zephyr/dt-bindings/led/led.h>
+
 &i2c0 {
 	status = "okay";
 
-	seesaw: seesaw@30 {
-		compatible = "adafruit,seesaw";
-		reg = <0x30>;
+	mfd_seesaw: seesaw@49 {
+		compatible = "adafruit,seesaw-mfd";
+		reg = <0x49>;
+		read-delay-us = <0>;
 		status = "okay";
+
+		gpio_child: gpio {
+			compatible = "adafruit,seesaw-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			ngpios = <16>;
+		};
+
+		adc_child: adc {
+			compatible = "adafruit,seesaw-adc";
+			#io-channel-cells = <1>;
+		};
+
+		pwm_child: pwm {
+			compatible = "adafruit,seesaw-pwm";
+			#pwm-cells = <3>;
+		};
+
+		led_child: neopixel {
+			compatible = "adafruit,seesaw-neopixel";
+			chain-length = <4>;
+			color-mapping = <LED_COLOR_ID_GREEN LED_COLOR_ID_RED LED_COLOR_ID_BLUE>;
+			seesaw-pin = <14>;
+			frequency = <800000>;
+		};
+
+		encoder_child: encoder {
+			compatible = "adafruit,seesaw-encoder";
+		};
 	};
 };

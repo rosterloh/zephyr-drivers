@@ -1,0 +1,3 @@
+zephyr_library()
+zephyr_library_sources_ifdef(CONFIG_MFD_ADAFRUIT_SEESAW mfd_seesaw.c)
+zephyr_library_sources_ifdef(CONFIG_MFD_ADAFRUIT_SEESAW_INT mfd_seesaw_trigger.c)

@@ -1,4 +1,0 @@
-zephyr_library()
-
-zephyr_library_sources_ifdef(CONFIG_SEESAW seesaw.c)
-zephyr_library_sources_ifdef(CONFIG_SEESAW_TRIGGER seesaw_trigger.c)

@@ -1,0 +1,15 @@
+config ADAFRUIT_SEESAW_ENCODER
+	bool "Adafruit Seesaw rotary encoder"
+	default y
+	depends on DT_HAS_ADAFRUIT_SEESAW_ENCODER_ENABLED
+	depends on MFD_ADAFRUIT_SEESAW
+	help
+	  Rotary encoder support for Adafruit's I2C rotary encoder breakout
+	  (PID 4991 / 5740) and similar seesaw-firmware encoders. Exposes
+	  position as SENSOR_CHAN_ROTATION.
+
+if ADAFRUIT_SEESAW_ENCODER
+module = ADAFRUIT_SEESAW_ENCODER
+module-str = adafruit_seesaw_encoder
+source "subsys/logging/Kconfig.template.log_config"
+endif

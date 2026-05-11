@@ -1,0 +1,28 @@
+config ADC_ADAFRUIT_SEESAW
+	bool "Adafruit Seesaw ADC"
+	default y
+	depends on DT_HAS_ADAFRUIT_SEESAW_ADC_ENABLED
+	depends on MFD_ADAFRUIT_SEESAW
+	depends on ADC
+	select ADC_CONFIGURABLE_INPUTS
+	help
+	  Adafruit Seesaw ADC child driver.
+
+if ADC_ADAFRUIT_SEESAW
+module = ADC_ADAFRUIT_SEESAW
+module-str = adc_adafruit_seesaw
+source "subsys/logging/Kconfig.template.log_config"
+
+config ADC_ADAFRUIT_SEESAW_INIT_PRIORITY
+	int "Init priority"
+	default 85
+	help
+	  Must be greater than MFD_ADAFRUIT_SEESAW_INIT_PRIORITY (80).
+
+config ADC_ADAFRUIT_SEESAW_ACQUISITION_THREAD_PRIO
+	int "Acquisition thread priority"
+	default 0
+	help
+	  Priority for the cooperative thread that performs ADC reads on
+	  behalf of adc_read().
+endif

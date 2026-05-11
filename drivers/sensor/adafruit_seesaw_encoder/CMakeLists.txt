@@ -1,0 +1,2 @@
+zephyr_library()
+zephyr_library_sources_ifdef(CONFIG_ADAFRUIT_SEESAW_ENCODER adafruit_seesaw_encoder.c)
