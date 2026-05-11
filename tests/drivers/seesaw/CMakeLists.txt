@@ -6,5 +6,4 @@ FILE(GLOB app_sources src/*.c)
 target_sources(app PRIVATE ${app_sources})
 
 zephyr_include_directories(./src)
-zephyr_include_directories(${ZEPHYR_DRIVERS_REPO_ROOT}/drivers/seesaw)
 zephyr_include_directories(${ZEPHYR_DRIVERS_REPO_ROOT}/drivers/mfd/seesaw)

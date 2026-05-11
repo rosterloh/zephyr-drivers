@@ -4,9 +4,6 @@ common:
     - native_sim
 
 tests:
-  drivers.seesaw:
-    extra_configs: []
-
   drivers.seesaw.mfd:
     extra_configs:
       - CONFIG_MFD_ADAFRUIT_SEESAW=y

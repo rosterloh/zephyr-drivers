@@ -3,12 +3,6 @@
 &i2c0 {
 	status = "okay";
 
-	seesaw: seesaw@30 {
-		compatible = "adafruit,seesaw";
-		reg = <0x30>;
-		status = "okay";
-	};
-
 	mfd_seesaw: seesaw@49 {
 		compatible = "adafruit,seesaw-mfd";
 		reg = <0x49>;

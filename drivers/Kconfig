@@ -6,6 +6,5 @@ rsource "dynamixel/Kconfig"
 rsource "gpio/Kconfig"
 rsource "mfd/seesaw/Kconfig"
 rsource "pwm/Kconfig"
-rsource "seesaw/Kconfig"
 rsource "sensor/Kconfig"
 endmenu
