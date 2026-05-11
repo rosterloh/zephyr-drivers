@@ -195,6 +195,8 @@ static const struct i2c_emul_api mfd_seesaw_emul_api_i2c = {
 				{SEESAW_GPIO_BASE, SEESAW_GPIO_INTFLAG, 4, 0},                     \
 				{SEESAW_GPIO_BASE, SEESAW_GPIO_PULLENSET, 4, 0},                   \
 				{SEESAW_GPIO_BASE, SEESAW_GPIO_PULLENCLR, 4, 0},                   \
+				/* ADC: SAMD09 logical channel 3 -> pin 5 */                        \
+				{SEESAW_ADC_BASE, SEESAW_ADC_CHANNEL_OFFSET + 5, 2, 0},             \
 			},                                                                         \
 		.last_reg = -1,                                                                    \
 	};                                                                                         \

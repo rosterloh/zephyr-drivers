@@ -1,3 +1,4 @@
+add_subdirectory_ifdef(CONFIG_ADC_ADAFRUIT_SEESAW adc)
 add_subdirectory_ifdef(CONFIG_DYNAMIXEL dynamixel)
 add_subdirectory_ifdef(CONFIG_GPIO_ADAFRUIT_SEESAW gpio)
 add_subdirectory_ifdef(CONFIG_MFD_ADAFRUIT_SEESAW mfd/seesaw)

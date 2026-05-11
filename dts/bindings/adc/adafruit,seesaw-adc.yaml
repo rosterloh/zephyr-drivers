@@ -1,0 +1,17 @@
+description: |
+  ADC child of an adafruit,seesaw-mfd MFD. The ATtiny variants of the
+  seesaw firmware expose the chip's ADC on multiple pins (one channel per
+  GPIO pin number). Channel IDs in adc-sequence map directly to those
+  pin numbers (0..31). The SAMD09 variant maps channels 0..3 to chip
+  pins 2..5 internally; the driver handles that translation.
+
+compatible: "adafruit,seesaw-adc"
+
+include: [adc-controller.yaml, base.yaml]
+
+properties:
+  "#io-channel-cells":
+    const: 1
+
+io-channel-cells:
+  - input

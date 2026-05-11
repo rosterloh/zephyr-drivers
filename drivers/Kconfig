@@ -1,4 +1,5 @@
 menu "Drivers"
+rsource "adc/Kconfig"
 rsource "actuator/Kconfig"
 rsource "dynamixel/Kconfig"
 rsource "gpio/Kconfig"

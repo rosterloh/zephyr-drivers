@@ -1,0 +1,3 @@
+zephyr_library_named(adc_adafruit_seesaw)
+zephyr_library_include_directories(${ZEPHYR_BASE}/drivers/adc)
+zephyr_library_sources_ifdef(CONFIG_ADC_ADAFRUIT_SEESAW adc_adafruit_seesaw.c)
