@@ -1,0 +1,17 @@
+description: |
+  PWM child of an adafruit,seesaw-mfd MFD. Wraps SEESAW_TIMER_BASE:
+  per-pin 16-bit duty (TIMER_PWM) and per-pin Hz (TIMER_FREQ). Channels
+  in pwm-cells map directly to chip GPIO pin numbers used as PWM outputs.
+
+compatible: "adafruit,seesaw-pwm"
+
+include: [pwm-controller.yaml, base.yaml]
+
+properties:
+  "#pwm-cells":
+    const: 3
+
+pwm-cells:
+  - channel
+  - period
+  - flags

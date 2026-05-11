@@ -1,0 +1,20 @@
+config PWM_ADAFRUIT_SEESAW
+	bool "Adafruit Seesaw PWM"
+	default y
+	depends on DT_HAS_ADAFRUIT_SEESAW_PWM_ENABLED
+	depends on MFD_ADAFRUIT_SEESAW
+	depends on PWM
+	help
+	  Adafruit Seesaw PWM child driver.
+
+if PWM_ADAFRUIT_SEESAW
+module = PWM_ADAFRUIT_SEESAW
+module-str = pwm_adafruit_seesaw
+source "subsys/logging/Kconfig.template.log_config"
+
+config PWM_ADAFRUIT_SEESAW_INIT_PRIORITY
+	int "Init priority"
+	default 85
+	help
+	  Must be greater than MFD_ADAFRUIT_SEESAW_INIT_PRIORITY (80).
+endif

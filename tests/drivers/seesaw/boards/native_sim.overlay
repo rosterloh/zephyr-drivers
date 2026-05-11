@@ -24,5 +24,10 @@
 			compatible = "adafruit,seesaw-adc";
 			#io-channel-cells = <1>;
 		};
+
+		pwm_child: pwm {
+			compatible = "adafruit,seesaw-pwm";
+			#pwm-cells = <3>;
+		};
 	};
 };

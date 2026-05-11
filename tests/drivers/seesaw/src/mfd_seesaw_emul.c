@@ -115,6 +115,12 @@ static int mfd_seesaw_emul_transfer_i2c(const struct emul *target, struct i2c_ms
 		case 2:
 			reg_ptr->value = (uint32_t)sys_get_be16(&msgs[0].buf[2]);
 			break;
+		case 3:
+			/* 3-byte payload: buf[2] is a sub-channel selector (e.g. pin number
+			 * for TIMER_PWM / TIMER_FREQ), buf[3..4] is the 16-bit value.
+			 */
+			reg_ptr->value = (uint32_t)sys_get_be16(&msgs[0].buf[3]);
+			break;
 		case 4:
 			reg_ptr->value = sys_get_be32(&msgs[0].buf[2]);
 			break;
@@ -197,6 +203,9 @@ static const struct i2c_emul_api mfd_seesaw_emul_api_i2c = {
 				{SEESAW_GPIO_BASE, SEESAW_GPIO_PULLENCLR, 4, 0},                   \
 				/* ADC: SAMD09 logical channel 3 -> pin 5 */                        \
 				{SEESAW_ADC_BASE, SEESAW_ADC_CHANNEL_OFFSET + 5, 2, 0},             \
+				/* PWM timer: freq and duty per-pin writes */                        \
+				{SEESAW_TIMER_BASE, SEESAW_TIMER_FREQ, 3, 0},                       \
+				{SEESAW_TIMER_BASE, SEESAW_TIMER_PWM, 3, 0},                        \
 			},                                                                         \
 		.last_reg = -1,                                                                    \
 	};                                                                                         \
