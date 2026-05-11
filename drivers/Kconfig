@@ -1,6 +1,7 @@
 menu "Drivers"
 rsource "actuator/Kconfig"
 rsource "dynamixel/Kconfig"
+rsource "mfd/seesaw/Kconfig"
 rsource "seesaw/Kconfig"
 rsource "sensor/Kconfig"
 endmenu

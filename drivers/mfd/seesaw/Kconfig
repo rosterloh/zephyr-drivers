@@ -1,0 +1,36 @@
+config MFD_ADAFRUIT_SEESAW
+	bool "Adafruit Seesaw MFD"
+	default y
+	depends on DT_HAS_ADAFRUIT_SEESAW_MFD_ENABLED
+	select I2C
+	help
+	  Adafruit Seesaw MFD parent driver. Exposes register transport and
+	  INT fan-out to subsystem children (gpio/adc/pwm/led_strip/encoder).
+
+if MFD_ADAFRUIT_SEESAW
+
+module = MFD_ADAFRUIT_SEESAW
+module-str = mfd_adafruit_seesaw
+source "subsys/logging/Kconfig.template.log_config"
+
+config MFD_ADAFRUIT_SEESAW_INIT_PRIORITY
+	int "Init priority"
+	default 80
+	help
+	  Must be higher (= run later) than I2C bus controller init priority
+	  and lower (= run earlier) than every child's init priority.
+
+config MFD_ADAFRUIT_SEESAW_INT
+	bool "Enable INT-line fan-out"
+	default y if $(dt_compat_any_has_prop,$(DT_COMPAT_ADAFRUIT_SEESAW_MFD),int-gpios)
+	depends on GPIO
+	help
+	  Build INT-line trigger code. Required by children that use seesaw
+	  interrupts (gpio edge events, encoder events).
+
+config MFD_ADAFRUIT_SEESAW_INT_THREAD_STACK_SIZE
+	int "INT-line worker thread stack size"
+	depends on MFD_ADAFRUIT_SEESAW_INT
+	default 1024
+
+endif # MFD_ADAFRUIT_SEESAW
