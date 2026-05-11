@@ -1,0 +1,12 @@
+config ACTUATOR_HBRIDGE
+	bool "H-bridge actuator backend"
+	depends on ACTUATOR && PWM && GPIO
+	default n
+
+config ACTUATOR_HBRIDGE_CURRENT_SENSE
+	bool "Enable ADC-based current sense"
+	depends on ACTUATOR_HBRIDGE && ADC
+
+config ACTUATOR_HBRIDGE_ENCODER
+	bool "Enable qdec-based position/velocity feedback"
+	depends on ACTUATOR_HBRIDGE && SENSOR

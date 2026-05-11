@@ -1,0 +1,16 @@
+/ {
+	fake0: actuator0 {
+		compatible = "rosterloh,actuator-fake";
+		status = "okay";
+		label = "fake0";
+		default-mode = "position";
+		capabilities = <7>;
+	};
+	fake1: actuator1 {
+		compatible = "rosterloh,actuator-fake";
+		status = "okay";
+		label = "fake1";
+		default-mode = "position";
+		capabilities = <7>;
+	};
+};

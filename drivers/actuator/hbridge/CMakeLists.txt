@@ -1,0 +1,2 @@
+zephyr_library_named(actuator_hbridge)
+zephyr_library_sources(actuator_hbridge.c)

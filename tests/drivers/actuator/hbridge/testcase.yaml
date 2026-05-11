@@ -1,0 +1,6 @@
+common:
+  tags: [actuator, drivers]
+tests:
+  drivers.actuator.hbridge.build_only:
+    platform_allow: [native_sim]
+    build_only: true

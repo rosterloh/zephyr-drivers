@@ -1,0 +1,8 @@
+common:
+  tags:
+    - actuator
+    - lib
+tests:
+  lib.actuator.state_machine:
+    platform_allow:
+      - native_sim

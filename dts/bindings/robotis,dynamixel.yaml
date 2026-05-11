@@ -11,14 +11,17 @@ properties:
       description: Transmit enable pin (TX_EN) of the transceiver.
 
 child-binding:
-    description: Dynamixel motor on this bus.
+    description: |
+      Dynamixel motor on this bus. Children should declare
+      compatible = "rosterloh,actuator-dxl"; the bare-child schema below
+      remains for backward compatibility but is deprecated.
     properties:
       label:
         type: string
         required: false
-        description: Human readable string describing the device.
 
       id:
         type: int
-        required: true
-        description: The address on the bus of this device.
+        required: false
+        description: |
+          Deprecated; use reg= on rosterloh,actuator-dxl children instead.

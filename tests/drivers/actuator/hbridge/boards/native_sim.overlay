@@ -1,0 +1,25 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	pwm_fake: pwm-fake {
+		compatible = "zephyr,fake-pwm";
+		#pwm-cells = <2>;
+		frequency = <20000>;
+		status = "okay";
+	};
+	gpio_emul: gpio_emul {
+		compatible = "zephyr,gpio-emul";
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <8>;
+		status = "okay";
+	};
+	motor: motor {
+		compatible = "rosterloh,actuator-hbridge";
+		pwms = <&pwm_fake 0 50000>;
+		dir-gpios = <&gpio_emul 0 GPIO_ACTIVE_HIGH>;
+	};
+};

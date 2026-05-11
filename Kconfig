@@ -1,1 +1,3 @@
 rsource "drivers/Kconfig"
+rsource "subsys/actuator/Kconfig"
+rsource "lib/actuator/Kconfig"

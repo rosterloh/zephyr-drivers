@@ -1,0 +1,40 @@
+menuconfig ACTUATOR
+	bool "Actuator subsystem"
+	help
+	  Generic actuator API: typed SI setpoints, group operations,
+	  state machine, callback feedback.
+
+if ACTUATOR
+
+config ACTUATOR_INIT_PRIORITY
+	int "Actuator subsystem init priority"
+	default 90
+	help
+	  Must be after device drivers (default 50) and before the application.
+
+module = ACTUATOR
+module-str = actuator
+source "subsys/logging/Kconfig.template.log_config"
+
+config ACTUATOR_MAX_CALLBACKS_PER_DEVICE
+	int "Maximum number of callbacks per actuator device"
+	default 2
+	help
+	  Combined limit for state and feedback callbacks per device.
+	  Each callback consumes one slot in the device's static slist.
+
+config ACTUATOR_MAX_GROUPS
+	int "Maximum number of actuator groups with non-default fault policy"
+	default 4
+	help
+	  Each group registered for fault-policy enforcement consumes one slot
+	  in a static array. Groups with default ISOLATE policy do not register.
+
+config ACTUATOR_SHELL
+	bool "Actuator subsystem shell"
+	depends on SHELL
+	help
+	  Adds an `actuator` command for inspecting and commanding actuators
+	  from the Zephyr shell.
+
+endif # ACTUATOR

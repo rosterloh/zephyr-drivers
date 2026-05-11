@@ -1,0 +1,2 @@
+zephyr_library_named(actuator_dxl)
+zephyr_library_sources(actuator_dxl.c)

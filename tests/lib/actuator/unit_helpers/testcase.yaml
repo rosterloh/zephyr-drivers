@@ -1,0 +1,5 @@
+common:
+  tags: [actuator, lib]
+tests:
+  lib.actuator.unit_helpers:
+    platform_allow: [native_sim]

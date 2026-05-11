@@ -1,0 +1,2 @@
+zephyr_library_named(actuator_fake)
+zephyr_library_sources(actuator_fake.c)

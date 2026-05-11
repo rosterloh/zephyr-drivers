@@ -1,0 +1,24 @@
+# Common properties for any rosterloh actuator backend.
+# Included by per-backend YAMLs.
+
+properties:
+  default-mode:
+    type: string
+    enum:
+      - "position"
+      - "velocity"
+      - "effort"
+    default: "position"
+    description: |
+      Mode the subsystem promotes the actuator to on first setpoint call.
+
+  update-period-ms:
+    type: int
+    default: 100
+    description: |
+      Period of the driver's internal feedback worker. Each tick the driver
+      reads fresh state from the hardware and fires registered feedback callbacks.
+
+  label:
+    type: string
+    description: Human-readable label.

@@ -1,0 +1,10 @@
+description: Fake actuator for tests.
+
+compatible: "rosterloh,actuator-fake"
+
+include: [actuator-common.yaml]
+
+properties:
+  capabilities:
+    type: int
+    default: 7  # POSITION | VELOCITY | EFFORT

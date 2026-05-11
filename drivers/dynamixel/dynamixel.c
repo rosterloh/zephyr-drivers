@@ -47,7 +47,8 @@ static struct dxl_context dxl_ctx_tbl[] = {DT_INST_FOREACH_STATUS_OKAY(DXL_DT_GE
 	{                                                                                          \
 		.label = DT_PROP_OR(motor_node, label, NULL),                                      \
 		.iface = parent_inst,                                                              \
-		.id = DT_PROP(motor_node, id),                                                     \
+		.id = COND_CODE_1(DT_NODE_HAS_PROP(motor_node, reg), (DT_REG_ADDR(motor_node)),    \
+				  (DT_PROP(motor_node, id))),                                      \
 	},
 
 #define DXL_IFACE_MOTORS(inst) DT_INST_FOREACH_CHILD_VARGS(inst, DXL_MOTOR_ENTRY, inst)

@@ -1,0 +1,5 @@
+common:
+  tags: [actuator, drivers]
+tests:
+  drivers.actuator.dxl:
+    platform_allow: [native_sim]

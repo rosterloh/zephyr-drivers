@@ -1,0 +1,50 @@
+description: |
+  Smart-servo actuator backed by the rosterloh dynamixel driver. Each instance
+  is a child of a robotis,dynamixel bus node; the driver discovers the parent
+  iface via DT_BUS at compile time.
+
+compatible: "rosterloh,actuator-dxl"
+
+include: [actuator-common.yaml]
+
+properties:
+  reg:
+    type: int
+    required: true
+    description: Dynamixel bus ID (1..253).
+
+  torque-constant-mnm-per-a:
+    type: int
+    description: |
+      Per-model torque constant in milli-N*m per Ampere. Required if effort
+      mode is enabled. e.g. XL330-M288 ~= 320.
+
+  position-min-rad-milli:
+    type: int
+  position-max-rad-milli:
+    type: int
+
+  gear-ratio-num:
+    type: int
+    default: 1
+  gear-ratio-den:
+    type: int
+    default: 1
+
+  profile-velocity:
+    type: int
+    description: |
+      Optional Dynamixel PROFILE_VELOCITY register applied at init.
+
+  ticks-per-rev:
+    type: int
+    default: 4096
+    description: |
+      Encoder counts per revolution. Standard X-series = 4096.
+
+  rad-zero-tick:
+    type: int
+    default: 2048
+    description: |
+      Tick value corresponding to 0 rad. Standard X-series = 2048
+      (centered range: 0..4095 ticks <-> -pi..+pi rad).
