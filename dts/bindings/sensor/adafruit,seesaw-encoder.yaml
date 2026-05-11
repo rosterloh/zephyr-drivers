@@ -1,0 +1,8 @@
+description: |
+  Rotary encoder child of an adafruit,seesaw-mfd MFD. Reports the encoder
+  position as SENSOR_CHAN_ROTATION (signed step count from
+  SEESAW_ENCODER_POSITION).
+
+compatible: "adafruit,seesaw-encoder"
+
+include: [sensor-device.yaml, base.yaml]

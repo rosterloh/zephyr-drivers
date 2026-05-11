@@ -211,6 +211,7 @@ static const struct i2c_emul_api mfd_seesaw_emul_api_i2c = {
 				{SEESAW_NEOPIXEL_BASE, SEESAW_NEOPIXEL_PIN, 1, 0},                  \
 				{SEESAW_NEOPIXEL_BASE, SEESAW_NEOPIXEL_BUF_LENGTH, 2, 0},           \
 				{SEESAW_NEOPIXEL_BASE, SEESAW_NEOPIXEL_BUF, 2, 0},                  \
+				{SEESAW_ENCODER_BASE, SEESAW_ENCODER_POSITION, 4, 0},               \
 			},                                                                         \
 		.last_reg = -1,                                                                    \
 	};                                                                                         \

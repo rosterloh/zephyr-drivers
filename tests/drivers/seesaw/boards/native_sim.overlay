@@ -39,5 +39,9 @@
 			seesaw-pin = <14>;
 			frequency = <800000>;
 		};
+
+		encoder_child: encoder {
+			compatible = "adafruit,seesaw-encoder";
+		};
 	};
 };
