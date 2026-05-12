@@ -77,13 +77,17 @@ static void adc_demo_tick(void)
 		return;
 	}
 
-	LOG_INF("ADC: ch0=%d ch1=%d ch2=%d ch3=%d",
-		samples[0], samples[1], samples[2], samples[3]);
+	LOG_INF("ADC: ch0=%d ch1=%d ch2=%d ch3=%d", samples[0], samples[1], samples[2], samples[3]);
 }
 
 #else
-static int adc_demo_init(void) { return 0; }
-static void adc_demo_tick(void) { }
+static int adc_demo_init(void)
+{
+	return 0;
+}
+static void adc_demo_tick(void)
+{
+}
 #endif
 
 /* ---------- Encoder ---------- */
@@ -123,22 +127,26 @@ static void encoder_demo_tick(void)
 	}
 
 	if (val.val1 != encoder_last) {
-		LOG_INF("Encoder: pos=%d (delta=%d)",
-			val.val1, val.val1 - encoder_last);
+		LOG_INF("Encoder: pos=%d (delta=%d)", val.val1, val.val1 - encoder_last);
 		encoder_last = val.val1;
 	}
 }
 
 #else
-static int encoder_demo_init(void) { return 0; }
-static void encoder_demo_tick(void) { }
+static int encoder_demo_init(void)
+{
+	return 0;
+}
+static void encoder_demo_tick(void)
+{
+}
 #endif
 
 /* ---------- GPIO keypad (NeoKey 1x4) ---------- */
 
 #if DT_HAS_COMPAT_STATUS_OKAY(adafruit_seesaw_gpio)
 
-#define GPIO_NODE DT_COMPAT_GET_ANY_STATUS_OKAY(adafruit_seesaw_gpio)
+#define GPIO_NODE   DT_COMPAT_GET_ANY_STATUS_OKAY(adafruit_seesaw_gpio)
 #define KEYPAD_PINS 4
 static const uint8_t keypad_pin_map[KEYPAD_PINS] = {4, 5, 6, 7};
 
@@ -157,8 +165,7 @@ static int keypad_demo_init(void)
 					     GPIO_INPUT | GPIO_PULL_UP);
 
 		if (err) {
-			LOG_ERR("keypad configure pin %u: %d",
-				keypad_pin_map[i], err);
+			LOG_ERR("keypad configure pin %u: %d", keypad_pin_map[i], err);
 			return err;
 		}
 		keypad_last_state[i] = 1; /* pull-up, idle high */
@@ -174,39 +181,42 @@ static void keypad_demo_tick(void)
 		int level = gpio_pin_get(keypad_dev, keypad_pin_map[i]);
 
 		if (level < 0) {
-			LOG_ERR("keypad get pin %u: %d",
-				keypad_pin_map[i], level);
+			LOG_ERR("keypad get pin %u: %d", keypad_pin_map[i], level);
 			continue;
 		}
 
 		if ((uint8_t)level != keypad_last_state[i]) {
-			LOG_INF("Key %u %s", (unsigned int)i,
-				level == 0 ? "DOWN" : "UP");
+			LOG_INF("Key %u %s", (unsigned int)i, level == 0 ? "DOWN" : "UP");
 			keypad_last_state[i] = (uint8_t)level;
 		}
 	}
 }
 
 #else
-static int keypad_demo_init(void) { return 0; }
-static void keypad_demo_tick(void) { }
+static int keypad_demo_init(void)
+{
+	return 0;
+}
+static void keypad_demo_tick(void)
+{
+}
 #endif
 
 /* ---------- NeoPixel cycle ---------- */
 
 #if DT_HAS_COMPAT_STATUS_OKAY(adafruit_seesaw_neopixel)
 
-#define STRIP_NODE   DT_COMPAT_GET_ANY_STATUS_OKAY(adafruit_seesaw_neopixel)
-#define STRIP_LEN    DT_PROP(STRIP_NODE, chain_length)
+#define STRIP_NODE DT_COMPAT_GET_ANY_STATUS_OKAY(adafruit_seesaw_neopixel)
+#define STRIP_LEN  DT_PROP(STRIP_NODE, chain_length)
 
 static const struct device *const strip_dev = DEVICE_DT_GET(STRIP_NODE);
 static struct led_rgb strip_buf[STRIP_LEN];
 static uint8_t strip_phase;
 
 static const struct led_rgb strip_colors[3] = {
-	{ .r = 32, .g = 0,  .b = 0  },
-	{ .r = 0,  .g = 32, .b = 0  },
-	{ .r = 0,  .g = 0,  .b = 32 },
+	{.r = 32, .g = 0, .b = 0},
+	{.r = 0, .g = 32, .b = 0},
+	{.r = 0, .g = 0, .b = 32},
 };
 
 static int strip_demo_init(void)
@@ -238,8 +248,13 @@ static void strip_demo_tick(void)
 }
 
 #else
-static int strip_demo_init(void) { return 0; }
-static void strip_demo_tick(void) { }
+static int strip_demo_init(void)
+{
+	return 0;
+}
+static void strip_demo_tick(void)
+{
+}
 #endif
 
 int main(void)
