@@ -1,0 +1,23 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Adafruit I2C Rotary Encoder Breakout (PID 4991).
+ * Position is reported via the encoder sensor child as
+ * SENSOR_CHAN_ROTATION (signed step count from SEESAW_ENCODER_POSITION).
+ */
+
+&zephyr_i2c {
+	status = "okay";
+
+	adafruit_rotary_encoder_mfd: seesaw@36 {
+		status = "okay";
+		compatible = "adafruit,seesaw-mfd";
+		reg = <0x36>;
+		read-delay-us = <10000>;
+
+		adafruit_rotary_encoder: encoder {
+			compatible = "adafruit,seesaw-encoder";
+		};
+	};
+};

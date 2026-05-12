@@ -1,0 +1,37 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Adafruit NeoKey 1x4 QT I2C Keypad (PID 4980).
+ * 4 keys are wired to seesaw GPIO pins 4,5,6,7 (active-low). 4 NeoPixels
+ * are chained on seesaw pin 3.
+ */
+
+#include <zephyr/dt-bindings/led/led.h>
+
+&zephyr_i2c {
+	status = "okay";
+
+	adafruit_neokey_1x4_mfd: seesaw@30 {
+		status = "okay";
+		compatible = "adafruit,seesaw-mfd";
+		reg = <0x30>;
+		read-delay-us = <10000>;
+
+		adafruit_neokey_1x4_gpio: gpio {
+			status = "okay";
+			compatible = "adafruit,seesaw-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			ngpios = <16>;
+		};
+
+		adafruit_neokey_1x4_leds: neopixel {
+			compatible = "adafruit,seesaw-neopixel";
+			chain-length = <4>;
+			color-mapping = <LED_COLOR_ID_GREEN LED_COLOR_ID_RED LED_COLOR_ID_BLUE>;
+			seesaw-pin = <3>;
+			frequency = <800000>;
+		};
+	};
+};

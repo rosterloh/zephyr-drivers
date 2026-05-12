@@ -1,0 +1,34 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Adafruit I2C QT Slide Potentiometer with NeoPixel (PID 5295).
+ * Slider tap is read via the ADC child (see Adafruit Learn for the
+ * channel mapping). NeoPixel chain (4 LEDs) is driven from seesaw pin 14.
+ */
+
+#include <zephyr/dt-bindings/led/led.h>
+
+&zephyr_i2c {
+	status = "okay";
+
+	adafruit_neoslider_mfd: seesaw@30 {
+		status = "okay";
+		compatible = "adafruit,seesaw-mfd";
+		reg = <0x30>;
+		read-delay-us = <10000>;
+
+		adafruit_neoslider_adc: adc {
+			compatible = "adafruit,seesaw-adc";
+			#io-channel-cells = <1>;
+		};
+
+		adafruit_neoslider_leds: neopixel {
+			compatible = "adafruit,seesaw-neopixel";
+			chain-length = <4>;
+			color-mapping = <LED_COLOR_ID_GREEN LED_COLOR_ID_RED LED_COLOR_ID_BLUE>;
+			seesaw-pin = <14>;
+			frequency = <800000>;
+		};
+	};
+};

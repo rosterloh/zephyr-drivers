@@ -1,0 +1,8 @@
+shield:
+  name: adafruit_neoslider
+  full_name: Adafruit I2C QT Slide Potentiometer with NeoPixel (PID 5295)
+  vendor: adafruit
+  supported_features:
+    - mfd
+    - adc
+    - led_strip

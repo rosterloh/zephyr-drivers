@@ -1,0 +1,8 @@
+shield:
+  name: adafruit_neokey_1x4
+  full_name: Adafruit NeoKey 1x4 QT I2C Keypad (PID 4980)
+  vendor: adafruit
+  supported_features:
+    - mfd
+    - gpio
+    - led_strip

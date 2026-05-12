@@ -1,0 +1,7 @@
+shield:
+  name: adafruit_rotary_encoder
+  full_name: Adafruit I2C Rotary Encoder Breakout (PID 4991)
+  vendor: adafruit
+  supported_features:
+    - mfd
+    - sensor
