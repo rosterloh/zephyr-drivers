@@ -15,15 +15,15 @@ tests:
   sample.drivers.seesaw_shield_demo.neoslider:
     extra_args: SHIELD=adafruit_neoslider
     integration_platforms:
-      - adafruit_qt_py_esp32s3/esp32s3/procpu
+      - arduino_mkrzero/samd21g18a
     filter: dt_compat_enabled("adafruit,seesaw-adc")
   sample.drivers.seesaw_shield_demo.rotary_encoder:
     extra_args: SHIELD=adafruit_rotary_encoder
     integration_platforms:
-      - adafruit_qt_py_esp32s3/esp32s3/procpu
+      - arduino_mkrzero/samd21g18a
     filter: dt_compat_enabled("adafruit,seesaw-encoder")
   sample.drivers.seesaw_shield_demo.neokey_1x4:
     extra_args: SHIELD=adafruit_neokey_1x4
     integration_platforms:
-      - adafruit_qt_py_esp32s3/esp32s3/procpu
+      - arduino_mkrzero/samd21g18a
     filter: dt_compat_enabled("adafruit,seesaw-gpio")
