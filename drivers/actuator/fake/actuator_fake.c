@@ -19,6 +19,7 @@ struct fake_data {
 	struct actuator_cb_node cb_pool[FAKE_CB_POOL];
 	float last_setpoint;
 	enum actuator_mode last_mode;
+	enum actuator_drive_mode last_drive_mode;
 };
 
 struct fake_config {
@@ -66,12 +67,21 @@ static int fake_read_feedback(const struct device *dev, struct actuator_feedback
 	return 0;
 }
 
+static int fake_set_drive_mode(const struct device *dev, enum actuator_drive_mode mode)
+{
+	struct fake_data *d = dev->data;
+
+	d->last_drive_mode = mode;
+	return 0;
+}
+
 static const struct actuator_driver_api fake_api = {
 	.enable = fake_enable,
 	.disable = fake_disable,
 	.clear_fault = fake_clear_fault,
 	.set_setpoint = fake_set_setpoint,
 	.read_feedback = fake_read_feedback,
+	.set_drive_mode = fake_set_drive_mode,
 };
 
 static int fake_init(const struct device *dev)
@@ -105,4 +115,11 @@ DT_INST_FOREACH_STATUS_OKAY(FAKE_DEFINE)
 void fake_force_fault(const struct device *dev)
 {
 	actuator_report_state(dev, ACTUATOR_SM_EVT_FAULT, ACTUATOR_FAULT_DRIVER(0));
+}
+
+enum actuator_drive_mode fake_get_drive_mode(const struct device *dev)
+{
+	const struct fake_data *d = dev->data;
+
+	return d->last_drive_mode;
 }

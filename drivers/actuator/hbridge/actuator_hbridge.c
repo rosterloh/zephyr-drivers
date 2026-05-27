@@ -1,6 +1,20 @@
 /*
  * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * TB6612FNG-style PWM + IN1/IN2 truth table (one channel):
+ *
+ *   IN1  IN2  Result
+ *   ---  ---  -------------------------------------------------------
+ *    0    0   Coast — both outputs high-Z, motor free-wheels
+ *    0    1   Reverse (CCW), PWM duty modulates the active output
+ *    1    0   Forward (CW),  PWM duty modulates the active output
+ *    1    1   Short brake — both low-side FETs on, windings shorted
+ *
+ * The driver selects PWM+IN1/IN2 signalling iff in2-gpios is present and
+ * advertises ACTUATOR_CAP_DRIVE_MODE in that case. With in1-gpios only the
+ * driver runs in legacy PWM+DIR mode and does not advertise the cap; brake
+ * vs coast behaviour at PWM=0 is then determined by the H-bridge silicon.
  */
 
 #define DT_DRV_COMPAT rosterloh_actuator_hbridge
@@ -44,7 +58,11 @@ struct hbridge_data {
 struct hbridge_config {
 	struct actuator_cb_offsets cb_offsets; /* must be first */
 	struct pwm_dt_spec pwm;
-	struct gpio_dt_spec dir;
+	struct gpio_dt_spec in1;
+	struct gpio_dt_spec in2; /* port == NULL when absent */
+	bool has_in2;
+	struct gpio_dt_spec stby; /* port == NULL when absent */
+	bool has_stby;
 #ifdef CONFIG_ACTUATOR_HBRIDGE_ENCODER
 	const struct device *encoder; /* may be NULL */
 #endif
@@ -69,12 +87,18 @@ static int hbridge_set_pwm(const struct hbridge_config *cfg, float duty)
 	if (duty < -1.0f) {
 		duty = -1.0f;
 	}
-	int dir = (duty >= 0.0f) ? 1 : 0;
+	int fwd = (duty >= 0.0f) ? 1 : 0;
 	uint32_t pulse_ns = (uint32_t)(fabsf(duty) * (float)cfg->pwm_period_ns);
-	int err = gpio_pin_set_dt(&cfg->dir, dir);
+	int err = gpio_pin_set_dt(&cfg->in1, fwd);
 
 	if (err) {
 		return err;
+	}
+	if (cfg->has_in2) {
+		err = gpio_pin_set_dt(&cfg->in2, !fwd);
+		if (err) {
+			return err;
+		}
 	}
 	return pwm_set_dt(&cfg->pwm, cfg->pwm_period_ns, pulse_ns);
 }
@@ -191,6 +215,13 @@ static int hb_enable(const struct device *dev)
 		need_worker = true;
 	}
 #endif
+	if (cfg->has_stby) {
+		int err = gpio_pin_set_dt(&cfg->stby, 1);
+
+		if (err) {
+			return err;
+		}
+	}
 	if (need_worker) {
 		k_work_schedule(&d->feedback_work, K_MSEC(cfg->update_period_ms));
 	}
@@ -205,6 +236,9 @@ static int hb_disable(const struct device *dev)
 	(void)pwm_set_dt(&cfg->pwm, cfg->pwm_period_ns, 0);
 	k_work_cancel_delayable(&d->feedback_work);
 	d->position_valid = false;
+	if (cfg->has_stby) {
+		(void)gpio_pin_set_dt(&cfg->stby, 0);
+	}
 	return 0;
 }
 
@@ -218,11 +252,54 @@ static int hb_set_setpoint(const struct device *dev, enum actuator_mode mode, fl
 	return hbridge_set_pwm(cfg, value);
 }
 
+static int hb_set_drive_mode(const struct device *dev, enum actuator_drive_mode mode)
+{
+	const struct hbridge_config *cfg = dev->config;
+
+	if (!cfg->has_in2) {
+		/* Single-GPIO (PWM+DIR) variant: cannot independently command
+		 * brake or coast; the silicon decides what PWM=0 means. The
+		 * subsystem should already have rejected this via the cap, but
+		 * guard anyway. */
+		return -ENOTSUP;
+	}
+
+	int err = pwm_set_dt(&cfg->pwm, cfg->pwm_period_ns, 0);
+
+	if (err) {
+		return err;
+	}
+
+	int in1_val = 0, in2_val = 0;
+
+	switch (mode) {
+	case ACTUATOR_DRIVE_MODE_NORMAL:
+	case ACTUATOR_DRIVE_MODE_COAST:
+		/* IN1=0, IN2=0 → outputs high-Z. Next set_setpoint reasserts. */
+		in1_val = 0;
+		in2_val = 0;
+		break;
+	case ACTUATOR_DRIVE_MODE_BRAKE:
+		/* IN1=1, IN2=1 → both low-side FETs on, motor windings shorted. */
+		in1_val = 1;
+		in2_val = 1;
+		break;
+	default:
+		return -EINVAL;
+	}
+	err = gpio_pin_set_dt(&cfg->in1, in1_val);
+	if (err) {
+		return err;
+	}
+	return gpio_pin_set_dt(&cfg->in2, in2_val);
+}
+
 static const struct actuator_driver_api hb_api = {
 	.enable = hb_enable,
 	.disable = hb_disable,
 	.set_setpoint = hb_set_setpoint,
 	.read_feedback = hb_read_feedback,
+	.set_drive_mode = hb_set_drive_mode,
 };
 
 static int hb_init(const struct device *dev)
@@ -230,7 +307,7 @@ static int hb_init(const struct device *dev)
 	struct hbridge_data *d = dev->data;
 	const struct hbridge_config *cfg = dev->config;
 
-	if (!device_is_ready(cfg->pwm.dev) || !device_is_ready(cfg->dir.port)) {
+	if (!device_is_ready(cfg->pwm.dev) || !device_is_ready(cfg->in1.port)) {
 		return -ENODEV;
 	}
 #ifdef CONFIG_ACTUATOR_HBRIDGE_ENCODER
@@ -239,10 +316,28 @@ static int hb_init(const struct device *dev)
 		return -ENODEV;
 	}
 #endif
-	int err = gpio_pin_configure_dt(&cfg->dir, GPIO_OUTPUT_INACTIVE);
+	int err = gpio_pin_configure_dt(&cfg->in1, GPIO_OUTPUT_INACTIVE);
 
 	if (err) {
 		return err;
+	}
+	if (cfg->has_in2) {
+		if (!device_is_ready(cfg->in2.port)) {
+			return -ENODEV;
+		}
+		err = gpio_pin_configure_dt(&cfg->in2, GPIO_OUTPUT_INACTIVE);
+		if (err) {
+			return err;
+		}
+	}
+	if (cfg->has_stby) {
+		if (!device_is_ready(cfg->stby.port)) {
+			return -ENODEV;
+		}
+		err = gpio_pin_configure_dt(&cfg->stby, GPIO_OUTPUT_INACTIVE);
+		if (err) {
+			return err;
+		}
 	}
 #ifdef CONFIG_ACTUATOR_HBRIDGE_CURRENT_SENSE
 	if (cfg->has_current_sense) {
@@ -268,6 +363,8 @@ static int hb_init(const struct device *dev)
 	return 0;
 }
 
+#define HB_HAS_IN2(inst)           DT_INST_NODE_HAS_PROP(inst, in2_gpios)
+#define HB_HAS_STBY(inst)          DT_INST_NODE_HAS_PROP(inst, stby_gpios)
 #define HB_HAS_ENCODER(inst)       DT_INST_NODE_HAS_PROP(inst, encoder)
 #define HB_HAS_CURRENT_SENSE(inst) DT_INST_NODE_HAS_PROP(inst, io_channels)
 
@@ -276,7 +373,8 @@ static int hb_init(const struct device *dev)
 	 ((HB_HAS_CURRENT_SENSE(inst) && DT_INST_PROP_OR(inst, torque_constant_mnm_per_a, 0) > 0)  \
 		  ? ACTUATOR_CAP_EFFORT                                                            \
 		  : 0) |                                                                           \
-	 (HB_HAS_ENCODER(inst) ? ACTUATOR_CAP_POSITION : 0))
+	 (HB_HAS_ENCODER(inst) ? ACTUATOR_CAP_POSITION : 0) |                                      \
+	 (HB_HAS_IN2(inst) ? ACTUATOR_CAP_DRIVE_MODE : 0))
 
 #ifdef CONFIG_ACTUATOR_HBRIDGE_ENCODER
 #define HB_ENCODER_INIT(inst)                                                                      \
@@ -305,7 +403,13 @@ static int hb_init(const struct device *dev)
 				.storage_offset = offsetof(struct hbridge_data, cb_storage),       \
 			},                                                                         \
 		.pwm = PWM_DT_SPEC_INST_GET(inst),                                                 \
-		.dir = GPIO_DT_SPEC_INST_GET(inst, dir_gpios),                                     \
+		.in1 = GPIO_DT_SPEC_INST_GET(inst, in1_gpios),                                     \
+		.in2 = COND_CODE_1(HB_HAS_IN2(inst), (GPIO_DT_SPEC_INST_GET(inst, in2_gpios)),     \
+				   ({.port = NULL})),                                              \
+		.has_in2 = HB_HAS_IN2(inst),                                                       \
+		.stby = COND_CODE_1(HB_HAS_STBY(inst), (GPIO_DT_SPEC_INST_GET(inst, stby_gpios)),  \
+				    ({.port = NULL})),                                             \
+		.has_stby = HB_HAS_STBY(inst),                                                     \
 		HB_ENCODER_INIT(inst) HB_CURRENT_SENSE_INIT(inst).pwm_period_ns =                  \
 			DT_INST_PROP(inst, pwm_period_ns),                                         \
 		.update_period_ms = DT_INST_PROP(inst, update_period_ms),                          \

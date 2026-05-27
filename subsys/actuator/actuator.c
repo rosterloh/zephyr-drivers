@@ -158,6 +158,32 @@ int z_impl_actuator_set_limits(const struct device *dev, const struct actuator_l
 	return 0;
 }
 
+int z_impl_actuator_set_drive_mode(const struct device *dev, enum actuator_drive_mode mode)
+{
+	struct actuator_common_data *cd = common(dev);
+
+	if ((cd->caps & ACTUATOR_CAP_DRIVE_MODE) == 0) {
+		return -ENOTSUP;
+	}
+	if (api(dev)->set_drive_mode == NULL) {
+		return -ENOTSUP;
+	}
+
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	enum actuator_state s = cd->state;
+	k_spin_unlock(&cd->lock, key);
+
+	if (s == ACTUATOR_STATE_DISABLED || s == ACTUATOR_STATE_FAULT) {
+		return -EPERM;
+	}
+
+	int err = api(dev)->set_drive_mode(dev, mode);
+	if (err != 0) {
+		actuator_report_state(dev, ACTUATOR_SM_EVT_FAULT, ACTUATOR_FAULT_DRIVER(0));
+	}
+	return err;
+}
+
 static int set_setpoint_typed(const struct device *dev, enum actuator_mode mode, float value)
 {
 	struct actuator_common_data *cd = common(dev);
@@ -177,6 +203,14 @@ static int set_setpoint_typed(const struct device *dev, enum actuator_mode mode,
 
 	if (rc < 0) {
 		return rc;
+	}
+
+	if ((cd->caps & ACTUATOR_CAP_DRIVE_MODE) && api(dev)->set_drive_mode != NULL) {
+		err = api(dev)->set_drive_mode(dev, ACTUATOR_DRIVE_MODE_NORMAL);
+		if (err != 0) {
+			actuator_report_state(dev, ACTUATOR_SM_EVT_FAULT, ACTUATOR_FAULT_DRIVER(0));
+			return err;
+		}
 	}
 
 	err = api(dev)->set_setpoint(dev, mode, value);

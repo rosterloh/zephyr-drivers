@@ -1,4 +1,17 @@
-description: H-bridge DC motor with optional encoder and current sense.
+description: |
+  H-bridge DC motor with optional encoder and current sense.
+
+  Signalling is selected by the presence of in2-gpios:
+    - Only in1-gpios present  → PWM + DIR signalling (one direction GPIO).
+      The driver does not advertise ACTUATOR_CAP_DRIVE_MODE in this mode.
+    - in1-gpios and in2-gpios → PWM + IN1/IN2 signalling (TB6612FNG-class).
+      The driver advertises ACTUATOR_CAP_DRIVE_MODE: BRAKE drives both
+      inputs high (short brake), COAST drives both low (high-Z).
+
+  stby-gpios is optional in either signalling. When wired, the driver
+  asserts it on enable() and deasserts it on disable(). Use the
+  GPIO_ACTIVE_LOW dt flag if the silicon's standby pin is active-low
+  (e.g. TB6612 STBY).
 
 compatible: "rosterloh,actuator-hbridge"
 
@@ -10,10 +23,24 @@ properties:
     required: true
     description: PWM channel driving the H-bridge enable/PWM input.
 
-  dir-gpios:
+  in1-gpios:
     type: phandle-array
     required: true
-    description: GPIO controlling H-bridge direction.
+    description: |
+      Bridge input 1. With in2-gpios present, this is the TB6612-style IN1.
+      With in2-gpios absent, this is the single DIR pin.
+
+  in2-gpios:
+    type: phandle-array
+    description: |
+      Bridge input 2 (TB6612-style IN2). When present, the driver uses
+      PWM + IN1/IN2 signalling and advertises ACTUATOR_CAP_DRIVE_MODE.
+
+  stby-gpios:
+    type: phandle-array
+    description: |
+      Optional standby/enable line. Asserted on actuator_enable, deasserted
+      on actuator_disable. May be shared across instances by the application.
 
   io-channels:
     type: phandle-array

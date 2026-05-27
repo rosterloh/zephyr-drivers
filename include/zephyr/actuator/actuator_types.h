@@ -28,6 +28,7 @@ enum actuator_mode {
 #define ACTUATOR_CAP_NEEDS_ALIGN    BIT(3) /**< FOC sensorless / Hall align */
 #define ACTUATOR_CAP_GROUP_NATIVE   BIT(4) /**< backend has a real group_op */
 #define ACTUATOR_CAP_FAULT_LATCHING BIT(5) /**< faults need explicit clear  */
+#define ACTUATOR_CAP_DRIVE_MODE     BIT(6) /**< supports actuator_set_drive_mode  */
 
 /** State machine. Owned by the subsystem; transitions reported by drivers. */
 enum actuator_state {
@@ -36,6 +37,13 @@ enum actuator_state {
 	ACTUATOR_STATE_ALIGNING, /**< FOC pre-run only              */
 	ACTUATOR_STATE_ACTIVE,   /**< tracking a setpoint           */
 	ACTUATOR_STATE_FAULT,
+};
+
+/** Output policy of the power stage. Orthogonal to actuator_state. */
+enum actuator_drive_mode {
+	ACTUATOR_DRIVE_MODE_NORMAL = 0, /**< PWM-controlled output (default) */
+	ACTUATOR_DRIVE_MODE_BRAKE,      /**< short motor windings to GND     */
+	ACTUATOR_DRIVE_MODE_COAST,      /**< high-Z, free-wheel              */
 };
 
 /** Generic fault flags. Driver-specific bits live in upper 16. */

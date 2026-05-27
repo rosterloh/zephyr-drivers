@@ -32,6 +32,10 @@ struct actuator_driver_api {
 
 	int (*set_limits)(const struct device *dev, const struct actuator_limits *limits);
 
+	/** Optional. NULL = unsupported; backend must also not advertise
+	 *  ACTUATOR_CAP_DRIVE_MODE if NULL. */
+	int (*set_drive_mode)(const struct device *dev, enum actuator_drive_mode mode);
+
 	/* Optional: same-backend group fast path. NULL = use loop fallback. */
 	int (*group_set_setpoints)(const struct device *const *devs, size_t n,
 				   enum actuator_mode mode, const float *values);
