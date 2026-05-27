@@ -208,8 +208,7 @@ static int set_setpoint_typed(const struct device *dev, enum actuator_mode mode,
 	if ((cd->caps & ACTUATOR_CAP_DRIVE_MODE) && api(dev)->set_drive_mode != NULL) {
 		err = api(dev)->set_drive_mode(dev, ACTUATOR_DRIVE_MODE_NORMAL);
 		if (err != 0) {
-			actuator_report_state(dev, ACTUATOR_SM_EVT_FAULT,
-					      ACTUATOR_FAULT_DRIVER(0));
+			actuator_report_state(dev, ACTUATOR_SM_EVT_FAULT, ACTUATOR_FAULT_DRIVER(0));
 			return err;
 		}
 	}

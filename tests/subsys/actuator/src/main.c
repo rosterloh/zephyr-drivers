@@ -101,8 +101,7 @@ ZTEST(actuator_subsys, test_group_disable_all_on_fault)
 ZTEST(actuator_subsys, test_set_drive_mode_rejected_without_cap)
 {
 	zassert_ok(actuator_enable(FAKE_NODM));
-	zassert_equal(actuator_set_drive_mode(FAKE_NODM, ACTUATOR_DRIVE_MODE_BRAKE),
-		      -ENOTSUP);
+	zassert_equal(actuator_set_drive_mode(FAKE_NODM, ACTUATOR_DRIVE_MODE_BRAKE), -ENOTSUP);
 }
 
 extern enum actuator_drive_mode fake_get_drive_mode(const struct device *dev);
@@ -129,8 +128,7 @@ ZTEST(actuator_subsys, test_set_drive_mode_coast_in_active)
 ZTEST(actuator_subsys, test_set_drive_mode_rejected_when_disabled)
 {
 	zassert_ok(actuator_disable(FAKE0));
-	zassert_equal(actuator_set_drive_mode(FAKE0, ACTUATOR_DRIVE_MODE_BRAKE),
-		      -EPERM);
+	zassert_equal(actuator_set_drive_mode(FAKE0, ACTUATOR_DRIVE_MODE_BRAKE), -EPERM);
 }
 
 ZTEST(actuator_subsys, test_setpoint_auto_clears_drive_mode)

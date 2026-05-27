@@ -390,12 +390,10 @@ static int hb_init(const struct device *dev)
 			},                                                                         \
 		.pwm = PWM_DT_SPEC_INST_GET(inst),                                                 \
 		.in1 = GPIO_DT_SPEC_INST_GET(inst, in1_gpios),                                     \
-		.in2 = COND_CODE_1(HB_HAS_IN2(inst),                                               \
-				   (GPIO_DT_SPEC_INST_GET(inst, in2_gpios)),                       \
+		.in2 = COND_CODE_1(HB_HAS_IN2(inst), (GPIO_DT_SPEC_INST_GET(inst, in2_gpios)),     \
 				   ({.port = NULL})),                                              \
 		.has_in2 = HB_HAS_IN2(inst),                                                       \
-		.stby = COND_CODE_1(HB_HAS_STBY(inst),                                             \
-				    (GPIO_DT_SPEC_INST_GET(inst, stby_gpios)),                     \
+		.stby = COND_CODE_1(HB_HAS_STBY(inst), (GPIO_DT_SPEC_INST_GET(inst, stby_gpios)),  \
 				    ({.port = NULL})),                                             \
 		.has_stby = HB_HAS_STBY(inst),                                                     \
 		HB_ENCODER_INIT(inst) HB_CURRENT_SENSE_INIT(inst).pwm_period_ns =                  \
