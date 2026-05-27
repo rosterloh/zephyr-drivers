@@ -27,5 +27,6 @@
 		pwms = <&pwm_fake 0 50000>;
 		in1-gpios = <&gpio_emul 1 GPIO_ACTIVE_HIGH>;
 		in2-gpios = <&gpio_emul 2 GPIO_ACTIVE_HIGH>;
+		stby-gpios = <&gpio_emul 3 GPIO_ACTIVE_HIGH>;
 	};
 };

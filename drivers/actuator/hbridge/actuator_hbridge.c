@@ -47,6 +47,8 @@ struct hbridge_config {
 	struct gpio_dt_spec in1;
 	struct gpio_dt_spec in2; /* port == NULL when absent */
 	bool has_in2;
+	struct gpio_dt_spec stby; /* port == NULL when absent */
+	bool has_stby;
 #ifdef CONFIG_ACTUATOR_HBRIDGE_ENCODER
 	const struct device *encoder; /* may be NULL */
 #endif
@@ -199,6 +201,13 @@ static int hb_enable(const struct device *dev)
 		need_worker = true;
 	}
 #endif
+	if (cfg->has_stby) {
+		int err = gpio_pin_set_dt(&cfg->stby, 1);
+
+		if (err) {
+			return err;
+		}
+	}
 	if (need_worker) {
 		k_work_schedule(&d->feedback_work, K_MSEC(cfg->update_period_ms));
 	}
@@ -213,6 +222,9 @@ static int hb_disable(const struct device *dev)
 	(void)pwm_set_dt(&cfg->pwm, cfg->pwm_period_ns, 0);
 	k_work_cancel_delayable(&d->feedback_work);
 	d->position_valid = false;
+	if (cfg->has_stby) {
+		(void)gpio_pin_set_dt(&cfg->stby, 0);
+	}
 	return 0;
 }
 
@@ -304,6 +316,15 @@ static int hb_init(const struct device *dev)
 			return err;
 		}
 	}
+	if (cfg->has_stby) {
+		if (!device_is_ready(cfg->stby.port)) {
+			return -ENODEV;
+		}
+		err = gpio_pin_configure_dt(&cfg->stby, GPIO_OUTPUT_INACTIVE);
+		if (err) {
+			return err;
+		}
+	}
 #ifdef CONFIG_ACTUATOR_HBRIDGE_CURRENT_SENSE
 	if (cfg->has_current_sense) {
 		if (!adc_is_ready_dt(&cfg->adc)) {
@@ -329,6 +350,7 @@ static int hb_init(const struct device *dev)
 }
 
 #define HB_HAS_IN2(inst)           DT_INST_NODE_HAS_PROP(inst, in2_gpios)
+#define HB_HAS_STBY(inst)          DT_INST_NODE_HAS_PROP(inst, stby_gpios)
 #define HB_HAS_ENCODER(inst)       DT_INST_NODE_HAS_PROP(inst, encoder)
 #define HB_HAS_CURRENT_SENSE(inst) DT_INST_NODE_HAS_PROP(inst, io_channels)
 
@@ -372,6 +394,10 @@ static int hb_init(const struct device *dev)
 				   (GPIO_DT_SPEC_INST_GET(inst, in2_gpios)),                       \
 				   ({.port = NULL})),                                              \
 		.has_in2 = HB_HAS_IN2(inst),                                                       \
+		.stby = COND_CODE_1(HB_HAS_STBY(inst),                                             \
+				    (GPIO_DT_SPEC_INST_GET(inst, stby_gpios)),                     \
+				    ({.port = NULL})),                                             \
+		.has_stby = HB_HAS_STBY(inst),                                                     \
 		HB_ENCODER_INIT(inst) HB_CURRENT_SENSE_INIT(inst).pwm_period_ns =                  \
 			DT_INST_PROP(inst, pwm_period_ns),                                         \
 		.update_period_ms = DT_INST_PROP(inst, update_period_ms),                          \
