@@ -45,6 +45,8 @@ struct hbridge_config {
 	struct actuator_cb_offsets cb_offsets; /* must be first */
 	struct pwm_dt_spec pwm;
 	struct gpio_dt_spec in1;
+	struct gpio_dt_spec in2; /* port == NULL when absent */
+	bool has_in2;
 #ifdef CONFIG_ACTUATOR_HBRIDGE_ENCODER
 	const struct device *encoder; /* may be NULL */
 #endif
@@ -69,12 +71,18 @@ static int hbridge_set_pwm(const struct hbridge_config *cfg, float duty)
 	if (duty < -1.0f) {
 		duty = -1.0f;
 	}
-	int dir = (duty >= 0.0f) ? 1 : 0;
+	int fwd = (duty >= 0.0f) ? 1 : 0;
 	uint32_t pulse_ns = (uint32_t)(fabsf(duty) * (float)cfg->pwm_period_ns);
-	int err = gpio_pin_set_dt(&cfg->in1, dir);
+	int err = gpio_pin_set_dt(&cfg->in1, fwd);
 
 	if (err) {
 		return err;
+	}
+	if (cfg->has_in2) {
+		err = gpio_pin_set_dt(&cfg->in2, !fwd);
+		if (err) {
+			return err;
+		}
 	}
 	return pwm_set_dt(&cfg->pwm, cfg->pwm_period_ns, pulse_ns);
 }
@@ -244,6 +252,15 @@ static int hb_init(const struct device *dev)
 	if (err) {
 		return err;
 	}
+	if (cfg->has_in2) {
+		if (!device_is_ready(cfg->in2.port)) {
+			return -ENODEV;
+		}
+		err = gpio_pin_configure_dt(&cfg->in2, GPIO_OUTPUT_INACTIVE);
+		if (err) {
+			return err;
+		}
+	}
 #ifdef CONFIG_ACTUATOR_HBRIDGE_CURRENT_SENSE
 	if (cfg->has_current_sense) {
 		if (!adc_is_ready_dt(&cfg->adc)) {
@@ -268,6 +285,7 @@ static int hb_init(const struct device *dev)
 	return 0;
 }
 
+#define HB_HAS_IN2(inst)           DT_INST_NODE_HAS_PROP(inst, in2_gpios)
 #define HB_HAS_ENCODER(inst)       DT_INST_NODE_HAS_PROP(inst, encoder)
 #define HB_HAS_CURRENT_SENSE(inst) DT_INST_NODE_HAS_PROP(inst, io_channels)
 
@@ -276,7 +294,8 @@ static int hb_init(const struct device *dev)
 	 ((HB_HAS_CURRENT_SENSE(inst) && DT_INST_PROP_OR(inst, torque_constant_mnm_per_a, 0) > 0)  \
 		  ? ACTUATOR_CAP_EFFORT                                                            \
 		  : 0) |                                                                           \
-	 (HB_HAS_ENCODER(inst) ? ACTUATOR_CAP_POSITION : 0))
+	 (HB_HAS_ENCODER(inst) ? ACTUATOR_CAP_POSITION : 0) |                                      \
+	 (HB_HAS_IN2(inst) ? ACTUATOR_CAP_DRIVE_MODE : 0))
 
 #ifdef CONFIG_ACTUATOR_HBRIDGE_ENCODER
 #define HB_ENCODER_INIT(inst)                                                                      \
@@ -306,6 +325,10 @@ static int hb_init(const struct device *dev)
 			},                                                                         \
 		.pwm = PWM_DT_SPEC_INST_GET(inst),                                                 \
 		.in1 = GPIO_DT_SPEC_INST_GET(inst, in1_gpios),                                     \
+		.in2 = COND_CODE_1(HB_HAS_IN2(inst),                                               \
+				   (GPIO_DT_SPEC_INST_GET(inst, in2_gpios)),                       \
+				   ({.port = NULL})),                                              \
+		.has_in2 = HB_HAS_IN2(inst),                                                       \
 		HB_ENCODER_INIT(inst) HB_CURRENT_SENSE_INIT(inst).pwm_period_ns =                  \
 			DT_INST_PROP(inst, pwm_period_ns),                                         \
 		.update_period_ms = DT_INST_PROP(inst, update_period_ms),                          \
