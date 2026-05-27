@@ -8,8 +8,9 @@
 #include <zephyr/actuator/actuator.h>
 #include <zephyr/actuator/actuator_group.h>
 
-#define FAKE0 DEVICE_DT_GET(DT_NODELABEL(fake0))
-#define FAKE1 DEVICE_DT_GET(DT_NODELABEL(fake1))
+#define FAKE0     DEVICE_DT_GET(DT_NODELABEL(fake0))
+#define FAKE1     DEVICE_DT_GET(DT_NODELABEL(fake1))
+#define FAKE_NODM DEVICE_DT_GET(DT_NODELABEL(fake_nodm))
 
 ACTUATOR_GROUP_DEFINE(arm, FAKE0, FAKE1);
 
@@ -21,6 +22,7 @@ static void before_each(void *data)
 	/* Ensure each test starts from a known DISABLED state. */
 	actuator_disable(FAKE0);
 	actuator_disable(FAKE1);
+	actuator_disable(FAKE_NODM);
 }
 
 ZTEST_SUITE(actuator_subsys, NULL, NULL, before_each, NULL, NULL);
@@ -98,7 +100,35 @@ ZTEST(actuator_subsys, test_group_disable_all_on_fault)
 
 ZTEST(actuator_subsys, test_set_drive_mode_rejected_without_cap)
 {
-	/* fake0 currently has caps = 7 (POSITION|VELOCITY|EFFORT), no DRIVE_MODE. */
+	zassert_ok(actuator_enable(FAKE_NODM));
+	zassert_equal(actuator_set_drive_mode(FAKE_NODM, ACTUATOR_DRIVE_MODE_BRAKE),
+		      -ENOTSUP);
+}
+
+extern enum actuator_drive_mode fake_get_drive_mode(const struct device *dev);
+
+ZTEST(actuator_subsys, test_set_drive_mode_brake_in_ready)
+{
 	zassert_ok(actuator_enable(FAKE0));
-	zassert_equal(actuator_set_drive_mode(FAKE0, ACTUATOR_DRIVE_MODE_BRAKE), -ENOTSUP);
+	zassert_ok(actuator_set_drive_mode(FAKE0, ACTUATOR_DRIVE_MODE_BRAKE));
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_READY,
+		      "drive mode must not change actuator state");
+	zassert_equal(fake_get_drive_mode(FAKE0), ACTUATOR_DRIVE_MODE_BRAKE);
+}
+
+ZTEST(actuator_subsys, test_set_drive_mode_coast_in_active)
+{
+	zassert_ok(actuator_set_position(FAKE0, 1.0f)); /* promotes to ACTIVE */
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_ACTIVE);
+	zassert_ok(actuator_set_drive_mode(FAKE0, ACTUATOR_DRIVE_MODE_COAST));
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_ACTIVE,
+		      "drive mode must not change actuator state");
+	zassert_equal(fake_get_drive_mode(FAKE0), ACTUATOR_DRIVE_MODE_COAST);
+}
+
+ZTEST(actuator_subsys, test_set_drive_mode_rejected_when_disabled)
+{
+	zassert_ok(actuator_disable(FAKE0));
+	zassert_equal(actuator_set_drive_mode(FAKE0, ACTUATOR_DRIVE_MODE_BRAKE),
+		      -EPERM);
 }

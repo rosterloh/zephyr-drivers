@@ -4,13 +4,20 @@
 		status = "okay";
 		label = "fake0";
 		default-mode = "position";
-		capabilities = <7>;
+		capabilities = <0x47>; /* POSITION | VELOCITY | EFFORT | DRIVE_MODE */
 	};
 	fake1: actuator1 {
 		compatible = "rosterloh,actuator-fake";
 		status = "okay";
 		label = "fake1";
 		default-mode = "position";
-		capabilities = <7>;
+		capabilities = <0x47>;
+	};
+	fake_nodm: actuator2 {
+		compatible = "rosterloh,actuator-fake";
+		status = "okay";
+		label = "fake_nodm";
+		default-mode = "position";
+		capabilities = <7>; /* POSITION | VELOCITY | EFFORT; NO drive_mode */
 	};
 };
