@@ -226,11 +226,54 @@ static int hb_set_setpoint(const struct device *dev, enum actuator_mode mode, fl
 	return hbridge_set_pwm(cfg, value);
 }
 
+static int hb_set_drive_mode(const struct device *dev, enum actuator_drive_mode mode)
+{
+	const struct hbridge_config *cfg = dev->config;
+
+	if (!cfg->has_in2) {
+		/* Single-GPIO (PWM+DIR) variant: cannot independently command
+		 * brake or coast; the silicon decides what PWM=0 means. The
+		 * subsystem should already have rejected this via the cap, but
+		 * guard anyway. */
+		return -ENOTSUP;
+	}
+
+	int err = pwm_set_dt(&cfg->pwm, cfg->pwm_period_ns, 0);
+
+	if (err) {
+		return err;
+	}
+
+	int in1_val = 0, in2_val = 0;
+
+	switch (mode) {
+	case ACTUATOR_DRIVE_MODE_NORMAL:
+	case ACTUATOR_DRIVE_MODE_COAST:
+		/* IN1=0, IN2=0 → outputs high-Z. Next set_setpoint reasserts. */
+		in1_val = 0;
+		in2_val = 0;
+		break;
+	case ACTUATOR_DRIVE_MODE_BRAKE:
+		/* IN1=1, IN2=1 → both low-side FETs on, motor windings shorted. */
+		in1_val = 1;
+		in2_val = 1;
+		break;
+	default:
+		return -EINVAL;
+	}
+	err = gpio_pin_set_dt(&cfg->in1, in1_val);
+	if (err) {
+		return err;
+	}
+	return gpio_pin_set_dt(&cfg->in2, in2_val);
+}
+
 static const struct actuator_driver_api hb_api = {
 	.enable = hb_enable,
 	.disable = hb_disable,
 	.set_setpoint = hb_set_setpoint,
 	.read_feedback = hb_read_feedback,
+	.set_drive_mode = hb_set_drive_mode,
 };
 
 static int hb_init(const struct device *dev)
