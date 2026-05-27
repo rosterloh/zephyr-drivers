@@ -131,6 +131,14 @@ ZTEST(actuator_subsys, test_set_drive_mode_rejected_when_disabled)
 	zassert_equal(actuator_set_drive_mode(FAKE0, ACTUATOR_DRIVE_MODE_BRAKE), -EPERM);
 }
 
+ZTEST(actuator_subsys, test_set_drive_mode_rejected_when_faulted)
+{
+	zassert_ok(actuator_enable(FAKE0));
+	fake_force_fault(FAKE0);
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_FAULT);
+	zassert_equal(actuator_set_drive_mode(FAKE0, ACTUATOR_DRIVE_MODE_BRAKE), -EPERM);
+}
+
 ZTEST(actuator_subsys, test_setpoint_auto_clears_drive_mode)
 {
 	zassert_ok(actuator_enable(FAKE0));

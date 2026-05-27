@@ -1,6 +1,20 @@
 /*
  * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * TB6612FNG-style PWM + IN1/IN2 truth table (one channel):
+ *
+ *   IN1  IN2  Result
+ *   ---  ---  -------------------------------------------------------
+ *    0    0   Coast — both outputs high-Z, motor free-wheels
+ *    0    1   Reverse (CCW), PWM duty modulates the active output
+ *    1    0   Forward (CW),  PWM duty modulates the active output
+ *    1    1   Short brake — both low-side FETs on, windings shorted
+ *
+ * The driver selects PWM+IN1/IN2 signalling iff in2-gpios is present and
+ * advertises ACTUATOR_CAP_DRIVE_MODE in that case. With in1-gpios only the
+ * driver runs in legacy PWM+DIR mode and does not advertise the cap; brake
+ * vs coast behaviour at PWM=0 is then determined by the H-bridge silicon.
  */
 
 #define DT_DRV_COMPAT rosterloh_actuator_hbridge
