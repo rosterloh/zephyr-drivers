@@ -20,6 +20,6 @@
 	motor: motor {
 		compatible = "rosterloh,actuator-hbridge";
 		pwms = <&pwm_fake 0 50000>;
-		dir-gpios = <&gpio_emul 0 GPIO_ACTIVE_HIGH>;
+		in1-gpios = <&gpio_emul 0 GPIO_ACTIVE_HIGH>;
 	};
 };

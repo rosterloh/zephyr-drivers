@@ -44,7 +44,7 @@ struct hbridge_data {
 struct hbridge_config {
 	struct actuator_cb_offsets cb_offsets; /* must be first */
 	struct pwm_dt_spec pwm;
-	struct gpio_dt_spec dir;
+	struct gpio_dt_spec in1;
 #ifdef CONFIG_ACTUATOR_HBRIDGE_ENCODER
 	const struct device *encoder; /* may be NULL */
 #endif
@@ -71,7 +71,7 @@ static int hbridge_set_pwm(const struct hbridge_config *cfg, float duty)
 	}
 	int dir = (duty >= 0.0f) ? 1 : 0;
 	uint32_t pulse_ns = (uint32_t)(fabsf(duty) * (float)cfg->pwm_period_ns);
-	int err = gpio_pin_set_dt(&cfg->dir, dir);
+	int err = gpio_pin_set_dt(&cfg->in1, dir);
 
 	if (err) {
 		return err;
@@ -230,7 +230,7 @@ static int hb_init(const struct device *dev)
 	struct hbridge_data *d = dev->data;
 	const struct hbridge_config *cfg = dev->config;
 
-	if (!device_is_ready(cfg->pwm.dev) || !device_is_ready(cfg->dir.port)) {
+	if (!device_is_ready(cfg->pwm.dev) || !device_is_ready(cfg->in1.port)) {
 		return -ENODEV;
 	}
 #ifdef CONFIG_ACTUATOR_HBRIDGE_ENCODER
@@ -239,7 +239,7 @@ static int hb_init(const struct device *dev)
 		return -ENODEV;
 	}
 #endif
-	int err = gpio_pin_configure_dt(&cfg->dir, GPIO_OUTPUT_INACTIVE);
+	int err = gpio_pin_configure_dt(&cfg->in1, GPIO_OUTPUT_INACTIVE);
 
 	if (err) {
 		return err;
@@ -305,7 +305,7 @@ static int hb_init(const struct device *dev)
 				.storage_offset = offsetof(struct hbridge_data, cb_storage),       \
 			},                                                                         \
 		.pwm = PWM_DT_SPEC_INST_GET(inst),                                                 \
-		.dir = GPIO_DT_SPEC_INST_GET(inst, dir_gpios),                                     \
+		.in1 = GPIO_DT_SPEC_INST_GET(inst, in1_gpios),                                     \
 		HB_ENCODER_INIT(inst) HB_CURRENT_SENSE_INIT(inst).pwm_period_ns =                  \
 			DT_INST_PROP(inst, pwm_period_ns),                                         \
 		.update_period_ms = DT_INST_PROP(inst, update_period_ms),                          \
