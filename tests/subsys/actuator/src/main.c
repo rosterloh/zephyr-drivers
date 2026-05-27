@@ -95,3 +95,10 @@ ZTEST(actuator_subsys, test_group_disable_all_on_fault)
 	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_FAULT);
 	zassert_equal(actuator_get_state(FAKE1), ACTUATOR_STATE_DISABLED);
 }
+
+ZTEST(actuator_subsys, test_set_drive_mode_rejected_without_cap)
+{
+	/* fake0 currently has caps = 7 (POSITION|VELOCITY|EFFORT), no DRIVE_MODE. */
+	zassert_ok(actuator_enable(FAKE0));
+	zassert_equal(actuator_set_drive_mode(FAKE0, ACTUATOR_DRIVE_MODE_BRAKE), -ENOTSUP);
+}
