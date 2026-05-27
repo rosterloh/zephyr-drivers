@@ -158,6 +158,13 @@ int z_impl_actuator_set_limits(const struct device *dev, const struct actuator_l
 	return 0;
 }
 
+int z_impl_actuator_set_drive_mode(const struct device *dev, enum actuator_drive_mode mode)
+{
+	ARG_UNUSED(dev);
+	ARG_UNUSED(mode);
+	return -ENOTSUP;
+}
+
 static int set_setpoint_typed(const struct device *dev, enum actuator_mode mode, float value)
 {
 	struct actuator_common_data *cd = common(dev);

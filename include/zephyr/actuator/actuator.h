@@ -39,6 +39,20 @@ __syscall int actuator_set_position(const struct device *dev, float rad);
 __syscall int actuator_set_velocity(const struct device *dev, float rad_s);
 __syscall int actuator_set_effort(const struct device *dev, float nm);
 
+/**
+ * Set the output policy of the actuator's power stage.
+ *
+ * Orthogonal to the actuator state machine: setting a drive mode does not
+ * change actuator_get_state(). Setting any setpoint (position/velocity/effort)
+ * implicitly returns the stage to ACTUATOR_DRIVE_MODE_NORMAL.
+ *
+ * @retval 0         Mode applied.
+ * @retval -ENOTSUP  Backend does not advertise ACTUATOR_CAP_DRIVE_MODE.
+ * @retval -EPERM    Actuator is in DISABLED or FAULT state.
+ */
+__syscall int actuator_set_drive_mode(const struct device *dev,
+				      enum actuator_drive_mode mode);
+
 /** Synchronous read: forces a backend transaction. */
 __syscall int actuator_read_feedback(const struct device *dev, struct actuator_feedback *out);
 
