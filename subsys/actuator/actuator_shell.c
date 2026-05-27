@@ -116,14 +116,43 @@ static int cmd_get_caps(const struct shell *sh, size_t argc, char **argv)
 		return -ENODEV;
 	}
 	uint32_t c = actuator_get_capabilities(dev);
-	shell_print(sh, "caps=0x%02x%s%s%s%s%s%s", c,
+	shell_print(sh, "caps=0x%02x%s%s%s%s%s%s%s", c,
 		    (c & ACTUATOR_CAP_POSITION) ? " POSITION" : "",
 		    (c & ACTUATOR_CAP_VELOCITY) ? " VELOCITY" : "",
 		    (c & ACTUATOR_CAP_EFFORT) ? " EFFORT" : "",
 		    (c & ACTUATOR_CAP_NEEDS_ALIGN) ? " NEEDS_ALIGN" : "",
 		    (c & ACTUATOR_CAP_GROUP_NATIVE) ? " GROUP_NATIVE" : "",
-		    (c & ACTUATOR_CAP_FAULT_LATCHING) ? " FAULT_LATCHING" : "");
+		    (c & ACTUATOR_CAP_FAULT_LATCHING) ? " FAULT_LATCHING" : "",
+		    (c & ACTUATOR_CAP_DRIVE_MODE) ? " DRIVE_MODE" : "");
 	return 0;
+}
+
+static int cmd_mode(const struct shell *sh, size_t argc, char **argv)
+{
+	if (argc < 3) {
+		shell_error(sh, "usage: actuator mode <name> <normal|brake|coast>");
+		return -EINVAL;
+	}
+	const struct device *dev = resolve(sh, argv[1]);
+	if (!dev) {
+		return -ENODEV;
+	}
+	enum actuator_drive_mode mode;
+
+	if (strcmp(argv[2], "normal") == 0) {
+		mode = ACTUATOR_DRIVE_MODE_NORMAL;
+	} else if (strcmp(argv[2], "brake") == 0) {
+		mode = ACTUATOR_DRIVE_MODE_BRAKE;
+	} else if (strcmp(argv[2], "coast") == 0) {
+		mode = ACTUATOR_DRIVE_MODE_COAST;
+	} else {
+		shell_error(sh, "unknown mode: %s", argv[2]);
+		return -EINVAL;
+	}
+	int err = actuator_set_drive_mode(dev, mode);
+
+	shell_print(sh, "mode: %d", err);
+	return err;
 }
 
 SHELL_STATIC_SUBCMD_SET_CREATE(
@@ -136,6 +165,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 	SHELL_CMD_ARG(disable, NULL, "<name> disable", cmd_disable, 2, 0),
 	SHELL_CMD_ARG(clear_fault, NULL, "<name> clear-fault", cmd_clear_fault, 2, 0),
 	SHELL_CMD_ARG(set, NULL, "<name> set <mode> <val>", cmd_set, 4, 0),
+	SHELL_CMD_ARG(mode, NULL, "<name> mode <normal|brake|coast>", cmd_mode, 3, 0),
 	SHELL_CMD(get, &get_subcmds, "<name> get state|feedback|caps", NULL), SHELL_SUBCMD_SET_END);
 
 SHELL_CMD_REGISTER(actuator, &actuator_subcmds, "Actuator subsystem", NULL);
