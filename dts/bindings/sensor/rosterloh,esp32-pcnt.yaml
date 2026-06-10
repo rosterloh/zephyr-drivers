@@ -1,0 +1,79 @@
+description: |
+  ESP32 PCNT pulse-counter block exposing each counting unit as its own
+  encoder sensor device.
+
+  Unlike the upstream espressif,esp32-pcnt sensor driver (which only reports
+  unit 0), every enabled unit child node here becomes an independent Zephyr
+  device, so multiple encoders (e.g. one per wheel) can be read separately.
+  Apply this compatible to the SoC's pcnt node in a board dts to replace the
+  upstream driver.
+
+  Each unit uses PCNT channel 0 only: the signal input counts edges, the
+  control input optionally gates/inverts the count direction. The vendor
+  half-quad scheme (ESP32Encoder::attachHalfQuad) is sig-pos-mode = 2,
+  sig-neg-mode = 1, ctrl-h-mode = 0, ctrl-l-mode = 1.
+
+  The 16-bit hardware counter wraps at +/-30000 via high/low limit events
+  that the driver accumulates into a 64-bit software total. The accumulated
+  count is reported on SENSOR_CHAN_ROTATION in degrees, scaled by
+  counts-per-revolution.
+
+compatible: "rosterloh,esp32-pcnt"
+
+include: [base.yaml, pinctrl-device.yaml]
+
+child-binding:
+  description: PCNT unit configured as an encoder input.
+
+  properties:
+    reg:
+      type: int
+      required: true
+      description: PCNT unit index (0..7 on ESP32).
+
+    counts-per-revolution:
+      type: int
+      required: true
+      description: |
+        Hardware counts per revolution of the measured shaft, including any
+        decode multiplier and gearbox ratio. Used to scale counts to degrees
+        for SENSOR_CHAN_ROTATION.
+
+    filter:
+      type: int
+      default: 0
+      description: |
+        Glitch filter threshold in APB clock cycles (80 MHz: 800 = 10 us).
+        0 disables the filter. Hardware maximum is 1023.
+
+    sig-pos-mode:
+      type: int
+      default: 1
+      enum: [0, 1, 2]
+      description: |
+        Action on positive edge of the signal input.
+        0 = hold, 1 = increment, 2 = decrement.
+
+    sig-neg-mode:
+      type: int
+      default: 0
+      enum: [0, 1, 2]
+      description: |
+        Action on negative edge of the signal input.
+        0 = hold, 1 = increment, 2 = decrement.
+
+    ctrl-h-mode:
+      type: int
+      default: 0
+      enum: [0, 1, 2]
+      description: |
+        Modifier while the control input is high.
+        0 = keep, 1 = invert, 2 = hold.
+
+    ctrl-l-mode:
+      type: int
+      default: 0
+      enum: [0, 1, 2]
+      description: |
+        Modifier while the control input is low.
+        0 = keep, 1 = invert, 2 = hold.
