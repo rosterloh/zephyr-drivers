@@ -1,0 +1,17 @@
+config ESP32_PCNT_ENCODER
+	bool "ESP32 PCNT multi-unit encoder"
+	default y
+	depends on DT_HAS_ROSTERLOH_ESP32_PCNT_ENABLED
+	depends on PINCTRL
+	help
+	  Encoder driver for the ESP32 pulse counter (PCNT) block. Each unit
+	  child node becomes its own sensor device reporting accumulated
+	  position on SENSOR_CHAN_ROTATION (degrees), with 16-bit hardware
+	  overflow folded into a 64-bit software accumulator via limit-event
+	  interrupts.
+
+if ESP32_PCNT_ENCODER
+module = ESP32_PCNT_ENCODER
+module-str = esp32_pcnt_encoder
+source "subsys/logging/Kconfig.template.log_config"
+endif
