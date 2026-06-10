@@ -197,6 +197,9 @@ static DEVICE_API(sensor, pcnt_enc_api) = {
 };
 
 #define PCNT_ENC_UNIT_DEFINE(node_id)                                                              \
+	BUILD_ASSERT(DT_REG_ADDR(node_id) < PCNT_ENC_MAX_UNITS, "PCNT unit index out of range");   \
+	BUILD_ASSERT(DT_PROP(node_id, counts_per_revolution) > 0,                                  \
+		     "counts-per-revolution must be positive");                                    \
 	static struct pcnt_enc_unit_data pcnt_enc_data_##node_id;                                  \
 	static const struct pcnt_enc_unit_config pcnt_enc_cfg_##node_id = {                        \
 		.idx = DT_REG_ADDR(node_id),                                                       \
