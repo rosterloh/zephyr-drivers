@@ -12,7 +12,6 @@
 #define DT_DRV_COMPAT rosterloh_esp32_pcnt
 
 /* Include esp-idf headers first to avoid redefining BIT() macro */
-#include <hal/pcnt_hal.h>
 #include <hal/pcnt_ll.h>
 
 #include <soc.h>
@@ -51,11 +50,11 @@ struct pcnt_enc_unit_config {
 
 /* Controller-level state shared by all unit devices (single PCNT block). */
 static struct {
-	pcnt_hal_context_t hal;
+	pcnt_dev_t *dev;
 	bool initialized;
 	struct pcnt_enc_unit_data *units[PCNT_ENC_MAX_UNITS];
 } pcnt_enc_shared = {
-	.hal = {.dev = (pcnt_dev_t *)DT_INST_REG_ADDR(0)},
+	.dev = (pcnt_dev_t *)DT_INST_REG_ADDR(0),
 };
 
 PINCTRL_DT_INST_DEFINE(0);
@@ -64,7 +63,7 @@ static const struct pinctrl_dev_config *pcnt_enc_pincfg = PINCTRL_DT_INST_DEV_CO
 static void IRAM_ATTR pcnt_enc_isr(void *arg)
 {
 	ARG_UNUSED(arg);
-	pcnt_dev_t *hw = pcnt_enc_shared.hal.dev;
+	pcnt_dev_t *hw = pcnt_enc_shared.dev;
 	uint32_t intr_status = pcnt_ll_get_intr_status(hw);
 
 	pcnt_ll_clear_intr_status(hw, intr_status);
@@ -100,8 +99,6 @@ static int pcnt_enc_global_init(void)
 		return err;
 	}
 
-	pcnt_hal_init(&pcnt_enc_shared.hal, 0);
-
 	err = esp_intr_alloc(DT_INST_IRQ_BY_IDX(0, 0, irq),
 			     ESP_PRIO_TO_FLAGS(DT_INST_IRQ_BY_IDX(0, 0, priority)) |
 				     ESP_INT_FLAGS_CHECK(DT_INST_IRQ_BY_IDX(0, 0, flags)) |
@@ -127,7 +124,7 @@ static int pcnt_enc_sample_fetch(const struct device *dev, enum sensor_channel c
 
 	unsigned int key = irq_lock();
 
-	data->total = data->acc + pcnt_ll_get_count(pcnt_enc_shared.hal.dev, cfg->idx);
+	data->total = data->acc + pcnt_ll_get_count(pcnt_enc_shared.dev, cfg->idx);
 	irq_unlock(key);
 
 	return 0;
@@ -164,7 +161,7 @@ static int pcnt_enc_unit_init(const struct device *dev)
 			return err;
 		}
 	}
-	hw = pcnt_enc_shared.hal.dev;
+	hw = pcnt_enc_shared.dev;
 
 	pcnt_enc_shared.units[cfg->idx] = data;
 
