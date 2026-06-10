@@ -19,6 +19,8 @@
 		uart-0 = &uart0;
 		i2c-0 = &i2c0;
 		watchdog0 = &wdt0;
+		left-motor = &left_motor;
+		right-motor = &right_motor;
 	};
 
 	chosen {
@@ -64,6 +66,33 @@
 			label = "BOOT Button";
 			zephyr,code = <INPUT_KEY_0>;
 		};
+	};
+
+	/* TB6612-style dual H-bridge. Vendor-positive drive is IN1 low /
+	 * IN2 high, so in1/in2 are swapped relative to the AIN1/AIN2
+	 * silkscreen names to make the driver's forward match the
+	 * vendor's forward while keeping brake = both-high.
+	 */
+	left_motor: motor_left {
+		compatible = "rosterloh,actuator-hbridge";
+		pwms = <&ledc0 2 PWM_HZ(100000) PWM_POLARITY_NORMAL>;
+		in1-gpios = <&gpio0 17 GPIO_ACTIVE_HIGH>; /* AIN2 */
+		in2-gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>; /* AIN1 */
+		encoder = <&pcnt_unit0>;
+		pwm-period-ns = <10000>; /* 100 kHz, vendor-proven */
+		default-mode = "velocity";
+		label = "Left motor";
+	};
+
+	right_motor: motor_right {
+		compatible = "rosterloh,actuator-hbridge";
+		pwms = <&ledc0 3 PWM_HZ(100000) PWM_POLARITY_NORMAL>;
+		in1-gpios = <&gpio0 23 GPIO_ACTIVE_HIGH>; /* BIN2 */
+		in2-gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>; /* BIN1 */
+		encoder = <&pcnt_unit1>;
+		pwm-period-ns = <10000>;
+		default-mode = "velocity";
+		label = "Right motor";
 	};
 };
 
@@ -135,6 +164,14 @@
 		reg = <0x1>;
 		timer = <1>;
 	};
+	channel2@2 {
+		reg = <0x2>;
+		timer = <2>;
+	};
+	channel3@3 {
+		reg = <0x3>;
+		timer = <3>;
+	};
 };
 
 &timer0 {
@@ -202,4 +239,37 @@
 
 &esp32_bt_hci {
 	status = "okay";
+};
+
+&pcnt {
+	compatible = "rosterloh,esp32-pcnt";
+	pinctrl-0 = <&pcnt_default>;
+	pinctrl-names = "default";
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	/* Half-quad decode (vendor ESP32Encoder::attachHalfQuad):
+	 * both edges of the signal input count, control input inverts.
+	 * 2100 counts per wheel revolution (Waveshare RaspRover).
+	 */
+	pcnt_unit0: unit0@0 {
+		reg = <0>;
+		counts-per-revolution = <2100>;
+		filter = <800>; /* 10 us at 80 MHz APB */
+		sig-pos-mode = <2>;
+		sig-neg-mode = <1>;
+		ctrl-h-mode = <0>;
+		ctrl-l-mode = <1>;
+	};
+
+	pcnt_unit1: unit1@1 {
+		reg = <1>;
+		counts-per-revolution = <2100>;
+		filter = <800>;
+		sig-pos-mode = <2>;
+		sig-neg-mode = <1>;
+		ctrl-h-mode = <0>;
+		ctrl-l-mode = <1>;
+	};
 };
