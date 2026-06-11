@@ -13,8 +13,10 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(bus_servo, CONFIG_BUS_SERVO_LOG_LEVEL);
 
-#define BUS_SERVO_PACKET_OVERHEAD  6
-#define BUS_SERVO_RESPONSE_LEN_ANY SIZE_MAX
+#define BUS_SERVO_PACKET_OVERHEAD            6
+#define BUS_SERVO_RESPONSE_LEN_ANY           SIZE_MAX
+#define BUS_SERVO_POSITION_EX_LEN            7
+#define BUS_SERVO_SYNC_POSITION_EX_ENTRY_LEN (1 + BUS_SERVO_POSITION_EX_LEN)
 
 #define BUS_SERVO_DEFINE_GPIO_CFG(inst, prop)                                                      \
 	static struct gpio_dt_spec prop##_cfg_##inst = {                                           \
@@ -276,29 +278,49 @@ int bus_servo_write_u16(int iface, uint8_t id, uint8_t addr, uint16_t value)
 	return bus_servo_write(iface, id, addr, data, sizeof(data));
 }
 
+static void put_position_ex_params(uint8_t data[BUS_SERVO_POSITION_EX_LEN], uint16_t position,
+				   uint16_t speed, uint8_t accel)
+{
+	data[0] = accel;
+	sys_put_le16(position, &data[1]);
+	sys_put_le16(0, &data[3]);
+	sys_put_le16(speed, &data[5]);
+}
+
 int bus_servo_write_position_ex(int iface, uint8_t id, uint16_t position, uint16_t speed,
 				uint8_t accel)
 {
-	ARG_UNUSED(iface);
-	ARG_UNUSED(id);
-	ARG_UNUSED(position);
-	ARG_UNUSED(speed);
-	ARG_UNUSED(accel);
+	uint8_t data[BUS_SERVO_POSITION_EX_LEN];
 
-	return -ENOTSUP;
+	put_position_ex_params(data, position, speed, accel);
+	return bus_servo_write(iface, id, BUS_SERVO_REG_GOAL_ACCEL, data, sizeof(data));
 }
 
 int bus_servo_sync_write_position_ex(int iface, const uint8_t ids[], const uint16_t positions[],
 				     const uint16_t speeds[], const uint8_t accels[], size_t n)
 {
-	ARG_UNUSED(iface);
-	ARG_UNUSED(ids);
-	ARG_UNUSED(positions);
-	ARG_UNUSED(speeds);
-	ARG_UNUSED(accels);
-	ARG_UNUSED(n);
+	const size_t max_entries = (BUS_SERVO_MAX_PACKET_SIZE - BUS_SERVO_PACKET_OVERHEAD - 2) /
+				   BUS_SERVO_SYNC_POSITION_EX_ENTRY_LEN;
+	uint8_t params[BUS_SERVO_MAX_PACKET_SIZE - BUS_SERVO_PACKET_OVERHEAD];
+	size_t offset = 2;
 
-	return -ENOTSUP;
+	if (ids == NULL || positions == NULL || speeds == NULL || accels == NULL || n == 0) {
+		return -EINVAL;
+	}
+	if (n > max_entries) {
+		return -EMSGSIZE;
+	}
+
+	params[0] = BUS_SERVO_REG_GOAL_ACCEL;
+	params[1] = BUS_SERVO_POSITION_EX_LEN;
+	for (size_t i = 0; i < n; i++) {
+		params[offset] = ids[i];
+		put_position_ex_params(&params[offset + 1], positions[i], speeds[i], accels[i]);
+		offset += BUS_SERVO_SYNC_POSITION_EX_ENTRY_LEN;
+	}
+
+	return transact(iface, BUS_SERVO_BROADCAST_ID, BUS_SERVO_INST_SYNC_WRITE, params, offset,
+			false, BUS_SERVO_RESPONSE_LEN_ANY, NULL);
 }
 
 #define BUS_SERVO_DEVICE_DEFINE(inst)                                                              \
