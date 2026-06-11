@@ -1,0 +1,2 @@
+zephyr_library_named(actuator_bus_servo)
+zephyr_library_sources(actuator_bus_servo.c)

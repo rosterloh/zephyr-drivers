@@ -1,0 +1,5 @@
+common:
+  tags: [actuator, drivers, bus_servo]
+tests:
+  drivers.actuator.bus_servo:
+    platform_allow: [native_sim]

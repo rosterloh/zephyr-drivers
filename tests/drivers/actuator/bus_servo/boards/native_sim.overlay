@@ -1,0 +1,33 @@
+/ {
+	bus_servo_uart: uart-emul {
+		compatible = "zephyr,uart-emul";
+		current-speed = <115200>;
+		tx-fifo-size = <128>;
+		rx-fifo-size = <128>;
+		latch-buffer-size = <128>;
+		status = "okay";
+
+		bus_servo0: bus-servo {
+			compatible = "waveshare,bus-servo";
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pan: servo@2 {
+				compatible = "rosterloh,actuator-bus-servo";
+				reg = <2>;
+				label = "PAN";
+				update-period-ms = <60000>;
+			};
+
+			tilt: servo@1 {
+				compatible = "rosterloh,actuator-bus-servo";
+				reg = <1>;
+				label = "TILT";
+				update-period-ms = <60000>;
+				speed = <250>;
+				accel = <10>;
+			};
+		};
+	};
+};

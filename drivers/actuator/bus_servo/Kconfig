@@ -1,0 +1,8 @@
+config ACTUATOR_BUS_SERVO
+	bool "Waveshare bus-servo actuator backend"
+	depends on ACTUATOR && BUS_SERVO
+	depends on DT_HAS_ROSTERLOH_ACTUATOR_BUS_SERVO_ENABLED
+	default n
+	help
+	  Wraps the Waveshare/SCServo bus-servo protocol driver and exposes
+	  each servo on the bus as a generic actuator device.
