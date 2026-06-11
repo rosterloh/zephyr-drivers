@@ -2,4 +2,5 @@ if SENSOR
 rsource "as7341/Kconfig"
 rsource "singletact/Kconfig"
 rsource "adafruit_seesaw_encoder/Kconfig"
+rsource "esp32_pcnt_encoder/Kconfig"
 endif # SENSOR

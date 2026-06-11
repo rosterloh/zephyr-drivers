@@ -51,8 +51,20 @@
 	ledc0_default: ledc0_default {
 		group1 {
 			pinmux = <LEDC_CH0_GPIO4>,
-				 <LEDC_CH1_GPIO5>;
+				 <LEDC_CH1_GPIO5>,
+				 <LEDC_CH2_GPIO25>,
+				 <LEDC_CH3_GPIO26>;
 			output-enable;
+		};
+	};
+
+	pcnt_default: pcnt_default {
+		group1 {
+			pinmux = <PCNT0_CH0SIG_GPIO35>,
+				 <PCNT0_CH0CTRL_GPIO34>,
+				 <PCNT1_CH0SIG_GPIO27>,
+				 <PCNT1_CH0CTRL_GPIO16>;
+			bias-pull-up;
 		};
 	};
 };

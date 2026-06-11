@@ -1,3 +1,4 @@
 add_subdirectory_ifdef(CONFIG_AS7341 as7341)
 add_subdirectory_ifdef(CONFIG_SINGLETACT singletact)
 add_subdirectory_ifdef(CONFIG_ADAFRUIT_SEESAW_ENCODER adafruit_seesaw_encoder)
+add_subdirectory_ifdef(CONFIG_ESP32_PCNT_ENCODER esp32_pcnt_encoder)

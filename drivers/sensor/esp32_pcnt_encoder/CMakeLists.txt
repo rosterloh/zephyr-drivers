@@ -1,0 +1,2 @@
+zephyr_library()
+zephyr_library_sources_ifdef(CONFIG_ESP32_PCNT_ENCODER esp32_pcnt_encoder.c)
