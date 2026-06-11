@@ -105,6 +105,14 @@ void actuator_report_state(const struct device *dev, enum actuator_sm_event even
 			   uint32_t fault_flags);
 
 /**
+ * Backend reports a successful setpoint transaction that was validated against
+ * a previously observed state. If the state changed since validation, no state
+ * change is forced.
+ */
+int actuator_report_setpoint_if_state(const struct device *dev, enum actuator_mode mode,
+				      enum actuator_state expected_state);
+
+/**
  * Backend reports fresh feedback. Subsystem updates the cache and fires
  * registered feedback callbacks. If fb->fault_flags is non-zero, the
  * subsystem also reports a FAULT event.

@@ -74,6 +74,32 @@ void actuator_report_state(const struct device *dev, enum actuator_sm_event even
 	}
 }
 
+int actuator_report_setpoint_if_state(const struct device *dev, enum actuator_mode mode,
+				      enum actuator_state expected_state)
+{
+	struct actuator_common_data *cd = common(dev);
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	if (cd->state != expected_state) {
+		k_spin_unlock(&cd->lock, key);
+		return 0;
+	}
+
+	int rc = sm_step_locked(dev, ACTUATOR_SM_EVT_SETPOINT, 0);
+	if (rc >= 0) {
+		cd->current_mode = mode;
+	}
+	enum actuator_state new_state = cd->state;
+	k_spin_unlock(&cd->lock, key);
+
+	if (rc < 0) {
+		return rc;
+	}
+	if (rc == 1) {
+		actuator_callbacks_fire_state(dev, new_state);
+	}
+	return 0;
+}
+
 int z_impl_actuator_enable(const struct device *dev)
 {
 	struct actuator_common_data *cd = common(dev);

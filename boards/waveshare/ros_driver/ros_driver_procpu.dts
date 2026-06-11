@@ -21,6 +21,8 @@
 		watchdog0 = &wdt0;
 		left-motor = &left_motor;
 		right-motor = &right_motor;
+		gimbal-pan = &gimbal_pan_servo;
+		gimbal-tilt = &gimbal_tilt_servo;
 	};
 
 	chosen {
@@ -104,9 +106,44 @@
 };
 
 &uart1 {
+	status = "okay";
 	current-speed = <115200>;
 	pinctrl-0 = <&uart1_default>;
 	pinctrl-names = "default";
+
+	gimbal_servo_bus: bus-servo {
+		compatible = "waveshare,bus-servo";
+		status = "okay";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		gimbal_pan_servo: servo@2 {
+			compatible = "rosterloh,actuator-bus-servo";
+			reg = <2>;
+			label = "Gimbal pan";
+			default-mode = "position";
+			ticks-per-rev = <4096>;
+			rad-zero-tick = <2047>;
+			position-min-rad-milli = <(-3142)>;
+			position-max-rad-milli = <3142>;
+			speed = <300>;
+			accel = <20>;
+		};
+
+		gimbal_tilt_servo: servo@1 {
+			compatible = "rosterloh,actuator-bus-servo";
+			reg = <1>;
+			label = "Gimbal tilt";
+			default-mode = "position";
+			ticks-per-rev = <4096>;
+			rad-zero-tick = <2047>;
+			position-min-rad-milli = <(-524)>;
+			position-max-rad-milli = <1571>;
+			invert-position;
+			speed = <300>;
+			accel = <20>;
+		};
+	};
 };
 
 &gpio0 {

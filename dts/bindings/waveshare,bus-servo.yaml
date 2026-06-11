@@ -1,0 +1,11 @@
+description: Waveshare serial bus servo device
+
+compatible: "waveshare,bus-servo"
+
+include: uart-device.yaml
+
+properties:
+    tx-en-gpios:
+      type: phandle-array
+      required: false
+      description: Transmit enable pin of the half-duplex transceiver.
