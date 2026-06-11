@@ -1,0 +1,8 @@
+tests:
+  drivers.bus_servo:
+    tags:
+      - drivers
+      - bus_servo
+    harness: ztest
+    platform_allow:
+      - native_sim

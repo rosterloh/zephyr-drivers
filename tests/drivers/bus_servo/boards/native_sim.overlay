@@ -1,0 +1,12 @@
+/ {
+	bus_servo_uart: uart-emul {
+		compatible = "zephyr,uart-emul";
+		current-speed = <115200>;
+		status = "okay";
+
+		bus_servo0: bus-servo {
+			compatible = "waveshare,bus-servo";
+			status = "okay";
+		};
+	};
+};
