@@ -67,6 +67,17 @@ ZTEST(bus_servo_protocol, test_read_u16_frame_and_response_parse)
 	zassert_mem_equal(bus.last_tx, expected_request, sizeof(expected_request));
 }
 
+ZTEST(bus_servo_protocol, test_read_u16_rejects_extra_response_bytes)
+{
+	const uint8_t response[] = {
+		0xff, 0xff, 0x01, 0x05, 0x00, 0x34, 0x12, 0x99, 0x1a,
+	};
+	uint16_t value = 0;
+
+	fake_bus_queue_rx(&bus, response, sizeof(response));
+	zassert_equal(bus_servo_read_u16(iface, 1, 0x38, &value), -EBADMSG);
+}
+
 ZTEST(bus_servo_protocol, test_timeout_returns_etimedout)
 {
 	uint16_t value = 0;

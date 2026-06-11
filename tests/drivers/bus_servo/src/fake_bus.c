@@ -30,6 +30,14 @@ static void tx_data_ready_cb(const struct device *dev, size_t size, void *user_d
 		zassert_equal(copy_len, (size_t)got, "fake bus TX capture overflow");
 		pending -= got;
 	}
+
+	if (!bus->drop_response && bus->pending_rx_len > 0) {
+		uint32_t written = uart_emul_put_rx_data(dev, bus->pending_rx, bus->pending_rx_len);
+
+		zassert_equal(written, (uint32_t)bus->pending_rx_len,
+			      "fake bus RX injection truncated");
+		bus->pending_rx_len = 0;
+	}
 }
 
 void fake_bus_init(struct fake_bus *bus)
@@ -49,9 +57,8 @@ void fake_bus_queue_rx(struct fake_bus *bus, const uint8_t *data, size_t len)
 		return;
 	}
 
-	zassert_true(len <= UINT32_MAX, "fake bus RX injection too large");
+	zassert_true(len <= sizeof(bus->pending_rx), "fake bus RX injection too large");
 
-	uint32_t written = uart_emul_put_rx_data(bus->uart, data, len);
-
-	zassert_equal(written, (uint32_t)len, "fake bus RX injection truncated");
+	memcpy(bus->pending_rx, data, len);
+	bus->pending_rx_len = len;
 }

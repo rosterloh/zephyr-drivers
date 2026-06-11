@@ -1,0 +1,15 @@
+config BUS_SERVO
+	bool "Waveshare bus servo"
+	depends on SERIAL && SERIAL_HAS_DRIVER
+	depends on DT_HAS_WAVESHARE_BUS_SERVO_ENABLED
+	select UART_USE_RUNTIME_CONFIGURE
+	help
+	  Enable the Waveshare/SCServo-style serial bus-servo protocol core.
+
+if BUS_SERVO
+
+module = BUS_SERVO
+module-str = bus_servo
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # BUS_SERVO

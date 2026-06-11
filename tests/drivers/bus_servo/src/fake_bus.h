@@ -9,6 +9,8 @@
 struct fake_bus {
 	uint8_t last_tx[64];
 	size_t last_tx_len;
+	uint8_t pending_rx[64];
+	size_t pending_rx_len;
 	const struct device *uart;
 	bool drop_response;
 };
