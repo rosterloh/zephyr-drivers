@@ -1,0 +1,16 @@
+identifier: esp32p4_nano/esp32p4/hpcore
+name: ESP32-P4-Nano HP Core
+vendor: waveshare
+type: mcu
+arch: riscv
+toolchain:
+  - zephyr
+supported:
+  - counter
+  - entropy
+  - gpio
+  - hwinfo
+  - i2c
+  - sdhc
+  - uart
+  - watchdog

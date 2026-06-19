@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_ESP32P4_NANO_ESP32P4_HPCORE
+
+configdefault NET_L2_ETHERNET
+	default y
+
+endif # BOARD_ESP32P4_NANO_ESP32P4_HPCORE

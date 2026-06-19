@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+board:
+  name: esp32p4_nano
+  full_name: ESP32-P4-Nano
+  vendor: waveshare
+  socs:
+  - name: esp32p4
