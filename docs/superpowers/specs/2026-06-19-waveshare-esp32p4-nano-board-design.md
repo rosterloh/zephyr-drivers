@@ -87,11 +87,19 @@ harmless). Mark with:
 ## Peripherals and pins
 
 Pins sourced from the ESP32-P4-Nano schematic
-(`files.waveshare.com/wiki/ESP32-P4-NANO/ESP32-P4-NANO-schematic.pdf`).
-**SD, BOOT, Ethernet, and the C6 SDIO link were read directly off the schematic
-and are confirmed.** UART0 (GPIO37/38) and I2C0 (SCL 8 / SDA 9) follow the P4
-SoC defaults and the schematic interface block; implementation must cross-check
-them against the schematic before relying on them.
+(`files.waveshare.com/wiki/ESP32-P4-NANO/ESP32-P4-NANO-schematic.pdf`) and
+**validated against the Waveshare vendor demo** (`ESP32-P4-NANO_Demo/ESP-IDF`):
+
+- SD pins match `05_sdmmc/main/Kconfig.projbuild` (P4: CMD 44, CLK 43, D0 39,
+  D1 40, D2 41, D3 42).
+- I2C pins match `06_I2SCodec/main/example_config.h` (`CONFIG_IDF_TARGET_ESP32P4`:
+  `I2C_SCL_IO = GPIO8`, `I2C_SDA_IO = GPIO7`).
+- Ethernet RMII/MDIO and BOOT match the schematic and the upstream
+  `esp32p4_function_ev_board` (identical pinmap). The demo's
+  `04_ethernetbasic/sdkconfig.ci.default_ip101` (MDC 23 / MDIO 18) is a generic
+  IDF CI default, **not** the board wiring, and is disregarded.
+- UART0 (GPIO37 TX / GPIO38 RX) is the P4 SoC default and the function-EV
+  pinmux; the on-board USB-UART bridge connects to it.
 
 | Function | Detail |
 |---|---|
@@ -99,7 +107,7 @@ them against the schematic before relying on them.
 | Ethernet | `&eth` + `&mdio` with IP101 `ethernet-phy@1`. RMII pinctrl: MDC **GPIO31**, MDIO **GPIO52**, ref-clk **GPIO50**, PHY power-enable **GPIO51**. `NET_L2_ETHERNET` defaulted on for hpcore. |
 | MicroSD | `&sdhc` → `sdhc0`, 4-bit, `zephyr,sdmmc-disk`. CLK **43**, CMD **44**, D0 **39**, D1 **40**, D2 **41**, D3 **42**. VDD is power-gated by an AO3401 PMOS driven by **GPIO45** (assert to power the card). Alias `sdhc0`. |
 | BOOT button | **GPIO35**, `GPIO_PULL_UP | GPIO_ACTIVE_LOW`, `gpio-keys` → alias `sw0`, code `INPUT_KEY_0`. |
-| I2C0 | SCL **GPIO8**, SDA **GPIO9**, `I2C_BITRATE_FAST`. |
+| I2C0 | SCL **GPIO8**, SDA **GPIO7**, `I2C_BITRATE_FAST`. (Drives the on-board ES8311 codec; validated against the vendor demo.) |
 | Regulators | `&ldo` rails as on the function-EV board (3V3 / 1V8 boot-on, always-on). |
 | Misc | `&wdt0` (alias `watchdog0`), `&trng0`, `&coretemp`, `&dma`, `&dma_axi`, `&gpio0` enabled. |
 
