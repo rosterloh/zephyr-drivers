@@ -7,6 +7,8 @@
 #include <string.h>
 #include <zephyr/ztest.h>
 #include <zephyr/kinematics/joint.h>
+#include <zcbor_decode.h>
+#include <zcbor_common.h>
 
 #define EPS 1e-4f
 
@@ -69,4 +71,73 @@ ZTEST(kinematics_table, test_actuator_link)
 	zassert_true(j->valid_mask & JOINT_HAS_ACTUATOR);
 	zassert_not_null(j->actuator_name);
 	zassert_str_equal(j->actuator_name, "fake-act");
+}
+
+ZTEST_SUITE(kinematics_cbor, NULL, NULL, NULL, NULL, NULL);
+
+ZTEST(kinematics_cbor, test_too_small_buffer)
+{
+	uint8_t buf[4];
+	size_t out_len = 0;
+
+	zassert_equal(kinematics_encode_cbor(buf, sizeof(buf), &out_len), -ENOMEM);
+}
+
+ZTEST(kinematics_cbor, test_roundtrip_first_joint)
+{
+	uint8_t buf[512];
+	size_t out_len = 0;
+
+	zassert_equal(kinematics_encode_cbor(buf, sizeof(buf), &out_len), 0);
+	zassert_true(out_len > 0);
+
+	ZCBOR_STATE_D(ds, 4, buf, out_len, 1, 0);
+
+	uint32_t version = 0;
+	zassert_true(zcbor_map_start_decode(ds));
+	zassert_true(zcbor_tstr_expect_lit(ds, "v"));
+	zassert_true(zcbor_uint32_decode(ds, &version));
+	zassert_equal(version, KINEMATICS_SCHEMA_VERSION);
+
+	zassert_true(zcbor_tstr_expect_lit(ds, "joints"));
+	zassert_true(zcbor_list_start_decode(ds));
+
+	/* First joint: mandatory-only (the fixed "world"->"base_link" joint). */
+	struct zcbor_string s;
+	uint32_t type = 0;
+	float axis[3], origin[6];
+
+	zassert_true(zcbor_map_start_decode(ds));
+
+	zassert_true(zcbor_tstr_expect_lit(ds, "parent"));
+	zassert_true(zcbor_tstr_decode(ds, &s));
+	zassert_equal(s.len, strlen("world"));
+	zassert_mem_equal(s.value, "world", s.len);
+
+	zassert_true(zcbor_tstr_expect_lit(ds, "child"));
+	zassert_true(zcbor_tstr_decode(ds, &s));
+	zassert_mem_equal(s.value, "base_link", s.len);
+
+	zassert_true(zcbor_tstr_expect_lit(ds, "type"));
+	zassert_true(zcbor_uint32_decode(ds, &type));
+	zassert_equal(type, JOINT_TYPE_FIXED);
+
+	zassert_true(zcbor_tstr_expect_lit(ds, "axis"));
+	zassert_true(zcbor_list_start_decode(ds));
+	for (int i = 0; i < 3; i++) {
+		zassert_true(zcbor_float32_decode(ds, &axis[i]));
+	}
+	zassert_true(zcbor_list_end_decode(ds));
+	zassert_within(axis[2], 1.0f, EPS);
+
+	zassert_true(zcbor_tstr_expect_lit(ds, "origin"));
+	zassert_true(zcbor_list_start_decode(ds));
+	for (int i = 0; i < 6; i++) {
+		zassert_true(zcbor_float32_decode(ds, &origin[i]));
+	}
+	zassert_true(zcbor_list_end_decode(ds));
+	zassert_within(origin[0], 0.0f, EPS);
+
+	/* joints[0] has no optional blocks, so the joint map ends here. */
+	zassert_true(zcbor_map_end_decode(ds));
 }
