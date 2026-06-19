@@ -1,0 +1,63 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  A single mechanical joint exposed by this device (URDF-style). The kinematics
+  library collects all enabled joint nodes into a descriptor table and can
+  serialize them to CBOR for a remote controller to assemble a kinematic tree.
+
+  Devicetree has no float type, so fractional values are scaled integers; the
+  library converts them to SI floats. Units are noted per property.
+
+compatible: "rosterloh,joint"
+
+properties:
+  link-parent:
+    type: string
+    required: true
+    description: Parent link name (URDF parent).
+  link-child:
+    type: string
+    required: true
+    description: Child link name (URDF child).
+  joint-type:
+    type: string
+    required: true
+    enum: ["fixed", "revolute", "continuous", "prismatic"]
+    description: URDF joint type.
+  axis:
+    type: array
+    required: true
+    description: Joint axis as a unit vector scaled x1000, e.g. <0 0 1000> for +Z.
+  origin-xyz:
+    type: array
+    required: true
+    description: Origin translation from parent, micrometres [x y z].
+  origin-rpy:
+    type: array
+    required: true
+    description: Origin rotation from parent, microradians [r p y].
+  limit-lower:
+    type: int
+    description: Lower position limit, microradians (revolute) or micrometres (prismatic).
+  limit-upper:
+    type: int
+    description: Upper position limit, microradians or micrometres.
+  limit-velocity:
+    type: int
+    description: Velocity limit, microradians/s or micrometres/s.
+  limit-effort:
+    type: int
+    description: Effort limit, milli-N*m (revolute) or milli-N (prismatic).
+  mass-mg:
+    type: int
+    description: Link mass in milligrams. Presence enables the dynamics block.
+  com-xyz:
+    type: array
+    description: Centre-of-mass offset, micrometres [x y z].
+  inertia:
+    type: array
+    description: Inertia tensor [ixx iyy izz ixy ixz iyz] in g*mm^2.
+  actuator:
+    type: phandle
+    description: Optional actuator device that drives this joint.
