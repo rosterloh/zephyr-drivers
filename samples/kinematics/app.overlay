@@ -1,0 +1,25 @@
+/ {
+	joint_base: joint-base {
+		compatible = "rosterloh,joint";
+		link-parent = "world";
+		link-child = "base_link";
+		joint-type = "fixed";
+		axis = <0 0 1000>;
+		origin-xyz = <0 0 0>;
+		origin-rpy = <0 0 0>;
+	};
+
+	joint_shoulder: joint-shoulder {
+		compatible = "rosterloh,joint";
+		link-parent = "base_link";
+		link-child = "upper_arm";
+		joint-type = "revolute";
+		axis = <0 0 1000>;
+		origin-xyz = <0 0 100000>;       /* 0.1 m */
+		origin-rpy = <0 0 0>;
+		limit-lower = <(-1570796)>;
+		limit-upper = <1570796>;
+		limit-velocity = <3141592>;
+		limit-effort = <2500>;
+	};
+};

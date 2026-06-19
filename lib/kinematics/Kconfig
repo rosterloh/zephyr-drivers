@@ -1,0 +1,7 @@
+config KINEMATICS
+	bool "Kinematics joint-descriptor library"
+	select ZCBOR
+	help
+	  Expose this device's URDF-style joint descriptors (from devicetree)
+	  and serialize them to CBOR for a remote controller to assemble a
+	  kinematic tree.

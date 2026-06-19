@@ -1,0 +1,12 @@
+sample:
+  name: Kinematics joint descriptors
+common:
+  tags: [kinematics, sample]
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "kinematics: 2 joint\\(s\\)"
+tests:
+  sample.kinematics:
+    platform_allow: [native_sim]

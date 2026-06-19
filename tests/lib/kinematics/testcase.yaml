@@ -1,0 +1,5 @@
+common:
+  tags: [kinematics, lib]
+tests:
+  lib.kinematics:
+    platform_allow: [native_sim]
