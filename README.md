@@ -7,7 +7,7 @@ This repository provides a shared drivers module for all my other projects
 - [Adafruit Seesaw](https://learn.adafruit.com/adafruit-seesaw-atsamd09-breakout/overview) — MFD core plus GPIO, ADC, PWM, NeoPixel and rotary-encoder sub-drivers
 - Adafruit QT Py header GPIO
 - [Robotis Dynamixel](https://www.dynamixel.com/) serial servo (single + sync/bulk group transactions)
-- [Waveshare bus servo](https://www.waveshare.com/wiki/Bus_Servo_Adapter) (serial bus servo)
+- [Waveshare bus servo](https://www.waveshare.com/wiki/ST3235_Servo) (serial bus servo)
 - ESP32 PCNT quadrature encoder (one sensor device per counting unit)
 - [AMS AS7341](https://ams.com/en/as7341) 11-channel multi-spectral sensor
 - [SingleTact](http://www.singletact.com/) capacitive force sensor
