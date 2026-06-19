@@ -8,10 +8,13 @@ This repository provides a shared drivers module for all my other projects
 - Adafruit QT Py header GPIO
 - [Robotis Dynamixel](https://www.dynamixel.com/) serial servo (single + sync/bulk group transactions)
 - [Waveshare bus servo](https://www.waveshare.com/wiki/Bus_Servo_Adapter) (serial bus servo)
-- Generic actuator subsystem with backends: H-bridge DC motor (e.g. TB6612), Dynamixel, Waveshare bus servo, and a fake backend for tests
 - ESP32 PCNT quadrature encoder (one sensor device per counting unit)
 - [AMS AS7341](https://ams.com/en/as7341) 11-channel multi-spectral sensor
 - [SingleTact](http://www.singletact.com/) capacitive force sensor
+
+## Subsystems & libraries
+
+- [Actuator subsystem](docs/actuator.md) — generic actuator API with typed SI setpoints, capabilities, a state machine, group operations, and pluggable backends (H-bridge DC motor, Dynamixel, Waveshare bus servo, fake)
 - Kinematics joint descriptors (`rosterloh,joint`) — URDF-style joint metadata exposed over a transport-agnostic CBOR wire format
 
 ## Boards
