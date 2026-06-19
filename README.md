@@ -20,6 +20,7 @@ This repository provides a shared drivers module for all my other projects
 ## Boards
 
 - `waveshare/ros_driver` — ESP32-S3 dual-core board (`procpu` + `appcpu`)
+- `waveshare/esp32p4_nano` — ESP32-P4 board (`hpcore` + `lpcore`); Ethernet, SD, I2C, UART console
 
 ### Shields
 
