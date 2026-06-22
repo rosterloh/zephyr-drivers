@@ -1,0 +1,22 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/pinctrl/esp32s3-pinctrl.h>
+
+&pinctrl {
+	/* SPI2 wired to the onboard W5500: MOSI=GPIO11 MISO=GPIO12 SCLK=GPIO13.
+	 * CS (GPIO14) is driven as a GPIO via cs-gpios, not the SPIM2 CSEL line.
+	 */
+	spim2_w5500: spim2_w5500 {
+		group1 {
+			pinmux = <SPIM2_MISO_GPIO12>, <SPIM2_SCLK_GPIO13>;
+		};
+		group2 {
+			pinmux = <SPIM2_MOSI_GPIO11>;
+			output-low;
+		};
+	};
+};
