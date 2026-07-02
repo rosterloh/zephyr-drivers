@@ -1,0 +1,36 @@
+menuconfig WIFI_CONNECTIVITY
+	bool "conn_mgr connectivity for WiFi using stored credentials"
+	depends on NET_CONNECTION_MANAGER_CONNECTIVITY_WIFI_MGMT
+	depends on WIFI_CREDENTIALS
+	depends on WIFI_CREDENTIALS_CONNECT_STORED
+	help
+	  Implements the CONNECTIVITY_WIFI_MGMT conn_mgr binding declared by
+	  WiFi drivers. Connects with credentials from the wifi_credentials
+	  subsystem (NET_REQUEST_WIFI_CONNECT_STORED), starts DHCPv4 once
+	  associated and, while the interface is persistent, retries failed
+	  attempts and re-establishes lost connections. Supports a single
+	  WiFi interface.
+
+if WIFI_CONNECTIVITY
+
+module = WIFI_CONNECTIVITY
+module-str = wifi_connectivity
+source "subsys/logging/Kconfig.template.log_config"
+
+config WIFI_CONNECTIVITY_PERSISTENCE
+	bool "Enable connection persistence by default"
+	default y
+	help
+	  Sets CONN_MGR_IF_PERSISTENT on the bound WiFi interface at init so
+	  that lost connections are re-established automatically. Can be
+	  changed at runtime with conn_mgr_if_set_flag().
+
+config WIFI_CONNECTIVITY_RECONNECT_DELAY_SECONDS
+	int "Delay between reconnect attempts"
+	default 5
+	help
+	  Seconds to wait after a failed connection attempt, an unsolicited
+	  disconnect, or a connect issued with no stored credentials before
+	  trying NET_REQUEST_WIFI_CONNECT_STORED again.
+
+endif # WIFI_CONNECTIVITY

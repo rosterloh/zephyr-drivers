@@ -8,5 +8,6 @@ zephyr_include_directories(include)
 
 add_subdirectory(drivers)
 add_subdirectory_ifdef(CONFIG_ACTUATOR subsys/actuator)
+add_subdirectory_ifdef(CONFIG_WIFI_CONNECTIVITY subsys/net/wifi_connectivity)
 add_subdirectory_ifdef(CONFIG_ACTUATOR_LIB lib/actuator)
 add_subdirectory_ifdef(CONFIG_KINEMATICS lib/kinematics)
