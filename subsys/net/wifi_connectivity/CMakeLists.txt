@@ -1,0 +1,2 @@
+zephyr_library_named(wifi_connectivity)
+zephyr_library_sources(wifi_connectivity.c)
