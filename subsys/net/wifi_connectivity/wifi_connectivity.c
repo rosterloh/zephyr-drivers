@@ -52,14 +52,14 @@ static void reconnect_handler(struct k_work *work)
 
 	ARG_UNUSED(work);
 
-	if (!net_if_is_admin_up(wifi_iface)) {
-		return;
-	}
-
+	/* conn_mgr_if_connect() brings the interface admin-up as needed, so we
+	 * do not gate on admin state here: the deferred initial attempt runs
+	 * before conn_mgr has brought the interface up.
+	 */
 	err = conn_mgr_if_connect(wifi_iface);
 	if (err && err != -EALREADY) {
-		LOG_DBG("Reconnect attempt failed: %d", err);
-		schedule_reconnect(wifi_iface);
+		LOG_DBG("Connect attempt failed: %d", err);
+		k_work_reschedule(&reconnect_work, RECONNECT_DELAY);
 	}
 }
 
@@ -79,6 +79,17 @@ static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb, uint64_t
 			schedule_reconnect(iface);
 		} else {
 			LOG_INF("Connected");
+			if (IS_ENABLED(CONFIG_WIFI_CONNECTIVITY_DISABLE_POWER_SAVE)) {
+				struct wifi_ps_params ps = {
+					.enabled = WIFI_PS_DISABLED,
+					.type = WIFI_PS_PARAM_STATE,
+				};
+				int perr = net_mgmt(NET_REQUEST_WIFI_PS, iface, &ps, sizeof(ps));
+
+				if (perr) {
+					LOG_WRN("Failed to disable power save: %d", perr);
+				}
+			}
 			if (IS_ENABLED(CONFIG_NET_DHCPV4)) {
 				net_dhcpv4_start(iface);
 			}
@@ -144,7 +155,15 @@ static void wc_init(struct conn_mgr_conn_binding *const binding)
 		binding->flags |= BIT(CONN_MGR_IF_PERSISTENT);
 	}
 
+	/* Drive the connect from our work queue instead of conn_mgr's automatic
+	 * connect on iface-up: offloaded WiFi drivers (e.g. ESP32) can wedge if
+	 * asked to associate before their stack has finished coming up at boot.
+	 * Deferring the first attempt avoids that boot race.
+	 */
+	binding->flags |= BIT(CONN_MGR_IF_NO_AUTO_CONNECT);
+
 	k_work_init_delayable(&reconnect_work, reconnect_handler);
+	k_work_reschedule(&reconnect_work, RECONNECT_DELAY);
 
 	net_mgmt_init_event_callback(&wifi_mgmt_cb, wifi_mgmt_event_handler,
 				     NET_EVENT_WIFI_CONNECT_RESULT |
