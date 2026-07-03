@@ -33,4 +33,12 @@ config WIFI_CONNECTIVITY_RECONNECT_DELAY_SECONDS
 	  disconnect, or a connect issued with no stored credentials before
 	  trying NET_REQUEST_WIFI_CONNECT_STORED again.
 
+config WIFI_CONNECTIVITY_DISABLE_POWER_SAVE
+	bool "Disable WiFi power save on connect"
+	help
+	  Issue NET_REQUEST_WIFI_PS to disable power save each time the
+	  interface associates. Trades power consumption for latency and
+	  reachability; enable it for a device that must answer inbound
+	  requests promptly (e.g. a server the network reaches on demand).
+
 endif # WIFI_CONNECTIVITY
