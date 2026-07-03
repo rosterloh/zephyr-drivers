@@ -14,6 +14,13 @@ LOG_MODULE_DECLARE(bus_servo, CONFIG_BUS_SERVO_LOG_LEVEL);
 #define BUS_SERVO_BITS_PER_BYTE   11
 #define BUS_SERVO_RX_DRAIN_LIMIT  BUS_SERVO_MAX_PACKET_SIZE
 
+/* Time to wait for a unicast write's status packet to start arriving before
+ * assuming the servo is configured not to reply, and the idle gap that marks
+ * the end of that reply once bytes have been seen.
+ */
+#define BUS_SERVO_REPLY_START_US 2000
+#define BUS_SERVO_BUS_IDLE_US    200
+
 static int set_tx_en(struct bus_servo_context *ctx, int value)
 {
 	struct bus_servo_serial_config *cfg = ctx->cfg;
@@ -214,6 +221,43 @@ static int rx_status_packet(struct bus_servo_context *ctx)
 	}
 
 	return -ETIMEDOUT;
+}
+
+void bus_servo_drain_reply(struct bus_servo_context *ctx)
+{
+	struct bus_servo_serial_config *cfg = ctx->cfg;
+	int64_t start_deadline = k_uptime_ticks() + k_us_to_ticks_ceil64(BUS_SERVO_REPLY_START_US);
+	int64_t idle_deadline = 0;
+	bool seen = false;
+	unsigned char byte;
+
+	/* A unicast write leaves a status packet on the shared half-duplex bus
+	 * (unless the servo's status-return is disabled). Consume it so it does
+	 * not collide with the next transaction's transmission. Wait up to
+	 * BUS_SERVO_REPLY_START_US for the reply to begin, then discard bytes
+	 * until the bus has been idle for BUS_SERVO_BUS_IDLE_US.
+	 */
+	while (true) {
+		int rc = uart_poll_in(cfg->dev, &byte);
+
+		if (rc == 0) {
+			seen = true;
+			idle_deadline =
+				k_uptime_ticks() + k_us_to_ticks_ceil64(BUS_SERVO_BUS_IDLE_US);
+			continue;
+		}
+		if (rc != -1) {
+			return; /* unexpected UART error, give up */
+		}
+		if (seen) {
+			if (k_uptime_ticks() >= idle_deadline) {
+				return; /* reply received, bus idle */
+			}
+		} else if (k_uptime_ticks() >= start_deadline) {
+			return; /* servo did not reply */
+		}
+		k_busy_wait(20);
+	}
 }
 
 int bus_servo_tx_rx(struct bus_servo_context *ctx, const uint8_t *tx_buf, size_t tx_len,
