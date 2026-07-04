@@ -192,6 +192,15 @@ static int transact(int iface, uint8_t id, enum bus_servo_instruction instructio
 	if (rc != 0) {
 		goto unlock;
 	}
+	if (!expect_response && id != BUS_SERVO_BROADCAST_ID) {
+		/* A unicast write is acknowledged with a status packet even when
+		 * the caller does not read it. Drain that reply so it cannot
+		 * collide with the next transaction on the shared bus (which
+		 * silently dropped back-to-back single-servo writes). Broadcast
+		 * sync-writes are not acknowledged, so they skip this.
+		 */
+		bus_servo_drain_reply(ctx);
+	}
 	if (expect_response && ctx->status_error != 0) {
 		rc = -EIO;
 		goto unlock;

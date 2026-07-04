@@ -38,6 +38,7 @@ uint8_t bus_servo_checksum(const uint8_t *data, size_t len);
 int bus_servo_serial_init(struct bus_servo_context *ctx, struct bus_servo_iface_param param);
 int bus_servo_tx_rx(struct bus_servo_context *ctx, const uint8_t *tx_buf, size_t tx_len,
 		    bool expect_response);
+void bus_servo_drain_reply(struct bus_servo_context *ctx);
 struct bus_servo_context *bus_servo_get_context(int iface);
 
 #endif /* ZEPHYR_INCLUDE_DRIVERS_BUS_SERVO_INTERNAL_H_ */
