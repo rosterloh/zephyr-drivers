@@ -1,0 +1,2 @@
+add_subdirectory_ifdef(CONFIG_ACTUATOR actuator)
+add_subdirectory_ifdef(CONFIG_WIFI_CONNECTIVITY net/wifi_connectivity)

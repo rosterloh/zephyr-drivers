@@ -1,0 +1,7 @@
+menu "Additional libraries"
+
+rsource "actuator/Kconfig"
+rsource "cdr/Kconfig"
+rsource "kinematics/Kconfig"
+
+endmenu

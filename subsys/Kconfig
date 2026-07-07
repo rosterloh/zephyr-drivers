@@ -1,0 +1,2 @@
+rsource "actuator/Kconfig"
+rsource "net/wifi_connectivity/Kconfig"
