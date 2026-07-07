@@ -1,0 +1,7 @@
+config CDR
+	bool "CDR (Common Data Representation) serialization library"
+	help
+	  Little-endian CDR codec for encoding and decoding DDS/ROS 2 rmw
+	  payloads, as used by zenoh-pico ROS bridges. Provides the primitive
+	  layer (scalars, strings, encapsulation header); message layouts are
+	  assembled by the application on top.

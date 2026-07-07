@@ -1,0 +1,5 @@
+common:
+  tags: [cdr, lib]
+tests:
+  lib.cdr:
+    platform_allow: [native_sim]
