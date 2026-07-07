@@ -1,6 +1,3 @@
 rsource "drivers/Kconfig"
-rsource "subsys/actuator/Kconfig"
-rsource "subsys/net/wifi_connectivity/Kconfig"
-rsource "lib/actuator/Kconfig"
-rsource "lib/kinematics/Kconfig"
-rsource "lib/cdr/Kconfig"
+rsource "lib/Kconfig"
+rsource "subsys/Kconfig"
