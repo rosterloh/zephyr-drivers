@@ -8,4 +8,5 @@ rsource "gpio/Kconfig"
 rsource "mfd/seesaw/Kconfig"
 rsource "pwm/Kconfig"
 rsource "sensor/Kconfig"
+rsource "video/Kconfig"
 endmenu
