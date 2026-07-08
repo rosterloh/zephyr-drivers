@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+config VIDEO_ESP32_CSI
+	bool "ESP32-P4 MIPI CSI-2 camera receiver"
+	default y
+	depends on DT_HAS_ESPRESSIF_ESP32P4_MIPI_CSI_ENABLED
+	depends on SOC_SERIES_ESP32P4
+	help
+	  Enable the ESP32-P4 MIPI CSI-2 receiver video-capture driver. It drives
+	  the CSI D-PHY, host and bridge, and a DW-GDMA channel that streams frames
+	  from a downstream CSI-2 image sensor (e.g. Sony IMX219) into memory.
+	  Uses the video subsystem log level (CONFIG_VIDEO_LOG_LEVEL).

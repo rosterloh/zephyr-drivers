@@ -157,3 +157,29 @@
 	pinctrl-0 = <&rmii_default>;
 	pinctrl-names = "default";
 };
+
+/*
+ * MIPI CSI-2 camera receiver (host + bridge). The D-PHY uses dedicated silicon
+ * pads (no pinctrl) and its clocks are gated by the HAL, so - like the sibling
+ * mipi-dsi node upstream - it declares neither. Disabled by default; an app that
+ * attaches a camera enables it and wires the sensor endpoint via an overlay.
+ */
+/ {
+	soc {
+		mipi_csi: mipi-csi@5009f000 {
+			compatible = "espressif,esp32p4-mipi-csi";
+			reg = <0x5009f000 0x800 0x5009f800 0x800>;
+			reg-names = "host", "bridge";
+			/*
+			 * Frame completion is signalled by the DW-GDMA channel
+			 * that drains the CSI bridge (one contiguous block per
+			 * frame), so the receiver services the DW-GDMA IRQ.
+			 */
+			interrupts = <DW_GDMA_INTR_SOURCE IRQ_DEFAULT_PRIORITY 0>;
+			interrupt-parent = <&intc>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+	};
+};
