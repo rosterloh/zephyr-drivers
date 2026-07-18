@@ -17,8 +17,6 @@
 #include <zephyr/actuator/actuator.h>
 #include <drivers/dynamixel.h>
 
-#include "../actuator_internal.h"
-
 LOG_MODULE_REGISTER(actuator_dxl, CONFIG_ACTUATOR_LOG_LEVEL);
 
 #define DXL_CB_POOL CONFIG_ACTUATOR_MAX_CALLBACKS_PER_DEVICE
@@ -308,7 +306,7 @@ static int dxl_group_read_feedback(const struct device *const *devs, size_t n,
 	return rc;
 }
 
-static const struct actuator_driver_api dxl_actuator_api = {
+static DEVICE_API(actuator, dxl_actuator_api) = {
 	.enable = dxl_actuator_enable,
 	.disable = dxl_actuator_disable,
 	.clear_fault = dxl_actuator_clear_fault,

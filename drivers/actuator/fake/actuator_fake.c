@@ -9,7 +9,6 @@
 #include <zephyr/device.h>
 #include <zephyr/sys/slist.h>
 #include <zephyr/actuator/actuator.h>
-#include "../actuator_internal.h"
 
 #define FAKE_CB_POOL CONFIG_ACTUATOR_MAX_CALLBACKS_PER_DEVICE
 
@@ -75,7 +74,7 @@ static int fake_set_drive_mode(const struct device *dev, enum actuator_drive_mod
 	return 0;
 }
 
-static const struct actuator_driver_api fake_api = {
+static DEVICE_API(actuator, fake_api) = {
 	.enable = fake_enable,
 	.disable = fake_disable,
 	.clear_fault = fake_clear_fault,

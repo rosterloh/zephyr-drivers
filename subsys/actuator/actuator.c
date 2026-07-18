@@ -10,8 +10,6 @@
 #include <zephyr/actuator/internal/state_machine.h>
 #include <zephyr/actuator/internal/capabilities.h>
 
-#include "../../drivers/actuator/actuator_internal.h"
-
 LOG_MODULE_REGISTER(actuator, CONFIG_ACTUATOR_LOG_LEVEL);
 
 /* Implemented in actuator_callbacks.c. */

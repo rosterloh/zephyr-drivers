@@ -34,7 +34,6 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/slist.h>
 #include <zephyr/actuator/actuator.h>
-#include "../actuator_internal.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846f
@@ -294,7 +293,7 @@ static int hb_set_drive_mode(const struct device *dev, enum actuator_drive_mode 
 	return gpio_pin_set_dt(&cfg->in2, in2_val);
 }
 
-static const struct actuator_driver_api hb_api = {
+static DEVICE_API(actuator, hb_api) = {
 	.enable = hb_enable,
 	.disable = hb_disable,
 	.set_setpoint = hb_set_setpoint,

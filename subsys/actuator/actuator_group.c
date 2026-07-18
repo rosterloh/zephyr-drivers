@@ -10,8 +10,6 @@
 #include <zephyr/actuator/actuator.h>
 #include <zephyr/actuator/actuator_group.h>
 
-#include "../../drivers/actuator/actuator_internal.h"
-
 static int register_group_once(const struct actuator_group *grp);
 
 static bool all_share_api(const struct actuator_group *grp,
