@@ -20,7 +20,6 @@
 #include <drivers/bus_servo.h>
 #include <zephyr/actuator/internal/capabilities.h>
 
-#include "../actuator_internal.h"
 #include "../../bus_servo/bus_servo_internal.h"
 
 LOG_MODULE_REGISTER(actuator_bus_servo, CONFIG_ACTUATOR_LOG_LEVEL);
@@ -213,7 +212,7 @@ static int bus_servo_group_set_setpoints(const struct device *const *devs, size_
 	return 0;
 }
 
-static const struct actuator_driver_api bus_servo_actuator_api = {
+static DEVICE_API(actuator, bus_servo_actuator_api) = {
 	.enable = bus_servo_actuator_enable,
 	.disable = bus_servo_actuator_disable,
 	.clear_fault = bus_servo_actuator_clear_fault,

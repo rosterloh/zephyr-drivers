@@ -20,6 +20,30 @@ static const struct device *resolve(const struct shell *sh, const char *name)
 	return dev;
 }
 
+static int cmd_list(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	const struct device *devs;
+	size_t n = z_device_get_all_static(&devs);
+	size_t count = 0;
+
+	for (size_t i = 0; i < n; i++) {
+		const struct device *dev = &devs[i];
+
+		if (!DEVICE_API_IS(actuator, dev)) {
+			continue;
+		}
+		shell_print(sh, "%s%s", dev->name, device_is_ready(dev) ? "" : " (not ready)");
+		count++;
+	}
+	if (count == 0) {
+		shell_print(sh, "no actuators configured");
+	}
+	return 0;
+}
+
 static int cmd_enable(const struct shell *sh, size_t argc, char **argv)
 {
 	ARG_UNUSED(argc);
@@ -57,7 +81,7 @@ static int cmd_clear_fault(const struct shell *sh, size_t argc, char **argv)
 static int cmd_set(const struct shell *sh, size_t argc, char **argv)
 {
 	if (argc < 4) {
-		shell_error(sh, "usage: actuator <name> set <position|velocity|effort> <value>");
+		shell_error(sh, "usage: actuator set <name> <position|velocity|effort> <value>");
 		return -EINVAL;
 	}
 	const struct device *dev = resolve(sh, argv[1]);
@@ -156,16 +180,41 @@ static int cmd_mode(const struct shell *sh, size_t argc, char **argv)
 }
 
 SHELL_STATIC_SUBCMD_SET_CREATE(
-	get_subcmds, SHELL_CMD_ARG(state, NULL, "get state", cmd_get_state, 2, 0),
-	SHELL_CMD_ARG(feedback, NULL, "get feedback", cmd_get_feedback, 2, 0),
-	SHELL_CMD_ARG(caps, NULL, "get caps", cmd_get_caps, 2, 0), SHELL_SUBCMD_SET_END);
+	get_subcmds,
+	SHELL_CMD_ARG(state, NULL,
+		      "Print the state-machine state.\nUsage: actuator get state <name>",
+		      cmd_get_state, 2, 0),
+	SHELL_CMD_ARG(feedback, NULL,
+		      "Read live position/velocity/effort/temperature.\n"
+		      "Usage: actuator get feedback <name>",
+		      cmd_get_feedback, 2, 0),
+	SHELL_CMD_ARG(caps, NULL,
+		      "Print the capability flags advertised by the backend.\n"
+		      "Usage: actuator get caps <name>",
+		      cmd_get_caps, 2, 0),
+	SHELL_SUBCMD_SET_END);
 
 SHELL_STATIC_SUBCMD_SET_CREATE(
-	actuator_subcmds, SHELL_CMD_ARG(enable, NULL, "<name> enable", cmd_enable, 2, 0),
-	SHELL_CMD_ARG(disable, NULL, "<name> disable", cmd_disable, 2, 0),
-	SHELL_CMD_ARG(clear_fault, NULL, "<name> clear-fault", cmd_clear_fault, 2, 0),
-	SHELL_CMD_ARG(set, NULL, "<name> set <mode> <val>", cmd_set, 4, 0),
-	SHELL_CMD_ARG(mode, NULL, "<name> mode <normal|brake|coast>", cmd_mode, 3, 0),
-	SHELL_CMD(get, &get_subcmds, "<name> get state|feedback|caps", NULL), SHELL_SUBCMD_SET_END);
+	actuator_subcmds,
+	SHELL_CMD(list, NULL, "List the names of all configured actuators.\nUsage: actuator list",
+		  cmd_list),
+	SHELL_CMD_ARG(enable, NULL, "Energize an actuator.\nUsage: actuator enable <name>",
+		      cmd_enable, 2, 0),
+	SHELL_CMD_ARG(disable, NULL, "De-energize an actuator.\nUsage: actuator disable <name>",
+		      cmd_disable, 2, 0),
+	SHELL_CMD_ARG(clear_fault, NULL,
+		      "Clear a latched fault and return to READY.\n"
+		      "Usage: actuator clear_fault <name>",
+		      cmd_clear_fault, 2, 0),
+	SHELL_CMD_ARG(set, NULL,
+		      "Command a setpoint (position rad, velocity rad/s, effort Nm).\n"
+		      "Usage: actuator set <name> <position|velocity|effort> <value>",
+		      cmd_set, 4, 0),
+	SHELL_CMD_ARG(mode, NULL,
+		      "Set the power-stage drive mode.\n"
+		      "Usage: actuator mode <name> <normal|brake|coast>",
+		      cmd_mode, 3, 0),
+	SHELL_CMD(get, &get_subcmds, "Read actuator status (state|feedback|caps).", NULL),
+	SHELL_SUBCMD_SET_END);
 
-SHELL_CMD_REGISTER(actuator, &actuator_subcmds, "Actuator subsystem", NULL);
+SHELL_CMD_REGISTER(actuator, &actuator_subcmds, "Control and inspect actuator devices.", NULL);

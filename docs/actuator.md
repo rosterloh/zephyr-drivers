@@ -88,7 +88,7 @@ The responsibilities are split so each piece is small and testable:
   on its own.
 - `drivers/actuator/<backend>/` — the backends. Each implements
   `struct actuator_driver_api` (the internal contract in
-  `drivers/actuator/actuator_internal.h`) and embeds the subsystem's common
+  `include/zephyr/actuator/actuator.h`) and embeds the subsystem's common
   per-device data as the first field of its own data struct. The backend does
   hardware I/O; the subsystem owns state, limits, locking, and callbacks.
 

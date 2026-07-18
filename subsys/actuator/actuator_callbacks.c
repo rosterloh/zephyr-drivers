@@ -28,8 +28,6 @@
 #include <zephyr/sys/slist.h>
 #include <zephyr/actuator/actuator.h>
 
-#include "../../drivers/actuator/actuator_internal.h"
-
 static struct actuator_cb_storage *storage_for(const struct device *dev)
 {
 	const struct actuator_cb_offsets *off = (const struct actuator_cb_offsets *)dev->config;
