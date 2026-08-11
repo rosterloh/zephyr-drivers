@@ -17,6 +17,12 @@ The ``esp32p4_nano/esp32p4/hpcore`` target supports:
 - I2C0 (SCL GPIO8, SDA GPIO7; drives the on-board ES8311 audio codec)
 - MicroSD card (SDHC, 4-bit: CLK 43, CMD 44, D0-D3 39-42)
 - 100M Ethernet (IP101 PHY over RMII, reset on GPIO51)
+- MIPI CSI-2 camera receiver on the 15-pin Raspberry Pi CSI connector (J3),
+  disabled by default. It carries the ``csi_interface`` / ``csi_ep_in`` /
+  ``csi_capture_port`` / ``csi_i2c`` labels that Zephyr's camera shields bind
+  to, so a Raspberry Pi Camera v2 works with the in-tree shield::
+
+     west build -b esp32p4_nano/esp32p4/hpcore --shield raspberry_pi_camera_module_2 <app>
 - Watchdog, TRNG (entropy), core temperature, DMA, LDO regulators
 
 The ``esp32p4_nano/esp32p4/lpcore`` target runs minimal firmware on the LP core.
@@ -29,8 +35,8 @@ Not Yet Supported
   ``esp_hosted`` WiFi driver is **SPI-only**, so it cannot drive this link.
   Enabling WiFi requires an SDIO esp-hosted transport (not yet in Zephyr) plus
   esp-hosted slave firmware on the C6.
-- MIPI DSI display / CSI camera, the ES8311 audio path (mic/speaker), and the
-  RTC battery are not modelled.
+- MIPI DSI display, the ES8311 audio path (mic/speaker), and the RTC battery are
+  not modelled.
 - **USB.** The SoC's USB 2.0 HS OTG port lands on a **USB-A** connector (J2), so
   this is a host port, not a device port - there is deliberately no
   ``zephyr_udc0``. Zephyr's ``drivers/usb/uhc/uhc_dwc2.c`` binds ``snps,dwc2``,

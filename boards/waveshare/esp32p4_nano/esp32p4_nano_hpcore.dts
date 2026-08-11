@@ -8,6 +8,7 @@
 #include <espressif/esp32p4/esp32p4_n16r32.dtsi>
 #include "esp32p4_nano-pinctrl.dtsi"
 #include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/video/video-interfaces.h>
 #include <espressif/partitions_0x2000_default_16M.dtsi>
 
 /*
@@ -214,12 +215,25 @@ zephyr_i2c: &i2c0 {
 /*
  * MIPI CSI-2 camera receiver (host + bridge). The D-PHY uses dedicated silicon
  * pads (no pinctrl) and its clocks are gated by the HAL, so - like the sibling
- * mipi-dsi node upstream - it declares neither. Disabled by default; an app that
- * attaches a camera enables it and wires the sensor endpoint via an overlay.
+ * mipi-dsi node upstream - it declares neither. Disabled by default; a shield
+ * or overlay enables it and wires the sensor endpoint.
+ *
+ * The csi_* labels are the contract Zephyr's camera shields bind to, so that
+ * boards/shields/raspberry_pi_camera_module_2 works here unmodified rather than
+ * each application hand-rolling an IMX219 overlay:
+ *
+ *   csi_interface     - the receiver, which the shield sets status = "okay"
+ *   csi_ep_in         - its input endpoint, which the shield points at the sensor
+ *   csi_capture_port  - the video device an app opens, i.e. chosen zephyr,camera
+ *   csi_i2c           - the SCCB bus on the CSI connector (below)
+ *
+ * ST's boards split csi_interface (&dcmipp) from csi_capture_port (&pipe_main)
+ * because their capture pipeline is a child node. This receiver is a single
+ * video device, so both labels name the same node.
  */
 / {
 	soc {
-		mipi_csi: mipi-csi@5009f000 {
+		csi_interface: csi_capture_port: mipi_csi: mipi-csi@5009f000 {
 			compatible = "espressif,esp32p4-mipi-csi";
 			reg = <0x5009f000 0x800 0x5009f800 0x800>;
 			reg-names = "host", "bridge";
@@ -233,6 +247,39 @@ zephyr_i2c: &i2c0 {
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
+
+			/*
+			 * The endpoint cannot be left empty for a shield to fill
+			 * in. edtlib enforces a binding's required properties
+			 * whenever the node's own status is "okay", and status
+			 * does not inherit from a parent (edtlib.py Node.status),
+			 * so this endpoint is validated even though mipi_csi
+			 * above is disabled - and images that never see a shield,
+			 * MCUboot included, would fail the build.
+			 *
+			 * bus-type and data-lanes are properties of the board's
+			 * connector rather than of any particular camera: J3 is
+			 * the Raspberry Pi 15-pin CSI connector, wired
+			 * CSI_D0_+/-, CSI_D1_+/- and CSI_CLK_+/- to the P4's
+			 * dedicated D-PHY pads, i.e. 2-lane MIPI CSI-2 D-PHY.
+			 * remote-endpoint-label is the one sensor-specific value,
+			 * defaulted to the Raspberry Pi camera module's output
+			 * endpoint; a shield for a different sensor overrides it.
+			 */
+			port {
+				csi_ep_in: endpoint {
+					remote-endpoint-label = "imx219_ep_out";
+					bus-type = <VIDEO_BUS_TYPE_CSI2_DPHY>;
+					data-lanes = <1 2>;
+				};
+			};
 		};
 	};
 };
+
+/*
+ * The CSI connector's SCCB pins are i2c0 (SCL GPIO8 / SDA GPIO7), so the camera
+ * shields' csi_i2c is this bus. Separate statement because the node already
+ * carries the zephyr_i2c label above.
+ */
+csi_i2c: &i2c0 {};
