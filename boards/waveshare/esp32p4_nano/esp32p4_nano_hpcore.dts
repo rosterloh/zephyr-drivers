@@ -52,6 +52,21 @@
 	};
 };
 
+/*
+ * The SoC dtsi defaults to 400 MHz, which only exists on v3.x silicon. This
+ * board is rev v1.3 (Kconfig.esp32p4_nano selects SOC_ESP32P4_REV_1_3), whose
+ * clock generator produces 90/180/360 MHz only. soc/espressif/esp32p4/soc.c
+ * BUILD_ASSERTs set membership per revision, so leaving the default here is a
+ * build failure; before that assert landed it was a boot failure.
+ */
+&cpu0 {
+	clock-frequency = <DT_FREQ_M(360)>;
+};
+
+&cpu1 {
+	clock-frequency = <DT_FREQ_M(360)>;
+};
+
 &uart0 {
 	status = "okay";
 	current-speed = <115200>;
