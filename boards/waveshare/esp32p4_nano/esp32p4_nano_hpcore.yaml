@@ -11,6 +11,7 @@ supported:
   - gpio
   - hwinfo
   - i2c
+  - netif:eth
   - sdhc
   - uart
   - watchdog
