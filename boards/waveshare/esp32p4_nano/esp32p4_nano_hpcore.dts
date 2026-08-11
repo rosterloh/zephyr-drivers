@@ -5,27 +5,31 @@
 
 /dts-v1/;
 
-#include <espressif/esp32p4/esp32p4_n16r8.dtsi>
+#include <espressif/esp32p4/esp32p4_n16r32.dtsi>
 #include "esp32p4_nano-pinctrl.dtsi"
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <espressif/partitions_0x2000_default_16M.dtsi>
 
 /*
- * ponytail: esp32p4_n16r8 (16 MB flash / 8 MB PSRAM) is the largest upstream P4
- * variant include. The Nano populates 32 MB PSRAM; bump the include if an
- * n16r32 dtsi lands upstream.
- *
  * WiFi/BT (out of scope): an on-board ESP32-C6 provides the radio over SDIO
  * (Reset GPIO54, CLK GPIO18, CMD GPIO19, D0-D3 GPIO14-17). Zephyr's esp_hosted
  * driver is SPI-only, so no node is defined here; see doc/index.rst.
  *
- * Power rails MicroSD VDD (GPIO45) and Ethernet PHY (GPIO51) are default-on in
- * hardware (the vendor demos never drive them), so they are not modelled.
+ * The MicroSD VDD rail (GPIO45) is default-on in hardware (the vendor demos
+ * never drive it), so it is not modelled. GPIO51 is NOT a power rail: the
+ * schematic names it PHY_RESET, and it is wired as the IP101's reset - see
+ * &phy below.
+ *
+ * The USB 2.0 HS OTG port lands on a USB-A connector (J2), i.e. it is a host
+ * port, so no zephyr_udc0 device-side label is defined. Zephyr can in principle
+ * drive it: the SoC's usb_otg node already carries the "snps,dwc2" compatible
+ * that drivers/usb/uhc/uhc_dwc2.c binds, so a zephyr_uhc0 label is the route
+ * in. Untested on P4 high-speed, hence left disabled.
  */
 
 / {
 	model = "Waveshare ESP32-P4-Nano HP Core";
-	compatible = "espressif,esp32p4";
+	compatible = "waveshare,esp32-p4-nano";
 
 	chosen {
 		zephyr,sram = &sramhp;
@@ -39,6 +43,14 @@
 		sw0 = &boot_button;
 		watchdog0 = &wdt0;
 		sdhc0 = &sdhc0;
+		/*
+		 * Required by MCUboot's serial-recovery / USB-DFU entrance GPIO:
+		 * bootloader/mcuboot/boot/zephyr/io.c derives BUTTON_0_NODE from
+		 * this alias and #errors without it. The BOOT button is the only
+		 * user button on the board, and holding it is the physical way
+		 * back in if an OTA leaves the app unbootable.
+		 */
+		mcuboot-button0 = &boot_button;
 	};
 
 	gpio_keys {
@@ -50,6 +62,21 @@
 			zephyr,code = <INPUT_KEY_0>;
 		};
 	};
+};
+
+/*
+ * The SoC dtsi defaults to 400 MHz, which only exists on v3.x silicon. This
+ * board is rev v1.3 (Kconfig.esp32p4_nano selects SOC_ESP32P4_REV_1_3), whose
+ * clock generator produces 90/180/360 MHz only. soc/espressif/esp32p4/soc.c
+ * BUILD_ASSERTs set membership per revision, so leaving the default here is a
+ * build failure; before that assert landed it was a boot failure.
+ */
+&cpu0 {
+	clock-frequency = <DT_FREQ_M(360)>;
+};
+
+&cpu1 {
+	clock-frequency = <DT_FREQ_M(360)>;
 };
 
 &uart0 {
@@ -67,7 +94,12 @@
 	status = "okay";
 };
 
-&i2c0 {
+/*
+ * zephyr_i2c is the conventional label for a board's general-purpose I2C, which
+ * samples and shields bind to. On this board i2c0 is also the CSI connector's
+ * SCCB bus (GPIO8 SCL / GPIO7 SDA) and drives the on-board ES8311 codec.
+ */
+zephyr_i2c: &i2c0 {
 	status = "okay";
 	clock-frequency = <I2C_BITRATE_FAST>;
 	pinctrl-0 = <&i2c0_default>;
@@ -145,9 +177,30 @@
 	pinctrl-names = "default";
 	status = "okay";
 
+	/*
+	 * PHY_RESET is GPIO51 (= gpio1 pin 19, since gpio1 starts at GPIO32),
+	 * active low, per the board schematic. The in-tree waveshare_esp32p4_eth
+	 * board independently uses the same pin.
+	 *
+	 * Both timing properties are mandatory here, not tuning knobs. phy_mii.c
+	 * reads them with DT_INST_PROP_OR(..., 0), so declaring reset-gpios
+	 * without them yields gpio assert -> k_busy_wait(0) -> gpio deassert ->
+	 * k_msleep(0) -> immediate MDIO read: a zero-width reset pulse and no
+	 * settling time, so the PHY's ID registers are read while it is still in
+	 * reset. That reads back as "phy_mii: No PHY found at address 1" plus
+	 * "eth_esp32: PHY device not ready" and leaves the board with no network
+	 * interface at all - strictly worse than declaring no reset line.
+	 *
+	 * 10 ms assert is the IP101's documented minimum; the 50 ms deassertion
+	 * timeout is deliberate margin over its ~10 ms. Values verified on the
+	 * sibling ESP32-P4-ETH board. Trim only with a scope on the reset line.
+	 */
 	phy: ethernet-phy@1 {
 		compatible = "ethernet-phy";
 		reg = <1>;
+		reset-gpios = <&gpio1 19 GPIO_ACTIVE_LOW>;
+		reset-assert-duration-us = <10000>;
+		reset-deassertion-timeout-ms = <50>;
 	};
 };
 
