@@ -27,7 +27,7 @@
 #include <hal/dw_gdma_ll.h>
 #include <soc/reg_base.h>
 
-#include "video_device.h"
+#include "video_common.h"
 
 LOG_MODULE_REGISTER(video_esp32_csi, CONFIG_VIDEO_LOG_LEVEL);
 
