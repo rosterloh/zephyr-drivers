@@ -269,6 +269,13 @@ static int csi_hw_start(const struct device *dev)
 	mipi_csi_ll_enable_host_bus_clock(0, true);
 	mipi_csi_ll_reset_host_clock(0);
 	mipi_csi_ll_set_phy_clock_source(0, MIPI_CSI_PHY_CLK_SRC_DEFAULT);
+	/* Pulse the PHY config clock rather than just enabling it, as
+	 * esp_cam_ctlr_csi does. mipi_csi_hal_init() programs hs_freq_sel through
+	 * the PHY test interface, which is clocked by this clock; if it was left
+	 * running in a stale state the write may not latch and the PHY PLL never
+	 * locks.
+	 */
+	mipi_csi_ll_enable_phy_config_clock(0, false);
 	mipi_csi_ll_enable_phy_config_clock(0, true);
 	irq_unlock(key);
 	mipi_csi_brg_ll_enable_clock(MIPI_CSI_BRG_LL_GET_HW(0), true);
@@ -344,6 +351,7 @@ static int video_esp32_csi_set_stream(const struct device *dev, bool enable,
 	}
 
 	data->streaming = true;
+
 	return 0;
 }
 
