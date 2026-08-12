@@ -26,6 +26,7 @@
 #include <hal/mipi_csi_brg_ll.h>
 #include <hal/dw_gdma_ll.h>
 #include <soc/reg_base.h>
+#include <esp_private/esp_clk_tree_common.h>
 
 #include "video_common.h"
 
@@ -38,6 +39,20 @@ LOG_MODULE_REGISTER(video_esp32_csi, CONFIG_VIDEO_LOG_LEVEL);
 /* MIPI CSI-2 data types (payload format identifiers). */
 #define CSI_DT_RAW8  0x2a
 #define CSI_DT_RAW10 0x2b
+
+/*
+ * Channel events that are not faults and must not be logged as errors. The
+ * DW-GDMA disables a channel automatically when a transfer finishes and again
+ * whenever software disables it, so DISABLED (and SUSPENDED) arrive during
+ * normal streaming and teardown. Reporting them as "DW-GDMA error status
+ * 0x40000000" makes a silent CSI link look like a DMA fault, which is
+ * actively misleading: a receiver that never gets any data leaves the channel
+ * armed, and the only interrupt ever seen is the DISABLED from
+ * video_stream_stop() long after the real failure.
+ */
+#define CSI_DMA_BENIGN_EVENTS                                                                      \
+	(DW_GDMA_LL_CHANNEL_EVENT_DISABLED | DW_GDMA_LL_CHANNEL_EVENT_SUSPENDED |                  \
+	 DW_GDMA_LL_CHANNEL_EVENT_SRC_SUSPENDED | DW_GDMA_LL_CHANNEL_EVENT_BLOCK_TFR_DONE)
 
 struct video_esp32_csi_config {
 	const struct device *source_dev;
@@ -134,7 +149,7 @@ static void video_esp32_csi_isr(void *arg)
 			data->active_vbuf = NULL;
 			CSI_RAISE_SIG(data, VIDEO_BUF_ERROR);
 		}
-	} else if (status) {
+	} else if (status & ~CSI_DMA_BENIGN_EVENTS) {
 		LOG_ERR("DW-GDMA error status 0x%08x", status);
 		CSI_RAISE_SIG(data, VIDEO_BUF_ERROR);
 	}
@@ -235,6 +250,19 @@ static int csi_hw_start(const struct device *dev)
 	 * we cannot use because it depends on FreeRTOS. We are the sole CSI user,
 	 * so no bridge ref-counting is needed.)
 	 */
+	/* Ungate the D-PHY reference clock before selecting it. On the P4
+	 * MIPI_CSI_PHY_CLK_SRC_DEFAULT is PLL_F20M, a derived clock that stays
+	 * gated until a peripheral acquires it, so selecting it without acquiring
+	 * it can leave the D-PHY PLL with no reference. esp_cam_ctlr_csi does the
+	 * same via esp_clk_tree_enable_src(). Reference counted, so no pairing
+	 * with a disable is needed.
+	 */
+	ret = esp_clk_tree_enable_src((soc_module_clk_t)MIPI_CSI_PHY_CLK_SRC_DEFAULT, true);
+	if (ret != 0) {
+		LOG_ERR("Failed to enable D-PHY reference clock (%d)", ret);
+		return -EIO;
+	}
+
 	key = irq_lock();
 	mipi_csi_ll_enable_brg_module_clock(0, true);
 	mipi_csi_ll_reset_brg_module_clock(0);

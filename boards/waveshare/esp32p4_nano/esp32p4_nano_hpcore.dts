@@ -146,6 +146,25 @@ zephyr_i2c: &i2c0 {
 		regulator-always-on;
 	};
 
+	/*
+	 * LDO_VO3 is the SoC's VDD_MIPI_DPHY supply, and 2.5 V is the only value
+	 * it takes. Without it the MIPI D-PHY stays in its "No Power" state and
+	 * cannot even reach "Shutdown": the CSI receiver reports
+	 * phy_stopstate = 0 (it cannot sense the lanes' LP-11 idle) and
+	 * phy_rx.phy_rxclkactivehs = 0 (never sees the sensor's HS clock), with
+	 * every host error status reading 0 because nothing arrives to fault on.
+	 * A camera then looks like a DMA problem: the receiver's DW-GDMA channel
+	 * stays armed and transfers zero bytes forever.
+	 *
+	 * Both the CSI camera and a MIPI DSI display need this rail, so it is
+	 * enabled at boot for the board rather than acquired by one driver.
+	 */
+	ldo3@3 {
+		regulator-init-microvolt = <2500000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
 	ldo4@4 {
 		regulator-init-microvolt = <3300000>;
 		regulator-boot-on;
