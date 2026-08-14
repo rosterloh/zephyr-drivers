@@ -163,8 +163,7 @@ static int bus_servo_actuator_read_feedback(const struct device *dev, struct act
 	}
 
 	int32_t speed_ticks = sign_magnitude(sys_get_le16(&block[2]), PRESENT_SPEED_SIGN_BIT);
-	float velocity =
-		(float)speed_ticks * (2.0f * (float)M_PI) / (float)cfg->ticks_per_rev;
+	float velocity = (float)speed_ticks * (2.0f * (float)M_PI) / (float)cfg->ticks_per_rev;
 
 	/* Position is inverted for a joint mounted backwards, so its rate must be
 	 * too, or velocity disagrees with the sign of the position it differentiates. */

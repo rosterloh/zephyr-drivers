@@ -96,7 +96,8 @@ ZTEST(bus_servo_feedback, test_decodes_sign_magnitude_fields)
 	zassert_true(fb.valid_mask & ACTUATOR_FB_TEMPERATURE);
 	zassert_true(fb.valid_mask & ACTUATOR_FB_EFFORT);
 
-	zassert_within(fb.position, EXPECT_POSITION_RAD, TOLERANCE, "position %f", (double)fb.position);
+	zassert_within(fb.position, EXPECT_POSITION_RAD, TOLERANCE, "position %f",
+		       (double)fb.position);
 	/* Two's-complement decoding would give +33380 ticks/s here, not -100. */
 	zassert_within(fb.velocity, EXPECT_VELOCITY_RADS, TOLERANCE, "velocity %f",
 		       (double)fb.velocity);
