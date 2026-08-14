@@ -1,6 +1,18 @@
 # Copyright (c) 2026 Richard Osterloh
 # SPDX-License-Identifier: Apache-2.0
 
+config VIDEO_IMX219_OOT
+	bool "Sony IMX219 (out-of-tree fork)"
+	select I2C
+	depends on DT_HAS_SONY_IMX219_ENABLED
+	help
+	  Use this repository's fork of the IMX219 driver instead of Zephyr's
+	  in-tree drivers/video/imx219.c, to correct the sensor's PLL programming
+	  against Raspberry Pi's kernel driver.
+
+	  Both bind the "sony,imx219" compatible, so set CONFIG_VIDEO_IMX219=n
+	  when enabling this, or the build will define the same device twice.
+
 config VIDEO_ESP32_CSI
 	bool "ESP32-P4 MIPI CSI-2 camera receiver"
 	default y

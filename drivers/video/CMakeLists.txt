@@ -3,6 +3,7 @@
 
 zephyr_library()
 zephyr_library_sources(video_esp32_csi.c)
+zephyr_library_sources_ifdef(CONFIG_VIDEO_IMX219_OOT imx219.c)
 
 # VIDEO_DEVICE_DEFINE lives in the video subsystem's private header; reuse it so
 # the driver registers with the video device list (and the `video` shell).
