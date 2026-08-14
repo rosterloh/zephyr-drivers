@@ -36,3 +36,16 @@ properties:
     type: int
     default: 20
     description: Position move acceleration passed to bus_servo_write_position_ex.
+
+  stall-torque-milli-nm:
+    type: int
+    default: 0
+    description: |
+      Stall torque in milli-newton-metres, used to convert the servo's
+      present-load register (per-mille of stall torque) into the newton-metres
+      the actuator effort feedback is defined in. 0, the default, leaves effort
+      unreported rather than publishing a percentage as a torque.
+
+      This is supply-dependent, not a part number: an ST3215 is quoted at
+      30 kg*cm (2942) at 12 V but roughly 19 kg*cm (1863) at 7.4 V. Measure or
+      derate it for the rail the servo actually runs on.

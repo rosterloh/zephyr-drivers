@@ -48,6 +48,15 @@ int bus_servo_init(int iface, struct bus_servo_iface_param param);
 int bus_servo_disable(int iface);
 int bus_servo_ping(int iface, uint8_t id);
 
+/**
+ * Read @p len consecutive registers in one bus transaction.
+ *
+ * The present-state registers are contiguous from
+ * BUS_SERVO_REG_PRESENT_POSITION_L, so one call collects position, speed, load,
+ * voltage and temperature for the cost of a single round trip.
+ */
+int bus_servo_read_block(int iface, uint8_t id, uint8_t addr, uint8_t len, uint8_t *out);
+
 int bus_servo_read_u8(int iface, uint8_t id, uint8_t addr, uint8_t *out);
 int bus_servo_read_u16(int iface, uint8_t id, uint8_t addr, uint16_t *out);
 int bus_servo_write_u8(int iface, uint8_t id, uint8_t addr, uint8_t value);

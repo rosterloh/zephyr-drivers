@@ -18,8 +18,9 @@
 #define UART_NODE  DT_PARENT(BUS_NODE)
 #define IFACE_NAME DEVICE_DT_NAME(BUS_NODE)
 
-#define PAN  DEVICE_DT_GET(DT_NODELABEL(pan))
-#define TILT DEVICE_DT_GET(DT_NODELABEL(tilt))
+#define PAN      DEVICE_DT_GET(DT_NODELABEL(pan))
+#define TILT     DEVICE_DT_GET(DT_NODELABEL(tilt))
+#define INVERTED DEVICE_DT_GET(DT_NODELABEL(inverted))
 
 #define PI_F 3.1415927f
 
@@ -89,23 +90,84 @@ ZTEST(bus_servo_actuator, test_set_position_writes_position_ex_frame)
 	zassert_mem_equal(bus.last_tx, expected, sizeof(expected));
 }
 
-ZTEST(bus_servo_actuator, test_read_feedback_reads_present_position)
+/*
+ * Present-state block, read in one transaction from reg 56:
+ *
+ *   position   3071 ticks -> +1024 from the 2047 zero, a quarter turn
+ *   speed    0x8064       -> sign bit 15 set, magnitude 100 ticks/s, so -100
+ *   load     0x05f4       -> sign bit 10 set, magnitude 500 per-mille, so -500
+ *   voltage  0x78         -> 12.0 V, not decoded (no actuator_feedback field)
+ *   temp     0x2d         -> 45 degC
+ *
+ * The fields are sign-magnitude, NOT two's complement, and the sign bit sits at
+ * a different place for speed than for load.
+ */
+#define PRESENT_BLOCK_BYTES 0xff, 0x0b, 0x64, 0x80, 0xf4, 0x05, 0x78, 0x2d
+
+#define EXPECT_VELOCITY_RADS (-0.15339808f)
+#define EXPECT_EFFORT_NM     (-1.471f)
+
+ZTEST(bus_servo_actuator, test_read_feedback_reads_present_block)
 {
 	struct actuator_feedback fb;
 	const uint8_t response[] = {
-		0xff, 0xff, 0x02, 0x04, 0x00, 0xff, 0x0b, 0xef,
+		0xff, 0xff, 0x02, 0x0a, 0x00, PRESENT_BLOCK_BYTES, 0x67,
 	};
 
 	fake_bus_queue_rx(&bus, response, sizeof(response));
 	zassert_ok(actuator_read_feedback(PAN, &fb));
 
+	/* One READ of 8 bytes from reg 56, not a read per signal. */
 	const uint8_t expected_request[] = {
-		0xff, 0xff, 0x02, 0x04, 0x02, 0x38, 0x02, 0xbd,
+		0xff, 0xff, 0x02, 0x04, 0x02, 0x38, 0x08, 0xb7,
 	};
 	zassert_equal(bus.last_tx_len, sizeof(expected_request));
 	zassert_mem_equal(bus.last_tx, expected_request, sizeof(expected_request));
+
 	zassert_true((fb.valid_mask & ACTUATOR_FB_POSITION) != 0);
+	zassert_true((fb.valid_mask & ACTUATOR_FB_VELOCITY) != 0);
+	zassert_true((fb.valid_mask & ACTUATOR_FB_TEMPERATURE) != 0);
 	zassert_within(fb.position, PI_F / 2.0f, 0.002f);
+	/* Two's-complement decoding would give +33380 ticks/s here, not -100. */
+	zassert_within(fb.velocity, EXPECT_VELOCITY_RADS, 0.0001f);
+	zassert_within(fb.temperature, 45.0f, 0.0001f);
+}
+
+ZTEST(bus_servo_actuator, test_read_feedback_omits_effort_without_stall_torque)
+{
+	struct actuator_feedback fb;
+	const uint8_t response[] = {
+		0xff, 0xff, 0x02, 0x0a, 0x00, PRESENT_BLOCK_BYTES, 0x67,
+	};
+
+	fake_bus_queue_rx(&bus, response, sizeof(response));
+	zassert_ok(actuator_read_feedback(PAN, &fb));
+
+	/* Load is per-mille of stall torque and effort is newton-metres, so with
+	 * no stall torque in devicetree the flag must stay clear rather than
+	 * publishing a percentage dressed up as a torque. */
+	zassert_false((fb.valid_mask & ACTUATOR_FB_EFFORT) != 0);
+}
+
+ZTEST(bus_servo_actuator, test_read_feedback_inverts_rate_and_effort)
+{
+	struct actuator_feedback fb;
+	const uint8_t response[] = {
+		0xff, 0xff, 0x03, 0x0a, 0x00, PRESENT_BLOCK_BYTES, 0x66,
+	};
+
+	fake_bus_queue_rx(&bus, response, sizeof(response));
+	zassert_ok(actuator_read_feedback(INVERTED, &fb));
+
+	/* Velocity differentiates position and effort acts along it, so both have
+	 * to follow the same sign convention or they disagree with the position
+	 * about which way the joint is going. */
+	zassert_within(fb.position, -PI_F / 2.0f, 0.002f);
+	zassert_within(fb.velocity, -EXPECT_VELOCITY_RADS, 0.0001f);
+
+	zassert_true((fb.valid_mask & ACTUATOR_FB_EFFORT) != 0);
+	/* Sign bit 10, not 15: decoding load as bit 15 gives +1524 per-mille. */
+	zassert_within(fb.effort, -EXPECT_EFFORT_NM, 0.0001f);
 }
 
 ZTEST(bus_servo_actuator, test_read_feedback_preserves_protocol_errno)

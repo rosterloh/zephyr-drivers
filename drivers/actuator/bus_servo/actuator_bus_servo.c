@@ -15,6 +15,7 @@
 #include <zephyr/device.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/slist.h>
 #include <zephyr/sys/util.h>
 #include <drivers/bus_servo.h>
@@ -51,6 +52,7 @@ struct bus_servo_actuator_config {
 	uint16_t ticks_per_rev;
 	uint16_t rad_zero_tick;
 	uint16_t speed;
+	uint32_t stall_torque_milli_nm;
 	uint8_t accel;
 	bool invert_position;
 };
@@ -119,23 +121,78 @@ static int bus_servo_actuator_set_setpoint(const struct device *dev, enum actuat
 	}
 }
 
+/*
+ * Present-state block, contiguous from BUS_SERVO_REG_PRESENT_POSITION_L:
+ *
+ *   56/57 position     ticks
+ *   58/59 speed        ticks/s, sign-magnitude with bit 15 as direction
+ *   60/61 load         per-mille of stall torque, sign-magnitude, bit 10
+ *   62    voltage      0.1 V   (no actuator_feedback field; not decoded)
+ *   63    temperature  degC
+ *
+ * One transaction for all of it - the cost of the single-register position read
+ * this replaces. Present current lives at 69, outside the block, and is not
+ * worth a second round trip when load already gives effort.
+ *
+ * NOTE: sign-magnitude, NOT two's complement, and the sign bit sits in a
+ * different place for speed than for load. Decoding either as two's complement
+ * turns a small negative rate into a large positive one.
+ */
+#define PRESENT_BLOCK_LEN 8
+
+#define PRESENT_SPEED_SIGN_BIT BIT(15)
+#define PRESENT_LOAD_SIGN_BIT  BIT(10)
+
+/* Magnitude of a sign-magnitude field, signed. */
+static int32_t sign_magnitude(uint16_t raw, uint16_t sign_bit)
+{
+	return (raw & sign_bit) ? -(int32_t)(raw & ~sign_bit) : (int32_t)raw;
+}
+
 static int bus_servo_actuator_read_feedback(const struct device *dev, struct actuator_feedback *out)
 {
 	const struct bus_servo_actuator_config *cfg = dev->config;
 	struct bus_servo_actuator_data *d = dev->data;
-	uint16_t pos;
+	uint8_t block[PRESENT_BLOCK_LEN];
 	int rc;
 
-	rc = bus_servo_read_u16(d->iface, cfg->bus_id, BUS_SERVO_REG_PRESENT_POSITION_L, &pos);
+	rc = bus_servo_read_block(d->iface, cfg->bus_id, BUS_SERVO_REG_PRESENT_POSITION_L,
+				  sizeof(block), block);
 	if (rc != 0) {
 		return rc;
 	}
 
+	int32_t speed_ticks = sign_magnitude(sys_get_le16(&block[2]), PRESENT_SPEED_SIGN_BIT);
+	float velocity = (float)speed_ticks * (2.0f * (float)M_PI) / (float)cfg->ticks_per_rev;
+
+	/* Position is inverted for a joint mounted backwards, so its rate must be
+	 * too, or velocity disagrees with the sign of the position it differentiates. */
+	if (cfg->invert_position) {
+		velocity = -velocity;
+	}
+
 	*out = (struct actuator_feedback){
-		.valid_mask = ACTUATOR_FB_POSITION,
-		.position = ticks_to_rad(cfg, pos),
+		.valid_mask = ACTUATOR_FB_POSITION | ACTUATOR_FB_VELOCITY | ACTUATOR_FB_TEMPERATURE,
+		.position = ticks_to_rad(cfg, sys_get_le16(&block[0])),
+		.velocity = velocity,
+		.temperature = (float)block[7],
 		.timestamp_us = (uint64_t)k_uptime_get() * 1000,
 	};
+
+	/* Effort is N*m by contract and load is a fraction of stall torque, so it
+	 * can only be reported when the devicetree says what stall torque is.
+	 * Without it the flag stays clear rather than publishing a per-mille
+	 * reading dressed up as a torque. */
+	if (cfg->stall_torque_milli_nm > 0) {
+		int32_t load = sign_magnitude(sys_get_le16(&block[4]), PRESENT_LOAD_SIGN_BIT);
+
+		out->effort = (float)load * (float)cfg->stall_torque_milli_nm / 1.0e6f;
+		out->valid_mask |= ACTUATOR_FB_EFFORT;
+		if (cfg->invert_position) {
+			out->effort = -out->effort;
+		}
+	}
+
 	return 0;
 }
 
@@ -279,6 +336,7 @@ static int bus_servo_actuator_init(const struct device *dev)
 		.ticks_per_rev = DT_INST_PROP(inst, ticks_per_rev),                                \
 		.rad_zero_tick = DT_INST_PROP(inst, rad_zero_tick),                                \
 		.speed = DT_INST_PROP(inst, speed),                                                \
+		.stall_torque_milli_nm = DT_INST_PROP(inst, stall_torque_milli_nm),                \
 		.accel = DT_INST_PROP(inst, accel),                                                \
 		.invert_position = DT_INST_PROP(inst, invert_position),                            \
 	};                                                                                         \
