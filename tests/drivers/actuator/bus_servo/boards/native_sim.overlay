@@ -28,6 +28,19 @@
 				speed = <250>;
 				accel = <10>;
 			};
+
+			/* Inverted and carrying a stall torque, so one feedback read
+			 * covers both the sign flip and the effort conversion. Kept
+			 * separate from pan/tilt so the existing tests keep their
+			 * un-inverted, effort-free expectations. */
+			inverted: servo@3 {
+				compatible = "rosterloh,actuator-bus-servo";
+				reg = <3>;
+				label = "INVERTED";
+				update-period-ms = <60000>;
+				invert-position;
+				stall-torque-milli-nm = <2942>;
+			};
 		};
 	};
 };

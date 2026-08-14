@@ -7,7 +7,6 @@ target_sources(app PRIVATE
     src/main.c
     src/fake_bus.c
     src/test_protocol.c
-    src/test_feedback.c
 )
 
 zephyr_include_directories(./src)

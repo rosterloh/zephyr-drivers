@@ -7,27 +7,6 @@
 		bus_servo0: bus-servo {
 			compatible = "waveshare,bus-servo";
 			status = "okay";
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			/* Carries a stall torque, so effort is reported. */
-			test_servo: servo@1 {
-				compatible = "rosterloh,actuator-bus-servo";
-				reg = <1>;
-				ticks-per-rev = <4096>;
-				rad-zero-tick = <2047>;
-				stall-torque-milli-nm = <2942>;
-			};
-
-			/* Inverted and with no stall torque, covering both the sign flip
-			 * and the path that leaves effort unreported. */
-			test_servo_inverted: servo@2 {
-				compatible = "rosterloh,actuator-bus-servo";
-				reg = <2>;
-				ticks-per-rev = <4096>;
-				rad-zero-tick = <2047>;
-				invert-position;
-			};
 		};
 	};
 };
