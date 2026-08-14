@@ -225,7 +225,7 @@ int bus_servo_ping(int iface, uint8_t id)
 	return transact(iface, id, BUS_SERVO_INST_PING, NULL, 0, true, 0, NULL);
 }
 
-static int bus_servo_read(int iface, uint8_t id, uint8_t addr, uint8_t len, uint8_t *out)
+int bus_servo_read_block(int iface, uint8_t id, uint8_t addr, uint8_t len, uint8_t *out)
 {
 	uint8_t params[] = {addr, len};
 
@@ -238,7 +238,7 @@ static int bus_servo_read(int iface, uint8_t id, uint8_t addr, uint8_t len, uint
 
 int bus_servo_read_u8(int iface, uint8_t id, uint8_t addr, uint8_t *out)
 {
-	return bus_servo_read(iface, id, addr, sizeof(*out), out);
+	return bus_servo_read_block(iface, id, addr, sizeof(*out), out);
 }
 
 int bus_servo_read_u16(int iface, uint8_t id, uint8_t addr, uint16_t *out)
@@ -250,7 +250,7 @@ int bus_servo_read_u16(int iface, uint8_t id, uint8_t addr, uint16_t *out)
 		return -EINVAL;
 	}
 
-	rc = bus_servo_read(iface, id, addr, sizeof(data), data);
+	rc = bus_servo_read_block(iface, id, addr, sizeof(data), data);
 	if (rc != 0) {
 		return rc;
 	}
