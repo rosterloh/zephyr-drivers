@@ -23,18 +23,45 @@ The ``esp32p4_nano/esp32p4/hpcore`` target supports:
   to, so a Raspberry Pi Camera v2 works with the in-tree shield::
 
      west build -b esp32p4_nano/esp32p4/hpcore --shield raspberry_pi_camera_module_2 <app>
+- WiFi and Bluetooth via the on-board ESP32-C6 (see below)
 - Watchdog, TRNG (entropy), core temperature, DMA, LDO regulators
 
 The ``esp32p4_nano/esp32p4/lpcore`` target runs minimal firmware on the LP core.
 
+WiFi and Bluetooth
+******************
+
+The ESP32-P4 has no radio of its own. Wireless connectivity is provided by the
+on-board ESP32-C6, which runs the esp-hosted-mcu co-processor firmware and is
+reached over **SDIO** (Reset GPIO54, CLK GPIO18, CMD GPIO19, D0-D3 GPIO14-17) -
+the same wiring Espressif's own ESP32-P4-Function-EV-Board uses. The C6 sits on
+SDIO slot 1 and the microSD socket on slot 0; the two share the single SDMMC
+controller, which serialises transactions between them.
+
+Zephyr's ``esp_hosted_mcu`` driver exposes the co-processor as a standard WiFi
+interface and, when Bluetooth is enabled, as an HCI controller over the same
+link. An application only needs ``CONFIG_WIFI=y`` (and ``CONFIG_BT=y`` for the
+HCI); the driver and its SDIO transport are selected from devicetree. Note that
+this is the newer ``espressif,esp-hosted-mcu`` driver, not the SPI-only
+``espressif,esp-hosted`` one, which cannot drive this link.
+
+.. warning::
+
+   The radio firmware runs on the C6 and is flashed independently of Zephyr.
+   The host driver expects the **3.x** esp-hosted-mcu line
+   (``CONFIG_ESP_HOSTED_MCU_FW_VERSION_MAJOR``); it queries the running firmware
+   at start-up and logs a warning when the major version differs, but cannot
+   update it. The C6's UART is not brought out on this board - SDIO is the only
+   link to it - so re-flashing the co-processor means pushing the image over
+   SDIO from an ESP-IDF host application once, then returning to Zephyr. Boards
+   shipped with an older slave build will connect, if at all, with RPC failures.
+
+The co-processor firmware, its supported chipsets and transports, and the
+protocol are documented in the upstream `ESP-Hosted-MCU`_ project.
+
 Not Yet Supported
 *****************
 
-- **WiFi / Bluetooth.** The radio is an on-board ESP32-C6 connected to the P4
-  over **SDIO** (Reset GPIO54, CLK GPIO18, CMD GPIO19, D0-D3 GPIO14-17). Zephyr's
-  ``esp_hosted`` WiFi driver is **SPI-only**, so it cannot drive this link.
-  Enabling WiFi requires an SDIO esp-hosted transport (not yet in Zephyr) plus
-  esp-hosted slave firmware on the C6.
 - MIPI DSI display, the ES8311 audio path (mic/speaker), and the RTC battery are
   not modelled.
 - **USB.** The SoC's USB 2.0 HS OTG port lands on a **USB-A** connector (J2), so
@@ -57,3 +84,5 @@ Build and flash with the standard Zephyr ESP32 flow, e.g.:
 
    west build -b esp32p4_nano/esp32p4/hpcore samples/hello_world
    west flash
+
+.. _`ESP-Hosted-MCU`: https://github.com/espressif/esp-hosted-mcu

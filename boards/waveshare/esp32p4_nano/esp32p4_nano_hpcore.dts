@@ -12,10 +12,6 @@
 #include <espressif/partitions_0x2000_default_16M.dtsi>
 
 /*
- * WiFi/BT (out of scope): an on-board ESP32-C6 provides the radio over SDIO
- * (Reset GPIO54, CLK GPIO18, CMD GPIO19, D0-D3 GPIO14-17). Zephyr's esp_hosted
- * driver is SPI-only, so no node is defined here; see doc/index.rst.
- *
  * The MicroSD VDD rail (GPIO45) is default-on in hardware (the vendor demos
  * never drive it), so it is not modelled. GPIO51 is NOT a power rail: the
  * schematic names it PHY_RESET, and it is wired as the IP101's reset - see
@@ -38,6 +34,7 @@
 		zephyr,shell-uart = &uart0;
 		zephyr,flash = &flash0;
 		zephyr,code-partition = &slot0_partition;
+		zephyr,bt-hci = &esp_hosted_mcu_hci;
 	};
 
 	aliases {
@@ -188,6 +185,63 @@ zephyr_i2c: &i2c0 {
 			compatible = "zephyr,sdmmc-disk";
 			disk-name = "SD";
 			status = "okay";
+		};
+	};
+
+	/*
+	 * Slot 1 is the on-board ESP32-C6 radio co-processor, which is the only
+	 * radio this SoC has. Both slots stay enabled - slot 0 keeps driving the
+	 * microSD socket - and the single SDMMC controller serialises
+	 * transactions between them. On the P4 the GPIO matrix routes slot 1
+	 * (slot 0 has dedicated IO_MUX pins), so these pins are the board's
+	 * wiring rather than a fixed function.
+	 *
+	 * reset-gpios is GPIO54 (= gpio1 pin 22, since gpio1 starts at GPIO32).
+	 * It is the only thing that restarts the co-processor here: the SD
+	 * power-cycle fallback needs the slot's supply behind pwr-gpios, and on
+	 * this board the C6 rail is not switched by the controller.
+	 *
+	 * The radio firmware lives on the C6 and is flashed separately, so this
+	 * node describes a link the host cannot bring up on its own. The driver
+	 * expects esp-hosted-mcu 3.x (CONFIG_ESP_HOSTED_MCU_FW_VERSION_MAJOR)
+	 * and only warns when the running firmware's major version differs -
+	 * there is no slave-update path in Zephyr. The C6's UART is not brought
+	 * out on this board, SDIO is the only link to it, so re-flashing it
+	 * means pushing the image over SDIO from an ESP-IDF host application
+	 * once; see doc/index.rst.
+	 *
+	 * Enabling the node costs Ethernet-only applications nothing: the
+	 * WiFi and HCI drivers are sourced under `if WIFI` / `if BT`, so an
+	 * application that sets neither never builds them.
+	 */
+	sdhc1: sdhc@1 {
+		status = "okay";
+		bus-width = <4>;
+		max-bus-freq = <40000000>;
+		clk-pin = <18>;
+		cmd-pin = <19>;
+		d0-pin = <14>;
+		d1-pin = <15>;
+		d2-pin = <16>;
+		d3-pin = <17>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		esp_hosted_mcu: esp-hosted-mcu@0 {
+			compatible = "espressif,esp-hosted-mcu";
+			reg = <0>;
+			reset-gpios = <&gpio1 22 GPIO_ACTIVE_HIGH>;
+			status = "okay";
+
+			esp_hosted_mcu_wifi: wifi {
+				compatible = "espressif,esp-hosted-mcu-wifi";
+				status = "okay";
+			};
+
+			esp_hosted_mcu_hci: bt-hci {
+				compatible = "espressif,esp-hosted-mcu-bt-hci";
+				status = "okay";
+			};
 		};
 	};
 };
