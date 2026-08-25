@@ -342,7 +342,13 @@ static int video_esp32_csi_set_stream(const struct device *dev, bool enable,
 		mipi_csi_brg_ll_enable(data->hal.bridge_dev, false);
 		dw_gdma_ll_channel_enable(gdma, CSI_DMA_CHANNEL, false);
 		data->streaming = false;
-		data->active_vbuf = NULL;
+		/* Leave active_vbuf alone: video_stream_stop() calls flush(cancel)
+		 * straight after this, and that is what hands the armed buffer back
+		 * through fifo_out. Clearing it here dropped the buffer on the floor --
+		 * with a two-buffer pool, one aborted stream permanently halved it and
+		 * the next capture failed to allocate. The DMA channel is already
+		 * disabled above, so nothing else can touch it in between.
+		 */
 		return 0;
 	}
 
@@ -377,6 +383,13 @@ static int video_esp32_csi_set_stream(const struct device *dev, bool enable,
 	if (video_stream_start(cfg->source_dev, type)) {
 		mipi_csi_brg_ll_enable(data->hal.bridge_dev, false);
 		dw_gdma_ll_channel_enable(gdma, CSI_DMA_CHANNEL, false);
+		/* csi_dma_arm() checked the buffer out into active_vbuf. streaming
+		 * stays false here, so the teardown path that normally returns it via
+		 * flush(cancel) never runs and the next set_stream would overwrite the
+		 * pointer. Hand it back explicitly.
+		 */
+		k_fifo_put(&data->fifo_in, data->active_vbuf);
+		data->active_vbuf = NULL;
 		return -EIO;
 	}
 
