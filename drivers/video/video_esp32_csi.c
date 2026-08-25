@@ -26,7 +26,7 @@
 #include <hal/mipi_csi_brg_ll.h>
 #include <hal/dw_gdma_ll.h>
 #include <soc/reg_base.h>
-#include <esp_private/esp_clk_tree_common.h>
+#include <hal/clk_gate_ll.h>
 
 #include "video_common.h"
 
@@ -251,21 +251,28 @@ static int csi_hw_start(const struct device *dev)
 	 * so no bridge ref-counting is needed.)
 	 */
 	/* Ungate the D-PHY reference clock before selecting it. On the P4
-	 * MIPI_CSI_PHY_CLK_SRC_DEFAULT is PLL_F20M, a derived clock that stays
-	 * gated until a peripheral acquires it, so selecting it without acquiring
-	 * it can leave the D-PHY PLL with no reference. esp_cam_ctlr_csi does the
-	 * same via esp_clk_tree_enable_src(). Reference counted, so no pairing
-	 * with a disable is needed.
+	 * MIPI_CSI_PHY_CLK_SRC_DEFAULT is PLL_F20M, which is gated at boot.
+	 *
+	 * Do NOT reach for esp_clk_tree_enable_src() here: on the P4 its derived-
+	 * clock table (esp_clk_tree_get_derived_clk_desc) only knows PLL_F50M, so
+	 * for PLL_F20M it returns NULL and the call succeeds without ungating
+	 * anything. The D-PHY is then left with no reference, which is invisible in
+	 * every status register the host exposes -- shutdownz/rstz read released,
+	 * the PHY test interface still reads back what hal_init wrote (it runs off
+	 * the config clock), and the only symptom is phy_stopstate and
+	 * phy_rxclkactivehs stuck at 0 with no error bit anywhere. Gate the 20 MHz
+	 * reference directly instead; the _clk_gate_ll_ prefix is the lock-free
+	 * variant, which is what the clk_tree descriptors themselves use, and we
+	 * are already inside irq_lock().
 	 */
-	ret = esp_clk_tree_enable_src((soc_module_clk_t)MIPI_CSI_PHY_CLK_SRC_DEFAULT, true);
-	if (ret != 0) {
-		LOG_ERR("Failed to enable D-PHY reference clock (%d)", ret);
-		return -EIO;
-	}
-
 	key = irq_lock();
+	_clk_gate_ll_ref_20m_clk_en(true);
 	mipi_csi_ll_enable_brg_module_clock(0, true);
 	mipi_csi_ll_reset_brg_module_clock(0);
+	/* Pulse the host bus clock off then on before resetting, as
+	 * esp_cam_ctlr_csi's s_csi_claim_controller() does.
+	 */
+	mipi_csi_ll_enable_host_bus_clock(0, false);
 	mipi_csi_ll_enable_host_bus_clock(0, true);
 	mipi_csi_ll_reset_host_clock(0);
 	mipi_csi_ll_set_phy_clock_source(0, MIPI_CSI_PHY_CLK_SRC_DEFAULT);
