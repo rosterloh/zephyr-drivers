@@ -8,5 +8,12 @@ rsource "gpio/Kconfig"
 rsource "mfd/seesaw/Kconfig"
 rsource "pwm/Kconfig"
 rsource "sensor/Kconfig"
+# Upstream Zephyr sources its video drivers inside "if VIDEO"; match that, or a
+# driver with "default y" gated only on its DT node activates in every sysbuild
+# image. Sysbuild applies shield overlays to the bootloader too, so a camera
+# shield would otherwise pull video drivers -- and whatever they select -- into
+# MCUboot, which has no video subsystem.
+if VIDEO
 rsource "video/Kconfig"
+endif
 endmenu
