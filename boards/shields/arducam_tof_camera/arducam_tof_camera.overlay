@@ -1,0 +1,47 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Arducam ToF depth camera on a Raspberry Pi 15-pin CSI connector.
+ *
+ * Values are taken from the Raspberry Pi arducam-pivariety-overlay.dts. Note
+ * clock-noncontinuous: unlike the IMX219, this module drops its clock lane out
+ * of HS between bursts.
+ *
+ * link-frequencies is mandatory. Pivariety modules report no link frequency of
+ * their own, and the CSI-2 receiver needs it to configure its D-PHY.
+ */
+
+#include <zephyr/dt-bindings/video/video-interfaces.h>
+
+/ {
+	chosen {
+		zephyr,camera = &csi_capture_port;
+	};
+};
+
+&csi_interface {
+	status = "okay";
+};
+
+&csi_ep_in {
+	remote-endpoint-label = "arducam_tof_ep_out";
+	bus-type = <VIDEO_BUS_TYPE_CSI2_DPHY>;
+	data-lanes = <1 2>;
+};
+
+&csi_i2c {
+	arducam_tof: arducam_pivariety@c {
+		compatible = "arducam,pivariety";
+		reg = <0x0c>;
+
+		port {
+			arducam_tof_ep_out: endpoint {
+				remote-endpoint-label = "csi_ep_in";
+				bus-type = <VIDEO_BUS_TYPE_CSI2_DPHY>;
+				data-lanes = <1 2>;
+				link-frequencies = <493500000>;
+			};
+		};
+	};
+};

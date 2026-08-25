@@ -1,0 +1,21 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Arducam Pivariety camera module.
+
+  Pivariety modules are not bare sensors: an on-module MCU exposes a small
+  self-describing register interface, so one driver serves the whole family.
+  Formats, resolutions and controls are enumerated at runtime, which is why
+  this binding carries no sensor-specific properties.
+
+  The module reports no link frequency of its own, so link-frequencies on the
+  endpoint is required -- the CSI-2 receiver needs it to configure its D-PHY.
+
+compatible: "arducam,pivariety"
+
+include: [i2c-device.yaml]
+
+child-binding:
+  child-binding:
+    include: video-interfaces.yaml

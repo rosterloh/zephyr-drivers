@@ -26,7 +26,9 @@
 #include <hal/mipi_csi_brg_ll.h>
 #include <hal/dw_gdma_ll.h>
 #include <soc/reg_base.h>
-#include <esp_private/esp_clk_tree_common.h>
+#include <soc/mipi_csi_host_struct.h>
+#include <soc/mipi_csi_bridge_struct.h>
+#include <hal/clk_gate_ll.h>
 
 #include "video_common.h"
 
@@ -39,6 +41,7 @@ LOG_MODULE_REGISTER(video_esp32_csi, CONFIG_VIDEO_LOG_LEVEL);
 /* MIPI CSI-2 data types (payload format identifiers). */
 #define CSI_DT_RAW8  0x2a
 #define CSI_DT_RAW10 0x2b
+#define CSI_DT_RAW12 0x2c
 
 /*
  * Channel events that are not faults and must not be logged as errors. The
@@ -86,21 +89,64 @@ struct video_esp32_csi_data {
 #define CSI_RAISE_SIG(data, res)
 #endif
 
-/* Map a Bayer pixel format to its bits-per-pixel and MIPI CSI-2 data type. */
+/* Map a pixel format to its bits-per-pixel and MIPI CSI-2 data type. Greyscale
+ * and Bayer share a data type at each depth -- the CSI-2 payload is identical,
+ * only the interpretation differs -- so ToF modules reporting Y10P land on the
+ * same RAW10 path as a Bayer sensor.
+ */
 static int csi_pixfmt_info(uint32_t pixelformat, uint8_t *bpp, uint16_t *data_type)
 {
 	switch (pixelformat) {
+	case VIDEO_PIX_FMT_GREY:
 	case VIDEO_PIX_FMT_SBGGR8:
+	case VIDEO_PIX_FMT_SGBRG8:
+	case VIDEO_PIX_FMT_SGRBG8:
+	case VIDEO_PIX_FMT_SRGGB8:
 		*bpp = 8;
 		*data_type = CSI_DT_RAW8;
 		return 0;
+	case VIDEO_PIX_FMT_Y10P:
 	case VIDEO_PIX_FMT_SBGGR10P:
+	case VIDEO_PIX_FMT_SGBRG10P:
+	case VIDEO_PIX_FMT_SGRBG10P:
+	case VIDEO_PIX_FMT_SRGGB10P:
 		*bpp = 10;
 		*data_type = CSI_DT_RAW10;
+		return 0;
+	case VIDEO_PIX_FMT_Y12P:
+	case VIDEO_PIX_FMT_SBGGR12P:
+	case VIDEO_PIX_FMT_SGBRG12P:
+	case VIDEO_PIX_FMT_SGRBG12P:
+	case VIDEO_PIX_FMT_SRGGB12P:
+		*bpp = 12;
+		*data_type = CSI_DT_RAW12;
 		return 0;
 	default:
 		return -ENOTSUP;
 	}
+}
+
+/*
+ * Length of the cache-maintenance window for a buffer.
+ *
+ * Cache ops must stay inside the lines the buffer actually owns. The DMA
+ * destination is CONFIG_VIDEO_BUFFER_POOL_ALIGN-aligned, but the allocation
+ * *length* is whatever the caller asked for -- a RAW10 frame is rarely a
+ * multiple of the line size -- so invalidating bytesused would take out the
+ * dirty half of the trailing line, which belongs to the next heap chunk. Its
+ * header is then garbage and the next free() faults.
+ *
+ * Callers that round their allocation up to a cache line get the whole frame
+ * invalidated. Ones that do not leave a stale tail of at most a line, which is
+ * a far better failure mode than corrupting the heap.
+ *
+ * Coupled to CONFIG_VIDEO_BUFFER_POOL_ALIGN >= CONFIG_DCACHE_LINE_SIZE: this
+ * guards the tail, POOL_ALIGN guards the head. Dropping POOL_ALIGN below the
+ * line size reintroduces the same corruption at the start of the buffer.
+ */
+static inline size_t csi_cache_len(const struct video_buffer *vbuf)
+{
+	return ROUND_DOWN(vbuf->size, CONFIG_DCACHE_LINE_SIZE);
 }
 
 /* Point the (already configured) DW-GDMA channel at a buffer and start it. */
@@ -111,7 +157,7 @@ static void csi_dma_arm(struct video_esp32_csi_data *data, struct video_buffer *
 	/* Drop any stale/dirty cache lines so nothing is written back over the
 	 * DMA data, and so the CPU re-reads from PSRAM once the frame lands.
 	 */
-	sys_cache_data_invd_range(vbuf->buffer, vbuf->bytesused);
+	sys_cache_data_invd_range(vbuf->buffer, csi_cache_len(vbuf));
 
 	dw_gdma_ll_channel_set_src_addr(dev, CSI_DMA_CHANNEL, MIPI_CSI_BRG_MEM_BASE);
 	dw_gdma_ll_channel_set_dst_addr(dev, CSI_DMA_CHANNEL, (uint32_t)(uintptr_t)vbuf->buffer);
@@ -136,7 +182,7 @@ static void video_esp32_csi_isr(void *arg)
 		struct video_buffer *next;
 
 		if (done != NULL) {
-			sys_cache_data_invd_range(done->buffer, done->bytesused);
+			sys_cache_data_invd_range(done->buffer, csi_cache_len(done));
 			done->timestamp = k_uptime_get_32();
 			k_fifo_put(&data->fifo_out, done);
 			CSI_RAISE_SIG(data, VIDEO_BUF_DONE);
@@ -251,21 +297,28 @@ static int csi_hw_start(const struct device *dev)
 	 * so no bridge ref-counting is needed.)
 	 */
 	/* Ungate the D-PHY reference clock before selecting it. On the P4
-	 * MIPI_CSI_PHY_CLK_SRC_DEFAULT is PLL_F20M, a derived clock that stays
-	 * gated until a peripheral acquires it, so selecting it without acquiring
-	 * it can leave the D-PHY PLL with no reference. esp_cam_ctlr_csi does the
-	 * same via esp_clk_tree_enable_src(). Reference counted, so no pairing
-	 * with a disable is needed.
+	 * MIPI_CSI_PHY_CLK_SRC_DEFAULT is PLL_F20M, which is gated at boot.
+	 *
+	 * Do NOT reach for esp_clk_tree_enable_src() here: on the P4 its derived-
+	 * clock table (esp_clk_tree_get_derived_clk_desc) only knows PLL_F50M, so
+	 * for PLL_F20M it returns NULL and the call succeeds without ungating
+	 * anything. The D-PHY is then left with no reference, which is invisible in
+	 * every status register the host exposes -- shutdownz/rstz read released,
+	 * the PHY test interface still reads back what hal_init wrote (it runs off
+	 * the config clock), and the only symptom is phy_stopstate and
+	 * phy_rxclkactivehs stuck at 0 with no error bit anywhere. Gate the 20 MHz
+	 * reference directly instead; the _clk_gate_ll_ prefix is the lock-free
+	 * variant, which is what the clk_tree descriptors themselves use, and we
+	 * are already inside irq_lock().
 	 */
-	ret = esp_clk_tree_enable_src((soc_module_clk_t)MIPI_CSI_PHY_CLK_SRC_DEFAULT, true);
-	if (ret != 0) {
-		LOG_ERR("Failed to enable D-PHY reference clock (%d)", ret);
-		return -EIO;
-	}
-
 	key = irq_lock();
+	_clk_gate_ll_ref_20m_clk_en(true);
 	mipi_csi_ll_enable_brg_module_clock(0, true);
 	mipi_csi_ll_reset_brg_module_clock(0);
+	/* Pulse the host bus clock off then on before resetting, as
+	 * esp_cam_ctlr_csi's s_csi_claim_controller() does.
+	 */
+	mipi_csi_ll_enable_host_bus_clock(0, false);
 	mipi_csi_ll_enable_host_bus_clock(0, true);
 	mipi_csi_ll_reset_host_clock(0);
 	mipi_csi_ll_set_phy_clock_source(0, MIPI_CSI_PHY_CLK_SRC_DEFAULT);
@@ -282,12 +335,34 @@ static int csi_hw_start(const struct device *dev)
 
 	mipi_csi_hal_init(&data->hal, &hal_cfg);
 
+	/* Unmask every host error source. On this IP INT_ST_* only latches an event
+	 * whose INT_MSK_* bit is set, and both the HAL and reset leave the masks at
+	 * 0 -- so an all-zero error dump means "nothing was being recorded", not
+	 * "nothing went wrong". Without this a receiver failing to sync to the
+	 * sensor's HS bursts is indistinguishable from a silent link.
+	 */
+	data->hal.host_dev->int_msk_phy_fatal.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_pkt_fatal.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_phy.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_bndry_frame_fatal.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_seq_frame_fatal.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_crc_frame_fatal.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_pld_crc_fatal.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_data_id.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_ecc_corrected.val = UINT32_MAX;
+
 	/* RAW passthrough: filter to the sensor's data type only, no colour
 	 * conversion (bridge reset default), 512 x 64-bit DMA bursts.
 	 */
 	mipi_csi_brg_ll_set_burst_len(data->hal.bridge_dev, 512);
 	mipi_csi_brg_ll_set_data_type_min(data->hal.bridge_dev, data_type);
 	mipi_csi_brg_ll_set_data_type_max(data->hal.bridge_dev, data_type);
+
+	/* Arm the bridge's row-count check. It is off by default, which means the
+	 * vadr_num_gt/lt interrupts never fire and a bridge receiving the wrong
+	 * number of rows looks identical to one receiving none at all.
+	 */
+	data->hal.bridge_dev->frame_cfg.vadr_num_check = 1;
 
 	return 0;
 }
@@ -312,7 +387,13 @@ static int video_esp32_csi_set_stream(const struct device *dev, bool enable,
 		mipi_csi_brg_ll_enable(data->hal.bridge_dev, false);
 		dw_gdma_ll_channel_enable(gdma, CSI_DMA_CHANNEL, false);
 		data->streaming = false;
-		data->active_vbuf = NULL;
+		/* Leave active_vbuf alone: video_stream_stop() calls flush(cancel)
+		 * straight after this, and that is what hands the armed buffer back
+		 * through fifo_out. Clearing it here dropped the buffer on the floor --
+		 * with a two-buffer pool, one aborted stream permanently halved it and
+		 * the next capture failed to allocate. The DMA channel is already
+		 * disabled above, so nothing else can touch it in between.
+		 */
 		return 0;
 	}
 
@@ -347,6 +428,13 @@ static int video_esp32_csi_set_stream(const struct device *dev, bool enable,
 	if (video_stream_start(cfg->source_dev, type)) {
 		mipi_csi_brg_ll_enable(data->hal.bridge_dev, false);
 		dw_gdma_ll_channel_enable(gdma, CSI_DMA_CHANNEL, false);
+		/* csi_dma_arm() checked the buffer out into active_vbuf. streaming
+		 * stays false here, so the teardown path that normally returns it via
+		 * flush(cancel) never runs and the next set_stream would overwrite the
+		 * pointer. Hand it back explicitly.
+		 */
+		k_fifo_put(&data->fifo_in, data->active_vbuf);
+		data->active_vbuf = NULL;
 		return -EIO;
 	}
 

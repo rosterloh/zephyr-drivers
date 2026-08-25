@@ -1,0 +1,24 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/video/video-interfaces.h>
+
+&i2c0 {
+	status = "okay";
+
+	pivariety: pivariety@c {
+		compatible = "arducam,pivariety";
+		reg = <0x0c>;
+
+		port {
+			pivariety_ep_out: endpoint {
+				remote-endpoint-label = "";
+				bus-type = <VIDEO_BUS_TYPE_CSI2_DPHY>;
+				data-lanes = <1 2>;
+				link-frequencies = <493500000>;
+			};
+		};
+	};
+};

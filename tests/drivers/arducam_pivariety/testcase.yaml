@@ -1,0 +1,8 @@
+common:
+  tags: drivers
+  platform_allow:
+    - qemu_cortex_m3
+    - native_sim
+
+tests:
+  drivers.video.arducam_pivariety: {}

@@ -1,0 +1,32 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/i2c/i2c.h>
+#include <zephyr/dt-bindings/video/video-interfaces.h>
+
+/ {
+	fake_i2c_bus: i2c@100 {
+		status = "okay";
+		compatible = "zephyr,i2c-emul-controller";
+		clock-frequency = <I2C_BITRATE_STANDARD>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0x100 4>;
+
+		pivariety: pivariety@c {
+			compatible = "arducam,pivariety";
+			reg = <0x0c>;
+
+			port {
+				pivariety_ep_out: endpoint {
+					remote-endpoint-label = "";
+					bus-type = <VIDEO_BUS_TYPE_CSI2_DPHY>;
+					data-lanes = <1 2>;
+					link-frequencies = <493500000>;
+				};
+			};
+		};
+	};
+};
