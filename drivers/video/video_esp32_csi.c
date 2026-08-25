@@ -103,6 +103,29 @@ static int csi_pixfmt_info(uint32_t pixelformat, uint8_t *bpp, uint16_t *data_ty
 	}
 }
 
+/*
+ * Length of the cache-maintenance window for a buffer.
+ *
+ * Cache ops must stay inside the lines the buffer actually owns. The DMA
+ * destination is CONFIG_VIDEO_BUFFER_POOL_ALIGN-aligned, but the allocation
+ * *length* is whatever the caller asked for -- a RAW10 frame is rarely a
+ * multiple of the line size -- so invalidating bytesused would take out the
+ * dirty half of the trailing line, which belongs to the next heap chunk. Its
+ * header is then garbage and the next free() faults.
+ *
+ * Callers that round their allocation up to a cache line get the whole frame
+ * invalidated. Ones that do not leave a stale tail of at most a line, which is
+ * a far better failure mode than corrupting the heap.
+ *
+ * Coupled to CONFIG_VIDEO_BUFFER_POOL_ALIGN >= CONFIG_DCACHE_LINE_SIZE: this
+ * guards the tail, POOL_ALIGN guards the head. Dropping POOL_ALIGN below the
+ * line size reintroduces the same corruption at the start of the buffer.
+ */
+static inline size_t csi_cache_len(const struct video_buffer *vbuf)
+{
+	return ROUND_DOWN(vbuf->size, CONFIG_DCACHE_LINE_SIZE);
+}
+
 /* Point the (already configured) DW-GDMA channel at a buffer and start it. */
 static void csi_dma_arm(struct video_esp32_csi_data *data, struct video_buffer *vbuf)
 {
@@ -111,7 +134,7 @@ static void csi_dma_arm(struct video_esp32_csi_data *data, struct video_buffer *
 	/* Drop any stale/dirty cache lines so nothing is written back over the
 	 * DMA data, and so the CPU re-reads from PSRAM once the frame lands.
 	 */
-	sys_cache_data_invd_range(vbuf->buffer, vbuf->bytesused);
+	sys_cache_data_invd_range(vbuf->buffer, csi_cache_len(vbuf));
 
 	dw_gdma_ll_channel_set_src_addr(dev, CSI_DMA_CHANNEL, MIPI_CSI_BRG_MEM_BASE);
 	dw_gdma_ll_channel_set_dst_addr(dev, CSI_DMA_CHANNEL, (uint32_t)(uintptr_t)vbuf->buffer);
@@ -136,7 +159,7 @@ static void video_esp32_csi_isr(void *arg)
 		struct video_buffer *next;
 
 		if (done != NULL) {
-			sys_cache_data_invd_range(done->buffer, done->bytesused);
+			sys_cache_data_invd_range(done->buffer, csi_cache_len(done));
 			done->timestamp = k_uptime_get_32();
 			k_fifo_put(&data->fifo_out, done);
 			CSI_RAISE_SIG(data, VIDEO_BUF_DONE);
