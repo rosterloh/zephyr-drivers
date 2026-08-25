@@ -41,6 +41,7 @@ LOG_MODULE_REGISTER(video_esp32_csi, CONFIG_VIDEO_LOG_LEVEL);
 /* MIPI CSI-2 data types (payload format identifiers). */
 #define CSI_DT_RAW8  0x2a
 #define CSI_DT_RAW10 0x2b
+#define CSI_DT_RAW12 0x2c
 
 /*
  * Channel events that are not faults and must not be logged as errors. The
@@ -88,17 +89,37 @@ struct video_esp32_csi_data {
 #define CSI_RAISE_SIG(data, res)
 #endif
 
-/* Map a Bayer pixel format to its bits-per-pixel and MIPI CSI-2 data type. */
+/* Map a pixel format to its bits-per-pixel and MIPI CSI-2 data type. Greyscale
+ * and Bayer share a data type at each depth -- the CSI-2 payload is identical,
+ * only the interpretation differs -- so ToF modules reporting Y10P land on the
+ * same RAW10 path as a Bayer sensor.
+ */
 static int csi_pixfmt_info(uint32_t pixelformat, uint8_t *bpp, uint16_t *data_type)
 {
 	switch (pixelformat) {
+	case VIDEO_PIX_FMT_GREY:
 	case VIDEO_PIX_FMT_SBGGR8:
+	case VIDEO_PIX_FMT_SGBRG8:
+	case VIDEO_PIX_FMT_SGRBG8:
+	case VIDEO_PIX_FMT_SRGGB8:
 		*bpp = 8;
 		*data_type = CSI_DT_RAW8;
 		return 0;
+	case VIDEO_PIX_FMT_Y10P:
 	case VIDEO_PIX_FMT_SBGGR10P:
+	case VIDEO_PIX_FMT_SGBRG10P:
+	case VIDEO_PIX_FMT_SGRBG10P:
+	case VIDEO_PIX_FMT_SRGGB10P:
 		*bpp = 10;
 		*data_type = CSI_DT_RAW10;
+		return 0;
+	case VIDEO_PIX_FMT_Y12P:
+	case VIDEO_PIX_FMT_SBGGR12P:
+	case VIDEO_PIX_FMT_SGBRG12P:
+	case VIDEO_PIX_FMT_SGRBG12P:
+	case VIDEO_PIX_FMT_SRGGB12P:
+		*bpp = 12;
+		*data_type = CSI_DT_RAW12;
 		return 0;
 	default:
 		return -ENOTSUP;
