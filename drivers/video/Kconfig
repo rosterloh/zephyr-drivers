@@ -23,3 +23,30 @@ config VIDEO_ESP32_CSI
 	  the CSI D-PHY, host and bridge, and a DW-GDMA channel that streams frames
 	  from a downstream CSI-2 image sensor (e.g. Sony IMX219) into memory.
 	  Uses the video subsystem log level (CONFIG_VIDEO_LOG_LEVEL).
+
+config VIDEO_ARDUCAM_PIVARIETY
+	bool "Arducam Pivariety camera"
+	default y
+	select I2C
+	depends on DT_HAS_ARDUCAM_PIVARIETY_ENABLED
+	help
+	  Enable the Arducam Pivariety camera driver. Pivariety modules carry an
+	  on-board MCU that describes the module's formats, resolutions and
+	  controls over I2C, so this one driver serves every camera in the family
+	  (including the Arducam ToF depth camera) without per-sensor register
+	  tables.
+
+	  Frames are delivered raw. Any depth or Bayer processing is the
+	  application's problem.
+
+config VIDEO_ARDUCAM_PIVARIETY_MAX_FORMATS
+	int "Maximum enumerated (format, resolution) pairs"
+	default 16
+	depends on VIDEO_ARDUCAM_PIVARIETY
+	help
+	  Upper bound on the video_format_cap array the driver builds at init.
+	  One entry is needed per (pixel format, resolution) pair, not per pixel
+	  format, since each entry carries its own width/height bounds.
+
+	  A module reporting more pairs than this is truncated with a warning
+	  rather than rejected: a partially usable camera beats a dead one.
