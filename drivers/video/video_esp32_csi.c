@@ -26,6 +26,8 @@
 #include <hal/mipi_csi_brg_ll.h>
 #include <hal/dw_gdma_ll.h>
 #include <soc/reg_base.h>
+#include <soc/mipi_csi_host_struct.h>
+#include <soc/mipi_csi_bridge_struct.h>
 #include <hal/clk_gate_ll.h>
 
 #include "video_common.h"
@@ -312,12 +314,34 @@ static int csi_hw_start(const struct device *dev)
 
 	mipi_csi_hal_init(&data->hal, &hal_cfg);
 
+	/* Unmask every host error source. On this IP INT_ST_* only latches an event
+	 * whose INT_MSK_* bit is set, and both the HAL and reset leave the masks at
+	 * 0 -- so an all-zero error dump means "nothing was being recorded", not
+	 * "nothing went wrong". Without this a receiver failing to sync to the
+	 * sensor's HS bursts is indistinguishable from a silent link.
+	 */
+	data->hal.host_dev->int_msk_phy_fatal.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_pkt_fatal.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_phy.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_bndry_frame_fatal.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_seq_frame_fatal.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_crc_frame_fatal.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_pld_crc_fatal.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_data_id.val = UINT32_MAX;
+	data->hal.host_dev->int_msk_ecc_corrected.val = UINT32_MAX;
+
 	/* RAW passthrough: filter to the sensor's data type only, no colour
 	 * conversion (bridge reset default), 512 x 64-bit DMA bursts.
 	 */
 	mipi_csi_brg_ll_set_burst_len(data->hal.bridge_dev, 512);
 	mipi_csi_brg_ll_set_data_type_min(data->hal.bridge_dev, data_type);
 	mipi_csi_brg_ll_set_data_type_max(data->hal.bridge_dev, data_type);
+
+	/* Arm the bridge's row-count check. It is off by default, which means the
+	 * vadr_num_gt/lt interrupts never fire and a bridge receiving the wrong
+	 * number of rows looks identical to one receiving none at all.
+	 */
+	data->hal.bridge_dev->frame_cfg.vadr_num_check = 1;
 
 	return 0;
 }
