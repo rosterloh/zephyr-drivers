@@ -1,0 +1,6 @@
+shield:
+  name: arducam_tof_camera
+  full_name: Arducam ToF Depth Camera (Pivariety, 240x180)
+  vendor: arducam
+  supported_features:
+    - video
