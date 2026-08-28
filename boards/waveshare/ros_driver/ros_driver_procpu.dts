@@ -107,7 +107,17 @@
 
 &uart1 {
 	status = "okay";
-	current-speed = <115200>;
+	/* ST3215 serial bus servos run at their 1 Mbps factory default; the UART and
+	 * the bus-servo driver (which reads this current-speed) must match or the
+	 * servos never decode commands and never reply.
+	 *
+	 * This was 115200, and the failure is silent in both directions: the
+	 * actuators still init and report READY (that only means the device bound),
+	 * `actuator get feedback <name>` prints nothing at all rather than an error,
+	 * and an application sees feedback that never arrives. Confirmed on hardware
+	 * 2026-08-28 -- at 115200 neither servo answered; at 1000000 both did, pan
+	 * pos=-0.0077 temp=30.0 and tilt pos=-0.0031 temp=31.0. */
+	current-speed = <1000000>;
 	pinctrl-0 = <&uart1_default>;
 	pinctrl-names = "default";
 
