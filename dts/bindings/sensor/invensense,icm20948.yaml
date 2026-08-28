@@ -1,0 +1,32 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  TDK InvenSense ICM-20948 9-axis IMU, accelerometer and gyroscope only.
+
+  The part also carries an AK09916 magnetometer behind its own I2C master.
+  This driver does not expose it: reaching it needs either the aux-bus master
+  or BYPASS_EN, and nothing needs it yet. Add a second compatible when
+  something does.
+
+compatible: "invensense,icm20948"
+
+include: [sensor-device.yaml, i2c-device.yaml]
+
+properties:
+  accel-fs:
+    type: int
+    default: 2
+    enum: [2, 4, 8, 16]
+    description: |
+      Accelerometer full-scale range in g. The default matches the part's
+      power-on setting, and gives the finest resolution.
+
+  gyro-fs:
+    type: int
+    default: 250
+    enum: [250, 500, 1000, 2000]
+    description: |
+      Gyroscope full-scale range in degrees per second. The default matches the
+      part's power-on setting. Raise it if the application saturates the range
+      — a saturated axis reads a hard limit, not an error.

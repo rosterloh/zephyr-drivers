@@ -1,0 +1,11 @@
+# ICM-20948 9-axis IMU configuration option
+
+config ICM20948
+	bool "TDK InvenSense ICM-20948 IMU"
+	default y
+	depends on DT_HAS_INVENSENSE_ICM20948_ENABLED
+	select I2C
+	help
+	  Enable driver for the ICM-20948 accelerometer and gyroscope over I2C.
+	  The on-chip AK09916 magnetometer is not exposed; it sits behind the
+	  part's own I2C master and nothing needs it yet.
