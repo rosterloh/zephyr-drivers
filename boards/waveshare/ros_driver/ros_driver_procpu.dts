@@ -179,6 +179,34 @@
 		com-sequential;
 		prechargep = <0x22>;
 	};
+
+	/* INA219 bidirectional current/power monitor (A0/A1 => 0x42).
+	 * shunt-milliohm is the board's physical shunt (10 mOhm). lsb-microamp
+	 * sets the current-register resolution: max_current/2^15 => ~3.2 A
+	 * ceiling at 100 uA/LSB. brng/pg/adc are left at their power-on defaults
+	 * (32 V FSR, +/-320 mV, 12-bit), which comfortably cover a ~33 mV shunt
+	 * drop at 3.2 A. */
+	ina219: ina219@42 {
+		compatible = "ti,ina219";
+		reg = <0x42>;
+		shunt-milliohm = <10>;
+		lsb-microamp = <100>;
+	};
+
+	/* ICM-20948 9-axis IMU. This board carries the ICM-20948 where later
+	 * revisions of the Waveshare driver boards carry a QMI8658C + AK09918C
+	 * pair, so the two are not interchangeable in an application: different
+	 * driver, different register map, different magnetometer arrangement.
+	 *
+	 * ADDRESS UNVERIFIED. 0x68 is the part's default with AD0 low; it is
+	 * 0x69 with AD0 high, and the board schematic has not been checked. A
+	 * wrong address costs a failed WHO_AM_I and a DISABLED device, visible
+	 * only through `device list` — confirm with `i2c scan i2c@3ff53000`,
+	 * which should also show 0x3c (OLED) and 0x42 (INA219). */
+	icm20948: icm20948@68 {
+		compatible = "invensense,icm20948";
+		reg = <0x68>;
+	};
 };
 
 &spi2 {
