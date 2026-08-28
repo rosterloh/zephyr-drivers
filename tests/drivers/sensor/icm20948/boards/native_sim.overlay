@@ -1,0 +1,9 @@
+&i2c0 {
+	status = "okay";
+
+	icm20948: icm20948@68 {
+		compatible = "invensense,icm20948";
+		reg = <0x68>;
+		status = "okay";
+	};
+};

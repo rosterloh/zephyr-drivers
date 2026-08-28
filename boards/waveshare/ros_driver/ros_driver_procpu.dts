@@ -107,7 +107,17 @@
 
 &uart1 {
 	status = "okay";
-	current-speed = <115200>;
+	/* ST3215 serial bus servos run at their 1 Mbps factory default; the UART and
+	 * the bus-servo driver (which reads this current-speed) must match or the
+	 * servos never decode commands and never reply.
+	 *
+	 * This was 115200, and the failure is silent in both directions: the
+	 * actuators still init and report READY (that only means the device bound),
+	 * `actuator get feedback <name>` prints nothing at all rather than an error,
+	 * and an application sees feedback that never arrives. Confirmed on hardware
+	 * 2026-08-28 -- at 115200 neither servo answered; at 1000000 both did, pan
+	 * pos=-0.0077 temp=30.0 and tilt pos=-0.0031 temp=31.0. */
+	current-speed = <1000000>;
 	pinctrl-0 = <&uart1_default>;
 	pinctrl-names = "default";
 
@@ -120,7 +130,11 @@
 		gimbal_pan_servo: servo@2 {
 			compatible = "rosterloh,actuator-bus-servo";
 			reg = <2>;
-			label = "Gimbal pan";
+			/* The actuator shell addresses devices by this label, and a
+			 * space makes the name unusable there: `actuator get
+			 * feedback pan` reports not found, and the quoted form
+			 * matches nothing either. Matches robot_driver. */
+			label = "pan";
 			default-mode = "position";
 			ticks-per-rev = <4096>;
 			rad-zero-tick = <2047>;
@@ -133,7 +147,7 @@
 		gimbal_tilt_servo: servo@1 {
 			compatible = "rosterloh,actuator-bus-servo";
 			reg = <1>;
-			label = "Gimbal tilt";
+			label = "tilt";
 			default-mode = "position";
 			ticks-per-rev = <4096>;
 			rad-zero-tick = <2047>;
@@ -178,6 +192,34 @@
 		com-invdir;
 		com-sequential;
 		prechargep = <0x22>;
+	};
+
+	/* INA219 bidirectional current/power monitor (A0/A1 => 0x42).
+	 * shunt-milliohm is the board's physical shunt (10 mOhm). lsb-microamp
+	 * sets the current-register resolution: max_current/2^15 => ~3.2 A
+	 * ceiling at 100 uA/LSB. brng/pg/adc are left at their power-on defaults
+	 * (32 V FSR, +/-320 mV, 12-bit), which comfortably cover a ~33 mV shunt
+	 * drop at 3.2 A. */
+	ina219: ina219@42 {
+		compatible = "ti,ina219";
+		reg = <0x42>;
+		shunt-milliohm = <10>;
+		lsb-microamp = <100>;
+	};
+
+	/* ICM-20948 9-axis IMU. This board carries the ICM-20948 where later
+	 * revisions of the Waveshare driver boards carry a QMI8658C + AK09918C
+	 * pair, so the two are not interchangeable in an application: different
+	 * driver, different register map, different magnetometer arrangement.
+	 *
+	 * Address 0x68 (AD0 low) confirmed 2026-08-28 by `i2c scan
+	 * i2c@3ff53000` on a bench unit, which answered at 0x3c, 0x42 and 0x68
+	 * and nothing else. Note the absence of 0x0c: the AK09916 magnetometer
+	 * is behind this part's own I2C master, not on the host bus, which is
+	 * why the driver does not expose it. */
+	icm20948: icm20948@68 {
+		compatible = "invensense,icm20948";
+		reg = <0x68>;
 	};
 };
 
