@@ -120,7 +120,11 @@
 		gimbal_pan_servo: servo@2 {
 			compatible = "rosterloh,actuator-bus-servo";
 			reg = <2>;
-			label = "Gimbal pan";
+			/* The actuator shell addresses devices by this label, and a
+			 * space makes the name unusable there: `actuator get
+			 * feedback pan` reports not found, and the quoted form
+			 * matches nothing either. Matches robot_driver. */
+			label = "pan";
 			default-mode = "position";
 			ticks-per-rev = <4096>;
 			rad-zero-tick = <2047>;
@@ -133,7 +137,7 @@
 		gimbal_tilt_servo: servo@1 {
 			compatible = "rosterloh,actuator-bus-servo";
 			reg = <1>;
-			label = "Gimbal tilt";
+			label = "tilt";
 			default-mode = "position";
 			ticks-per-rev = <4096>;
 			rad-zero-tick = <2047>;
