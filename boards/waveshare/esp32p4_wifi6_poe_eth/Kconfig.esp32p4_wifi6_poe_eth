@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_ESP32P4_WIFI6_POE_ETH
+	select SOC_ESP32P4_HPCORE if BOARD_ESP32P4_WIFI6_POE_ETH_ESP32P4_HPCORE
+	select SOC_ESP32P4_LPCORE if BOARD_ESP32P4_WIFI6_POE_ETH_ESP32P4_LPCORE
+	# Confirmed by the vendor demo's boot log on this unit:
+	#   efuse_init: Chip rev: v1.3
+	# Re-check with `esptool chip-id` if a later production run ships v3.x
+	# silicon - the CPU clock in the DTS must move with this symbol.
+	select SOC_ESP32P4_REV_1_3
