@@ -4,7 +4,11 @@
  *
  * ESP32-P4 MIPI CSI-2 camera receiver.
  *
- * Data path: sensor -> CSI D-PHY -> CSI host -> CSI bridge -> DW-GDMA -> memory.
+ * Data path: sensor -> CSI D-PHY -> CSI host -> ISP -> CSI bridge -> DW-GDMA ->
+ * memory. The ISP is not optional even for a RAW passthrough: its
+ * cntl.mipi_data_en gates the host-to-bridge link, and with it clear the host
+ * receives valid packets while the bridge raises no event and the DMA never
+ * fires, with no status bit anywhere pointing at the ISP. See csi_isp_start().
  * The CSI bridge is the DMA flow controller; one DW-GDMA CONTIGUOUS block equals
  * one frame, so the DW-GDMA "full transfer done" interrupt is the end-of-frame
  * signal. There is no Zephyr DW-GDMA driver, so the channel is driven directly
@@ -29,6 +33,9 @@
 #include <soc/mipi_csi_host_struct.h>
 #include <soc/mipi_csi_bridge_struct.h>
 #include <hal/clk_gate_ll.h>
+
+#include "hal/isp_ll.h"
+#include "soc/isp_struct.h"
 
 #include "video_common.h"
 
@@ -55,7 +62,8 @@ LOG_MODULE_REGISTER(video_esp32_csi, CONFIG_VIDEO_LOG_LEVEL);
  */
 #define CSI_DMA_BENIGN_EVENTS                                                                      \
 	(DW_GDMA_LL_CHANNEL_EVENT_DISABLED | DW_GDMA_LL_CHANNEL_EVENT_SUSPENDED |                  \
-	 DW_GDMA_LL_CHANNEL_EVENT_SRC_SUSPENDED | DW_GDMA_LL_CHANNEL_EVENT_BLOCK_TFR_DONE)
+	 DW_GDMA_LL_CHANNEL_EVENT_SRC_SUSPENDED | DW_GDMA_LL_CHANNEL_EVENT_BLOCK_TFR_DONE |        \
+	 DW_GDMA_LL_CHANNEL_EVENT_SRC_TRANSCOMP | DW_GDMA_LL_CHANNEL_EVENT_DST_TRANSCOMP)
 
 struct video_esp32_csi_config {
 	const struct device *source_dev;
@@ -147,6 +155,97 @@ static int csi_pixfmt_info(uint32_t pixelformat, uint8_t *bpp, uint16_t *data_ty
 static inline size_t csi_cache_len(const struct video_buffer *vbuf)
 {
 	return ROUND_DOWN(vbuf->size, CONFIG_DCACHE_LINE_SIZE);
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * ISP stage
+ *
+ * On the ESP32-P4 the CSI host does not feed the bridge directly: the ISP sits
+ * between them, and its cntl.mipi_data_en gates the whole path. With that bit
+ * clear the host receives perfectly valid packets - no ECC, CRC, payload or
+ * frame-boundary errors latch - while the bridge raises no event at all and the
+ * DMA never fires. No status register anywhere points at the ISP, which is why
+ * this is worth spelling out and why it lives next to the bridge setup that
+ * appears to be the whole story.
+ *
+ * ESP-IDF hides the coupling: esp_video always creates an ISP processor, even
+ * for a RAW passthrough where it sets bypass_isp.
+ *
+ * Deliberately only a wire, not a pipeline stage: no demosaic, no format
+ * conversion, no statistics, no controls. That is why it is two static
+ * functions here rather than its own video device - Zephyr has no ISP device
+ * convention to conform to, and the block has exactly one consumer whose
+ * lifetime it shares. Promote these to a separate device (following the split
+ * ST uses for DCMIPP, which the board DTS already anticipates with its
+ * csi_interface / csi_capture_port labels) when any of the following lands:
+ * ISP-processed output formats, AE/AWB statistics, or a second consumer such
+ * as the DVP driver needing arbitration.
+ * ---------------------------------------------------------------------------
+ */
+static void csi_isp_start(struct video_esp32_csi_data *data, uint8_t bpp)
+{
+	isp_ll_enable_module_clock(true);
+	isp_ll_reset_module_clock();
+	isp_ll_init(&ISP);
+	isp_ll_clk_enable(&ISP, true);
+	isp_ll_set_input_data_source(&ISP, ISP_INPUT_DATA_SOURCE_CSI);
+
+	/*
+	 * Two ways through the ISP, and they configure different registers.
+	 *
+	 * RAW8 uses the processing path with demosaic off: RAW8 in, RAW8 out,
+	 * Hsize in pixels. Verified streaming on hardware.
+	 *
+	 * RAW10/RAW12 cannot use it, because isp_ll_set_output_data_color_format()
+	 * has no RAW10 or RAW12 output type - only RAW8, RGB and YUV - so the depth
+	 * would not survive. Those depths need bypass, which per
+	 * esp_driver_isp/src/isp_core.c means skipping both colour-format setters
+	 * and re-reading the horizontal register: "when ISP bypass, input Hsize
+	 * needs to be re-calculated according to input bits per pixel and IDI32.
+	 * Hsize now stands for the number of 32-bit in one line."
+	 *
+	 * NOT VERIFIED: the bypass branch has never produced a frame here. Applying
+	 * it to RAW8 as well - which should be equivalent to the processing path -
+	 * stopped RAW8 working too, so something else in the bypass setup is still
+	 * missing. RAW8 therefore keeps the mode that is known to work rather than
+	 * sharing an unproven one. See the driver README/notes before trusting
+	 * RAW10 or RAW12 capture.
+	 */
+	if (bpp == 8) {
+		isp_ll_set_input_data_color_format(&ISP, ISP_COLOR_RAW8);
+		isp_ll_set_output_data_color_format(&ISP, ISP_COLOR_RAW8);
+		isp_ll_set_intput_data_h_pixel_num(&ISP, data->fmt.width);
+	} else {
+		LOG_WRN("ISP bypass (%u bpp) is unverified - no frame has ever been "
+			"captured through it; expect silence, not an error",
+			bpp);
+		isp_ll_set_intput_data_h_pixel_num(&ISP, DIV_ROUND_UP(data->fmt.width * bpp, 32));
+	}
+	isp_ll_set_intput_data_v_row_num(&ISP, data->fmt.height);
+
+	/*
+	 * Sensors driven by this tree are configured not to emit CSI-2 line
+	 * start/end short packets (the IMX219 never does; ov5647.c clears
+	 * MIPI_CTRL00's LINE_SYNC_ENABLE to match). A sensor that does send them
+	 * needs these set to true or the two ends disagree about line framing.
+	 */
+	/*
+	 * EXPERIMENT: line-sync short packets. The RAW8 sensors here send none
+	 * (IMX219 never does; ov5647.c's RAW8 modes clear LINE_SYNC_ENABLE), but
+	 * Espressif's OV5647 RAW10 mode table sets MIPI_CTRL00 = 0x34, i.e. line
+	 * sync on, and esp_video tells its ISP to expect them. Follow the depth
+	 * so both ends agree; the sensor driver picks the matching MIPI_CTRL00.
+	 */
+	isp_ll_enable_line_start_packet_exist(&ISP, bpp != 8);
+	isp_ll_enable_line_end_packet_exist(&ISP, bpp != 8);
+
+	isp_ll_enable(&ISP, true);
+}
+
+static void csi_isp_stop(void)
+{
+	isp_ll_enable(&ISP, false);
 }
 
 /* Point the (already configured) DW-GDMA channel at a buffer and start it. */
@@ -283,7 +382,16 @@ static int csi_hw_start(const struct device *dev)
 		/* NOTE: mipi_csi_hal_init maps frame_height -> horizontal pixel
 		 * count and frame_width -> vertical row count (inverted names).
 		 */
-		.frame_height = data->fmt.width,
+		/*
+		 * The bridge counts BYTES per line, not pixels. Passing the pixel
+		 * width works only while bits-per-pixel is 8; for packed RAW10 a
+		 * 1920-pixel line is 2400 bytes, the bridge runs past the count it
+		 * was given, and rows come up short - it reports
+		 * vadr_num_gt_real ("reg_vadr_num is greater than real") in
+		 * int_raw and never completes a frame. pitch is exactly this
+		 * byte count, and equals width for every 8-bit format.
+		 */
+		.frame_height = data->fmt.pitch,
 		.frame_width = data->fmt.height,
 		.in_bpp = bpp,
 		.out_bpp = bpp,
@@ -364,6 +472,8 @@ static int csi_hw_start(const struct device *dev)
 	 */
 	data->hal.bridge_dev->frame_cfg.vadr_num_check = 1;
 
+	csi_isp_start(data, bpp);
+
 	return 0;
 }
 
@@ -386,6 +496,8 @@ static int video_esp32_csi_set_stream(const struct device *dev, bool enable,
 		}
 		mipi_csi_brg_ll_enable(data->hal.bridge_dev, false);
 		dw_gdma_ll_channel_enable(gdma, CSI_DMA_CHANNEL, false);
+		/* Close the ISP's MIPI gate again; csi_hw_start() reopens it. */
+		csi_isp_stop();
 		data->streaming = false;
 		/* Leave active_vbuf alone: video_stream_stop() calls flush(cancel)
 		 * straight after this, and that is what hands the armed buffer back
