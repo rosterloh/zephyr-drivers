@@ -13,6 +13,24 @@ config VIDEO_IMX219_OOT
 	  Both bind the "sony,imx219" compatible, so set CONFIG_VIDEO_IMX219=n
 	  when enabling this, or the build will define the same device twice.
 
+config VIDEO_OV5647
+	bool "OmniVision OV5647 (Raspberry Pi Camera Module v1)"
+	default y
+	select I2C
+	depends on DT_HAS_OVTI_OV5647_ENABLED
+	help
+	  Enable the OV5647 MIPI CSI-2 image sensor driver. Zephyr has no in-tree
+	  OV5647 driver, so unlike the IMX219 above there is no symbol to turn off
+	  alongside this one.
+
+	  Implements the 800x640 and 800x800 RAW8 50 fps modes, ported from
+	  Espressif's esp_cam_sensor component and both verified streaming on
+	  hardware. Frames are Bayer GBRG - nothing in Zephyr's ESP32-P4 CSI path
+	  demosaics them, so an application gets raw Bayer and must debayer itself.
+
+	  RAW10 is not offered: it needs the ESP32-P4 ISP's bypass path, which does
+	  not deliver complete frames (see the comment in ov5647.c).
+
 config VIDEO_ESP32_CSI
 	bool "ESP32-P4 MIPI CSI-2 camera receiver"
 	default y
