@@ -109,9 +109,15 @@ two of them do not fit the 384 KB of internal SRAM - so an application needs
 
 Two limits worth knowing before choosing a mode:
 
-- The ESP32-P4 ISP accepts at most 1920x1080 (``ISP_LL_HSIZE_MAX`` /
-  ``ISP_LL_VSIZE_MAX``), and every CSI capture goes through it, so no larger
-  frame can be captured on this SoC whatever the sensor supports.
+- The ESP32-P4 ISP bounds the frame size, and every CSI capture goes through it
+  (``SOC_ISP_SHARE_CSI_BRG``), so no larger frame is capturable on this SoC
+  whatever the sensor supports. Width is capped at 1920 (``ISP_LL_HSIZE_MAX``).
+  For height, upstream corrected ``ISP_LL_VSIZE_MAX`` from 1080 to **1280**
+  ("fix(isp): corrected isp v size limitation"); the hal_espressif snapshot
+  vendored here still carries the old 1080. Neither constant is enforced in
+  code anywhere in this path - upstream's ``esp_isp_new_processor()`` validates
+  only ``h_res`` - so they document hardware limits rather than gating
+  anything, and a taller mode is worth trying before assuming it cannot work.
 - Only 8 bits per pixel is currently usable. RAW10/RAW12 need the ISP's bypass
   path, which does not yet deliver complete frames.
 
