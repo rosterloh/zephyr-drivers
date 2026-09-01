@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  OmniVision OV5647 5 Mega-Pixel MIPI CSI-2 image sensor, as fitted to the
+  Raspberry Pi Camera Module v1.
+
+  The module is self-clocked from an on-board 24 MHz oscillator, so "clocks"
+  describes that fixed clock rather than one the host drives. The driver's
+  register tables are derived for 24 MHz and it refuses any other rate.
+
+compatible: "ovti,ov5647"
+
+include: i2c-device.yaml
+
+properties:
+  clocks:
+    required: true
+    description: |
+      The sensor's input clock (XVCLK). Must be 24 MHz.
+
+child-binding:
+  child-binding:
+    include: video-interfaces.yaml

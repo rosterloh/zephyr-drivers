@@ -1,0 +1,53 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Raspberry Pi Camera Module v1 (OV5647) on a 15-pin CSI connector. Mirrors
+ * Zephyr's in-tree raspberry_pi_camera_module_2 shield, which does the same for
+ * the v2 (IMX219) module, and binds to the same csi_* labels a board exports.
+ *
+ * Like the v2 module this one is self-clocked and has no reset line brought out
+ * on the 15-pin connector, so the fixed-clock node below documents the module's
+ * own 24 MHz oscillator rather than a clock the host generates.
+ */
+
+#include <zephyr/dt-bindings/video/video-interfaces.h>
+
+/ {
+	chosen {
+		zephyr,camera = &csi_capture_port;
+	};
+
+	ov5647_input_clock: ov5647-input-clock {
+		compatible = "fixed-clock";
+		clock-frequency = <24000000>;
+		#clock-cells = <0>;
+	};
+};
+
+&csi_interface {
+	status = "okay";
+};
+
+&csi_ep_in {
+	remote-endpoint-label = "ov5647_ep_out";
+	bus-type = <VIDEO_BUS_TYPE_CSI2_DPHY>;
+	data-lanes = <1 2>;
+};
+
+&csi_i2c {
+	ov5647: ov5647@36 {
+		compatible = "ovti,ov5647";
+		clocks = <&ov5647_input_clock>;
+		reg = <0x36>;
+
+		port {
+			ov5647_ep_out: endpoint {
+				remote-endpoint-label = "csi_ep_in";
+				bus-type = <VIDEO_BUS_TYPE_CSI2_DPHY>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+};
