@@ -165,6 +165,14 @@ static const struct video_reg16 imx219_fmt_raw10_regs[] = {
 /* TODO the FPS registers are currently tuned for 1920x1080 cropped resolution */
 
 /*
+ * OOT FIX: OPPXCK_DIV (the output pixel clock divider) is a function of the CSI
+ * payload bit depth, not of the frame rate, and used to be hardcoded to 10 in
+ * both of these tables. Since imx219_init() runs set_frmival() after
+ * set_fmt(), that silently forced RAW10 timing back on top of a RAW8 format:
+ * the sensor then advertised 8-bit payloads while clocking pixels out for 10,
+ * and no frame ever reached the receiver. It is written from imx219_set_fmt()
+ * instead, next to the CSI_DATA_FORMAT registers it has to agree with.
+ *
  * OOT FIX: the PLL table now matches imx219_2lane_regs[] in the Raspberry Pi
  * kernel driver, so the sensor actually transmits at the link frequency this
  * driver advertises.
@@ -186,7 +194,6 @@ static const struct video_reg imx219_fps_30_regs[] = {
 	{IMX219_CCI_PREPLLCK_OP_DIV, 0x03},	/* Auto */
 	{IMX219_CCI_VTPXCK_DIV, 5},
 	{IMX219_CCI_VTSYCK_DIV, 1},
-	{IMX219_CCI_OPPXCK_DIV, 10},		/* RAW10 */
 	{IMX219_CCI_OPSYCK_DIV, 1},
 	{IMX219_CCI_PLL_VT_MPY, 57},
 	{IMX219_CCI_PLL_OP_MPY, 114},		/* 24/3*114 = 912 Mbps/lane */
@@ -199,7 +206,6 @@ static const struct video_reg imx219_fps_15_regs[] = {
 	{IMX219_CCI_PREPLLCK_OP_DIV, 0x03},	/* Auto */
 	{IMX219_CCI_VTPXCK_DIV, 5},
 	{IMX219_CCI_VTSYCK_DIV, 1},
-	{IMX219_CCI_OPPXCK_DIV, 10},		/* RAW10 */
 	{IMX219_CCI_OPSYCK_DIV, 1},
 	{IMX219_CCI_PLL_VT_MPY, 57},
 	{IMX219_CCI_PLL_OP_MPY, 114},		/* 24/3*114 = 912 Mbps/lane */
@@ -284,10 +290,16 @@ static int imx219_set_fmt(const struct device *dev, struct video_format *fmt)
 	case IMX219_RAW8_FULL_FRAME:
 		ret = video_write_cci_multiregs16(&cfg->i2c, imx219_fmt_raw8_regs,
 						  ARRAY_SIZE(imx219_fmt_raw8_regs));
+		if (ret == 0) {
+			ret = video_write_cci_reg(&cfg->i2c, IMX219_CCI_OPPXCK_DIV, 8);
+		}
 		break;
 	case IMX219_RAW10_FULL_FRAME:
 		ret = video_write_cci_multiregs16(&cfg->i2c, imx219_fmt_raw10_regs,
 						  ARRAY_SIZE(imx219_fmt_raw10_regs));
+		if (ret == 0) {
+			ret = video_write_cci_reg(&cfg->i2c, IMX219_CCI_OPPXCK_DIV, 10);
+		}
 		break;
 	default:
 		CODE_UNREACHABLE;
@@ -634,7 +646,7 @@ static int cmd_imx219_regs(const struct shell *sh, size_t argc, char **argv)
 		{"PREPLLCK_OP_DIV", IMX219_CCI_PREPLLCK_OP_DIV, "expect 3"},
 		{"PLL_OP_MPY", IMX219_CCI_PLL_OP_MPY, "expect 114 for 912 Mbps"},
 		{"OPSYCK_DIV", IMX219_CCI_OPSYCK_DIV, "expect 1"},
-		{"OPPXCK_DIV", IMX219_CCI_OPPXCK_DIV, "expect 10 for RAW10"},
+		{"OPPXCK_DIV", IMX219_CCI_OPPXCK_DIV, "8 for RAW8, 10 for RAW10"},
 		{"CSI_DATA_FORMAT_A", IMX219_REG16(0x018c), "expect 0x0a0a for RAW10"},
 	};
 
