@@ -1,0 +1,373 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <espressif/esp32p4/esp32p4_n32r32.dtsi>
+#include "esp32p4_wifi6_poe_eth-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/video/video-interfaces.h>
+/*
+ * 16M partition table on a 32M flash, deliberately.
+ *
+ * partitions_0x2000_default_32M.dtsi gives each MCUboot slot 16128 KB = 4032
+ * 4 KB sectors. MCUboot sizes its per-slot boot_sector_t arrays from the slot
+ * size (CONFIG_BOOT_MAX_IMG_SECTORS_AUTO), so those two arrays alone are ~64 KB
+ * of .bss and the bootloader image no longer links:
+ *
+ *   section `.bss' will not fit in region `dram_seg'
+ *   region `dram_seg' overflowed by 31468 bytes
+ *
+ * This reproduces byte-for-byte on the in-tree waveshare esp32p4_wifi6, which
+ * pairs the same 32M table with a Kconfig.sysbuild defaulting to MCUboot - so
+ * it is an upstream combination that has never been built, not a property of
+ * this board or of v1.3 silicon.
+ *
+ * The 16M table's 7936 KB slots halve the sector count and are what the
+ * esp32p4_nano boots MCUboot with today. Nothing here needs 8 MB of image, let
+ * alone 16 MB. The upper 16 MB of flash is simply left unpartitioned; add a
+ * board-local partition for it if an application ever wants bulk storage.
+ */
+#include <espressif/partitions_0x2000_default_16M.dtsi>
+
+/*
+ * Not modelled, all verified against the board schematic:
+ *
+ * - ES8311 codec (U10) + NS4150B speaker amp (U8). I2S0 is MCLK GPIO13,
+ *   SCLK GPIO12, LRCK GPIO10, DSDIN GPIO9, ASDOUT GPIO11, with the amp's
+ *   enable on GPIO53 and the codec's control interface on i2c0 below.
+ *   Zephyr has no ES8311 driver, so there is nothing to bind to.
+ * - USB Serial/JTAG. On the P4 it sits on GPIO24/25, which this board only
+ *   brings out on the 40-pin header (P6.28/P6.27) - there is no connector.
+ *   The Type-C port (USB1) is a CH343P USB-to-UART bridge on uart0 instead.
+ * - MIPI DSI connector J1. The D-PHY lanes are wired but no panel is fitted.
+ * - The PoE header is power only; it feeds VCC_5V and touches no GPIO.
+ *
+ * The USB 2.0 HS OTG port (J2) lands on a USB-A connector, i.e. it is a host
+ * port, so no zephyr_udc0 device-side label is defined; see the ESP32-P4-Nano
+ * board for the UHC route in.
+ */
+
+/ {
+	model = "Waveshare ESP32-P4-WIFI6-POE-ETH HP Core";
+	compatible = "waveshare,esp32-p4-wifi6-poe-eth";
+
+	chosen {
+		zephyr,sram = &sramhp;
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+		zephyr,bt-hci = &esp_hosted_mcu_hci;
+	};
+
+	aliases {
+		sw0 = &boot_button;
+		watchdog0 = &wdt0;
+		sdhc0 = &sdhc0;
+		/*
+		 * Required by MCUboot's serial-recovery / USB-DFU entrance GPIO:
+		 * bootloader/mcuboot/boot/zephyr/io.c derives BUTTON_0_NODE from
+		 * this alias and #errors without it. The BOOT button is the only
+		 * user button on the board, and holding it is the physical way
+		 * back in if an OTA leaves the app unbootable.
+		 */
+		mcuboot-button0 = &boot_button;
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+
+		/*
+		 * GPIO35 is the P4's BOOT strapping pin and doubles as RMII
+		 * TXD1 (see rmii_default). The button is only meaningful while
+		 * the chip is held in reset, so the two uses do not collide at
+		 * runtime - the same sharing exists on every Waveshare P4 board.
+		 */
+		boot_button: button {
+			label = "Boot Button";
+			gpios = <&gpio1 3 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			zephyr,code = <INPUT_KEY_0>;
+		};
+	};
+};
+
+/*
+ * v1.3 silicon (Kconfig.esp32p4_wifi6_poe_eth selects SOC_ESP32P4_REV_1_3):
+ * valid CPU frequencies are 90/180/360 MHz. The SoC dtsi defaults to 400 MHz,
+ * which only exists on v3.x, and soc/espressif/esp32p4/soc.c BUILD_ASSERTs the
+ * set membership per revision - leaving the default here is a build failure.
+ */
+&cpu0 {
+	clock-frequency = <DT_FREQ_M(360)>;
+};
+
+&cpu1 {
+	clock-frequency = <DT_FREQ_M(360)>;
+};
+
+&uart0 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-names = "default";
+};
+
+&trng0 {
+	status = "okay";
+};
+
+&coretemp {
+	status = "okay";
+};
+
+/*
+ * zephyr_i2c is the conventional label for a board's general-purpose I2C, which
+ * samples and shields bind to. Here i2c0 (SDA GPIO7 / SCL GPIO8) is shared by
+ * the ES8311 codec, the CSI connector's SCCB pins (J3.13/14) and the DSI
+ * connector's touch pins (J1.11/12).
+ */
+zephyr_i2c: &i2c0 {
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_FAST>;
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&wdt0 {
+	status = "okay";
+};
+
+&dma {
+	status = "okay";
+};
+
+&dma_axi {
+	status = "okay";
+};
+
+&ldo {
+	status = "okay";
+
+	ldo1@1 {
+		regulator-init-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	ldo2@2 {
+		regulator-init-microvolt = <1800000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	/*
+	 * LDO_VO3 is the SoC's VDD_MIPI_DPHY supply and 2.5 V is the only value
+	 * it takes. Without it the D-PHY never leaves its "No Power" state and a
+	 * CSI camera silently transfers zero bytes forever. Both the CSI and DSI
+	 * connectors need it, so it is enabled for the board rather than
+	 * acquired by one driver.
+	 */
+	ldo3@3 {
+		regulator-init-microvolt = <2500000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	ldo4@4 {
+		regulator-init-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+};
+
+&sdhc {
+	sdhc0: sdhc@0 {
+		status = "okay";
+		bus-width = <4>;
+		max-bus-freq = <40000000>;
+		/*
+		 * GPIO45 drives the gate of Q1, an AO3401 P-channel FET in the
+		 * microSD VDD rail, so the supply is enabled by driving the pin
+		 * low. This differs from the ESP32-P4-Nano, where the same rail
+		 * is hard-wired on.
+		 */
+		pwr-gpios = <&gpio1 13 GPIO_ACTIVE_LOW>;
+		clk-pin = <43>;
+		cmd-pin = <44>;
+		d0-pin = <39>;
+		d1-pin = <40>;
+		d2-pin = <41>;
+		d3-pin = <42>;
+
+		mmc {
+			compatible = "zephyr,sdmmc-disk";
+			disk-name = "SD";
+			status = "okay";
+		};
+	};
+
+	/*
+	 * Slot 1 is the on-board ESP32-C6-MINI-1 (U1), which is the only radio
+	 * this SoC has. Both slots stay enabled - slot 0 keeps driving the
+	 * microSD socket - and the single SDMMC controller serialises
+	 * transactions between them. On the P4 the GPIO matrix routes slot 1
+	 * (slot 0 has dedicated IO_MUX pins), so these pins are board wiring
+	 * rather than a fixed function; each carries a 51K pull-up on the C6
+	 * side.
+	 *
+	 * reset-gpios is GPIO54 (= gpio1 pin 22, since gpio1 starts at GPIO32),
+	 * which reaches the C6's CHIP_PU through the 0R R54. It is the only way
+	 * to restart the co-processor: the SD power-cycle fallback needs the
+	 * slot's supply behind pwr-gpios, and the C6 rail is not switched here.
+	 *
+	 * The radio firmware lives on the C6 and is flashed separately, so this
+	 * node describes a link the host cannot bring up on its own. Unlike the
+	 * ESP32-P4-Nano, this board brings the C6's own UART0 out on header H7
+	 * (pin 1 TX, pin 2 RX), so the co-processor can be re-flashed directly
+	 * rather than pushed over SDIO from an ESP-IDF host application.
+	 *
+	 * Enabling the node costs Ethernet-only applications nothing: the WiFi
+	 * and HCI drivers are sourced under `if WIFI` / `if BT`, so an
+	 * application that sets neither never builds them.
+	 */
+	sdhc1: sdhc@1 {
+		status = "okay";
+		bus-width = <4>;
+		max-bus-freq = <40000000>;
+		clk-pin = <18>;
+		cmd-pin = <19>;
+		d0-pin = <14>;
+		d1-pin = <15>;
+		d2-pin = <16>;
+		d3-pin = <17>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		esp_hosted_mcu: esp-hosted-mcu@0 {
+			compatible = "espressif,esp-hosted-mcu";
+			reg = <0>;
+			reset-gpios = <&gpio1 22 GPIO_ACTIVE_HIGH>;
+			status = "okay";
+
+			esp_hosted_mcu_wifi: wifi {
+				compatible = "espressif,esp-hosted-mcu-wifi";
+				status = "okay";
+			};
+
+			esp_hosted_mcu_hci: bt-hci {
+				compatible = "espressif,esp-hosted-mcu-bt-hci";
+				status = "okay";
+			};
+		};
+	};
+};
+
+&mdio {
+	pinctrl-0 = <&mdio_default>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	/*
+	 * IP101GRI (U11) at PHY address 1, reset on GPIO51 (= gpio1 pin 19),
+	 * active low.
+	 *
+	 * Both timing properties are mandatory, not tuning knobs. phy_mii.c
+	 * reads them with DT_INST_PROP_OR(..., 0), so declaring reset-gpios
+	 * without them yields a zero-width reset pulse and no settling time,
+	 * and the PHY ID registers get read while it is still in reset. That
+	 * surfaces as "phy_mii: No PHY found at address 1" plus "eth_esp32: PHY
+	 * device not ready", leaving the board with no network interface at all
+	 * - strictly worse than declaring no reset line. 10 ms assert is the
+	 * IP101's documented minimum; the 50 ms deassertion timeout is margin
+	 * over its ~10 ms.
+	 */
+	phy: ethernet-phy@1 {
+		compatible = "ethernet-phy";
+		reg = <1>;
+		reset-gpios = <&gpio1 19 GPIO_ACTIVE_LOW>;
+		reset-assert-duration-us = <10000>;
+		reset-deassertion-timeout-ms = <50>;
+	};
+};
+
+&eth {
+	status = "okay";
+	phy-handle = <&phy>;
+	pinctrl-0 = <&rmii_default>;
+	pinctrl-names = "default";
+};
+
+/*
+ * MIPI CSI-2 camera receiver (host + bridge). The D-PHY uses dedicated silicon
+ * pads (no pinctrl) and its clocks are gated by the HAL, so it declares
+ * neither. Disabled by default; a shield or overlay enables it and wires the
+ * sensor endpoint.
+ *
+ * The csi_* labels are the contract Zephyr's camera shields bind to, so that
+ * boards/shields/raspberry_pi_camera_module_2 works here unmodified:
+ *
+ *   csi_interface     - the receiver, which the shield sets status = "okay"
+ *   csi_ep_in         - its input endpoint, which the shield points at the sensor
+ *   csi_capture_port  - the video device an app opens, i.e. chosen zephyr,camera
+ *   csi_i2c           - the SCCB bus on the CSI connector (below)
+ *
+ * This receiver is a single video device, so csi_interface and
+ * csi_capture_port name the same node.
+ */
+/ {
+	soc {
+		csi_interface: csi_capture_port: mipi_csi: mipi-csi@5009f000 {
+			compatible = "espressif,esp32p4-mipi-csi";
+			reg = <0x5009f000 0x800 0x5009f800 0x800>;
+			reg-names = "host", "bridge";
+			/*
+			 * Frame completion is signalled by the DW-GDMA channel
+			 * that drains the CSI bridge (one contiguous block per
+			 * frame), so the receiver services the DW-GDMA IRQ.
+			 */
+			interrupts = <DW_GDMA_INTR_SOURCE IRQ_DEFAULT_PRIORITY 0>;
+			interrupt-parent = <&intc>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+
+			/*
+			 * The endpoint cannot be left empty for a shield to fill
+			 * in: edtlib enforces a binding's required properties
+			 * whenever the node's own status is "okay", and status
+			 * does not inherit from a parent, so images that never
+			 * see a shield - MCUboot included - would fail the build.
+			 *
+			 * bus-type and data-lanes describe the connector, not a
+			 * camera: J3 is the Raspberry Pi 15-pin CSI connector,
+			 * wired CSI_D0_+/-, CSI_D1_+/- and CSI_CLK_+/- to the
+			 * P4's D-PHY pads, i.e. 2-lane MIPI CSI-2 D-PHY.
+			 */
+			port {
+				csi_ep_in: endpoint {
+					remote-endpoint-label = "imx219_ep_out";
+					bus-type = <VIDEO_BUS_TYPE_CSI2_DPHY>;
+					data-lanes = <1 2>;
+				};
+			};
+		};
+	};
+};
+
+/*
+ * The CSI connector's SCCB pins are i2c0 (SDA GPIO7 on J3.14 / SCL GPIO8 on
+ * J3.13), so the camera shields' csi_i2c is this bus. Separate statement
+ * because the node already carries the zephyr_i2c label above.
+ */
+csi_i2c: &i2c0 {};

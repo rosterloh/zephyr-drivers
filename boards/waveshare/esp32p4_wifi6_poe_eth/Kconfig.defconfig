@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_ESP32P4_WIFI6_POE_ETH_ESP32P4_HPCORE
+
+configdefault NET_L2_ETHERNET
+	default y
+
+# The RJ45/PoE port is the headline feature of this board, so a networking
+# application should get an interface without also hand-enabling the MAC
+# driver. Guarded on the DT node so a build that disables &eth does not drag
+# the driver in.
+configdefault ETH_DRIVER
+	default y if DT_HAS_ESPRESSIF_ESP32_ETH_ENABLED
+
+endif # BOARD_ESP32P4_WIFI6_POE_ETH_ESP32P4_HPCORE
