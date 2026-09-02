@@ -395,6 +395,7 @@ static int pivariety_get_fmt(const struct device *dev, struct video_format *fmt)
 
 static int pivariety_set_stream(const struct device *dev, bool on, enum video_buf_type type)
 {
+	struct pivariety_data *data = dev->data;
 	int ret;
 
 	if (type != VIDEO_BUF_TYPE_OUTPUT) {
@@ -406,7 +407,48 @@ static int pivariety_set_stream(const struct device *dev, bool on, enum video_bu
 		return ret;
 	}
 
-	return piv_write(dev, MODE_SELECT_REG, on ? PIV_MODE_STREAMING : PIV_MODE_STANDBY);
+	ret = piv_write(dev, MODE_SELECT_REG, on ? PIV_MODE_STREAMING : PIV_MODE_STANDBY);
+	if (ret < 0 || !on) {
+		return ret;
+	}
+
+	/*
+	 * Push every control to the module now that it is streaming.
+	 *
+	 * pivariety_start_streaming() writes MODE_SELECT first and only then calls
+	 * __v4l2_ctrl_handler_setup(), which applies every control value to the
+	 * hardware. We had no equivalent: values were written when the application
+	 * called video_set_ctrl(), which is typically while stopped, and never
+	 * re-applied on the transition into streaming. Follow the reference driver
+	 * rather than assume the orders are interchangeable.
+	 *
+	 * The idle wait after each pair is also from that driver, whose comment
+	 * reads: "When starting streaming, controls are set in batches, and the
+	 * short interval will cause some controls to be unsuccessfully set."
+	 */
+	ret = piv_wait_idle(dev);
+	if (ret < 0) {
+		return ret;
+	}
+
+	for (uint8_t i = 0; i < data->num_generic; i++) {
+		ret = piv_write(dev, CTRL_ID_REG, data->generic_id[i]);
+		if (ret < 0) {
+			return ret;
+		}
+
+		ret = piv_write(dev, CTRL_VALUE_REG, data->generic[i].val);
+		if (ret < 0) {
+			return ret;
+		}
+
+		ret = piv_wait_idle(dev);
+		if (ret < 0) {
+			return ret;
+		}
+	}
+
+	return 0;
 }
 
 /* The module reports raw V4L2 control IDs. Register the ones Zephyr also
