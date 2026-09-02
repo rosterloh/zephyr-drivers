@@ -535,9 +535,21 @@ static int piv_init_ctrls(const struct device *dev)
 		if (id == VIDEO_CID_PIXEL_RATE) {
 			uint32_t rate = 0;
 
-			ret = piv_read(dev, CTRL_VALUE_REG, &rate);
+			/*
+			 * Read DEF, not VALUE. CTRL_VALUE_REG does not behave as a
+			 * per-control readback on this module - it returns the same
+			 * stale figure whichever control is selected - whereas the
+			 * attribute registers are valid for the index just written.
+			 * The ToF camera reports min = max = def = 50 MHz.
+			 */
+			ret = piv_read(dev, CTRL_DEF_REG, &rate);
 			if (ret < 0) {
 				return ret;
+			}
+
+			if (rate == 0 || rate == NO_DATA_AVAILABLE) {
+				LOG_WRN("Module reported no usable pixel rate (0x%08x)", rate);
+				continue;
 			}
 
 			ret = video_init_ctrl(
