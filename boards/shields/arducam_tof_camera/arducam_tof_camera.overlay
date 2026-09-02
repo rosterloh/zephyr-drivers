@@ -8,8 +8,23 @@
  * clock-noncontinuous: unlike the IMX219, this module drops its clock lane out
  * of HS between bursts.
  *
- * link-frequencies is mandatory. Pivariety modules report no link frequency of
- * their own, and the CSI-2 receiver needs it to configure its D-PHY.
+ * No link-frequencies here, deliberately. The module reports
+ * VIDEO_CID_PIXEL_RATE (50 MHz) and the driver registers it, so
+ * video_get_csi_link_freq() derives the link frequency itself:
+ *
+ *   link_freq = pixel_rate * bits_per_pixel / (2 * lanes)
+ *             = 50000000 * 12 / (2 * 2) = 150000000 Hz, i.e. 300 Mbps/lane
+ *
+ * which is the same expression, and the same answer, as the Raspberry Pi
+ * kernel's v4l2_get_link_freq_ctrl() - verified against it, where the CFE logs
+ * "Using a link rate of 300 Mbps" while capturing 240x180 Y12P from this
+ * module.
+ *
+ * This property previously carried 493500000, copied from the IMX219 shield
+ * rather than from anything this module reports. That is 987 Mbps/lane, 3.3x
+ * the real rate, and it put the ESP32-P4 D-PHY in the 950-1000 Mbps band for a
+ * transmitter running at 300 - a link that carries no packets and latches no
+ * errors anywhere. Prefer no value over a guessed one.
  */
 
 #include <zephyr/dt-bindings/video/video-interfaces.h>
@@ -40,7 +55,6 @@
 				remote-endpoint-label = "csi_ep_in";
 				bus-type = <VIDEO_BUS_TYPE_CSI2_DPHY>;
 				data-lanes = <1 2>;
-				link-frequencies = <493500000>;
 			};
 		};
 	};

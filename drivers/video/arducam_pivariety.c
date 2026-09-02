@@ -86,6 +86,7 @@ struct pivariety_data {
 	uint8_t num_caps;
 
 	struct video_ctrl linkfreq;
+	struct video_ctrl pixelrate;
 	struct video_ctrl generic[PIV_MAX_GENERIC_CTRLS];
 	uint32_t generic_id[PIV_MAX_GENERIC_CTRLS];
 	uint8_t num_generic;
@@ -478,14 +479,31 @@ static int piv_init_ctrls(const struct device *dev)
 	struct pivariety_data *data = dev->data;
 	int ret;
 
-	data->link_freq_menu[0] = cfg->link_freq_hz;
+	/*
+	 * link-frequencies is an optional override. Left out - which is the
+	 * normal case - the receiver derives the link frequency from the module's
+	 * own VIDEO_CID_PIXEL_RATE below, exactly as the Raspberry Pi kernel does
+	 * in v4l2_get_link_freq_ctrl(). Both arrive at the same number because
+	 * video_get_csi_link_freq() uses the same expression:
+	 *
+	 *   link_freq = pixel_rate * bpp / (2 * lanes)
+	 *
+	 * Only set link-frequencies in devicetree for a module that misreports its
+	 * pixel rate. A guessed value here is worse than none: it silently puts
+	 * the receiver's D-PHY in the wrong frequency band, which shows up as a
+	 * CSI link that carries no packets and reports no errors.
+	 */
+	if (cfg->link_freq_hz > 0) {
+		data->link_freq_menu[0] = cfg->link_freq_hz;
 
-	ret = video_init_int_menu_ctrl(&data->linkfreq, dev, VIDEO_CID_LINK_FREQ, 0,
-				       data->link_freq_menu, ARRAY_SIZE(data->link_freq_menu));
-	if (ret < 0) {
-		return ret;
+		ret = video_init_int_menu_ctrl(&data->linkfreq, dev, VIDEO_CID_LINK_FREQ, 0,
+					       data->link_freq_menu,
+					       ARRAY_SIZE(data->link_freq_menu));
+		if (ret < 0) {
+			return ret;
+		}
+		data->linkfreq.flags |= VIDEO_CTRL_FLAG_READ_ONLY;
 	}
-	data->linkfreq.flags |= VIDEO_CTRL_FLAG_READ_ONLY;
 
 	for (uint32_t i = 0; i < UINT8_MAX; i++) {
 		uint32_t id = 0, min = 0, max = 0, step = 0, def = 0;
@@ -506,6 +524,32 @@ static int piv_init_ctrls(const struct device *dev)
 		}
 		if (id == NO_DATA_AVAILABLE) {
 			break;
+		}
+
+		/*
+		 * PIXEL_RATE is what the link frequency is derived from when
+		 * devicetree does not override it, so it is registered directly
+		 * rather than through the generic path: it is 64-bit and
+		 * read-only, and it must not consume a generic[] slot.
+		 */
+		if (id == VIDEO_CID_PIXEL_RATE) {
+			uint32_t rate = 0;
+
+			ret = piv_read(dev, CTRL_VALUE_REG, &rate);
+			if (ret < 0) {
+				return ret;
+			}
+
+			ret = video_init_ctrl(
+				&data->pixelrate, dev, VIDEO_CID_PIXEL_RATE,
+				(struct video_ctrl_range){
+					.min64 = rate, .max64 = rate, .step64 = 1, .def64 = rate});
+			if (ret < 0) {
+				return ret;
+			}
+			data->pixelrate.flags |= VIDEO_CTRL_FLAG_READ_ONLY;
+			LOG_DBG("Module reports pixel rate %u Hz", rate);
+			continue;
 		}
 
 		if (!piv_ctrl_is_supported(id)) {
@@ -630,8 +674,8 @@ static int pivariety_init(const struct device *dev)
 		return -ENODEV;
 	}
 
-	LOG_INF("Pivariety device 0x%04x sensor 0x%04x version 0x%04x, link %lld Hz", device_id,
-		sensor_id, version, cfg->link_freq_hz);
+	LOG_INF("Pivariety device 0x%04x sensor 0x%04x version 0x%04x", device_id, sensor_id,
+		version);
 
 	ret = piv_enumerate(dev);
 	if (ret < 0) {
@@ -674,7 +718,9 @@ static DEVICE_API(video, pivariety_driver_api) = {
                                                                                                    \
 	static const struct pivariety_config pivariety_cfg_##n = {                                 \
 		.i2c = I2C_DT_SPEC_INST_GET(n),                                                    \
-		.link_freq_hz = DT_PROP_BY_IDX(PIV_ENDPOINT(n), link_frequencies, 0),              \
+		.link_freq_hz =                                                                    \
+			COND_CODE_1(DT_NODE_HAS_PROP(PIV_ENDPOINT(n), link_frequencies),           \
+				    (DT_PROP_BY_IDX(PIV_ENDPOINT(n), link_frequencies, 0)), (0)),  \
 	};                                                                                         \
                                                                                                    \
 	DEVICE_DT_INST_DEFINE(n, &pivariety_init, NULL, &pivariety_data_##n, &pivariety_cfg_##n,   \
@@ -718,7 +764,13 @@ static int cmd_pivariety_regs(const struct shell *sh, size_t argc, char **argv)
 		}
 	}
 
-	shell_print(sh, "link frequency  = %lld Hz", cfg->link_freq_hz);
+	if (cfg->link_freq_hz > 0) {
+		shell_print(sh, "link frequency  = %lld Hz (devicetree override)",
+			    cfg->link_freq_hz);
+	} else {
+		shell_print(sh, "link frequency  = derived from pixel rate %lld Hz",
+			    data->pixelrate.range.max64);
+	}
 	shell_print(sh, "enumerated caps = %u", data->num_caps);
 
 	for (uint8_t i = 0; i < data->num_caps; i++) {
