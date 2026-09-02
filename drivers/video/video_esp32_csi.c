@@ -574,6 +574,31 @@ static int video_esp32_csi_get_caps(const struct device *dev, struct video_caps 
 	return video_get_caps(cfg->source_dev, caps);
 }
 
+/*
+ * Round the stride up to a 32-bit word.
+ *
+ * In bypass the ISP is configured in words - its Hsize is
+ * DIV_ROUND_UP(width * bpp, 32) - so it emits whole words per line and pads a
+ * line that does not divide evenly. The bridge and the DMA are sized from
+ * fmt.pitch, and if that is the unpadded byte count the two ends disagree
+ * about line length: the ISP delivers more than the buffer was sized for and
+ * the DMA writes past its end, into the next heap chunk.
+ *
+ * Measured on hardware, IMX219 RAW10 at 1640x1232: pitch 2050 is 512.5 words,
+ * the ISP rounds to 513 (2052 bytes), and the DMA finished 1848 bytes beyond
+ * the buffer. Every geometry whose pitch is already a multiple of 4 - RAW10 at
+ * 1600/640/320, RAW8 at 1640, RAW12 at 240 - overran by exactly zero.
+ *
+ * This must be applied on BOTH set_fmt() and get_fmt(). get_fmt() does not
+ * return the stored format, it re-queries the source and recomputes the size,
+ * so padding only in set_fmt() leaves every consumer allocating the unpadded
+ * length while the DMA writes the padded one.
+ */
+static void csi_pad_pitch(struct video_format *fmt)
+{
+	fmt->pitch = ROUND_UP(fmt->pitch, sizeof(uint32_t));
+}
+
 static int video_esp32_csi_get_fmt(const struct device *dev, struct video_format *fmt)
 {
 	const struct video_esp32_csi_config *cfg = dev->config;
@@ -584,7 +609,14 @@ static int video_esp32_csi_get_fmt(const struct device *dev, struct video_format
 		return ret;
 	}
 
-	return video_estimate_fmt_size(fmt);
+	ret = video_estimate_fmt_size(fmt);
+	if (ret < 0) {
+		return ret;
+	}
+
+	csi_pad_pitch(fmt);
+
+	return 0;
 }
 
 static int video_esp32_csi_set_fmt(const struct device *dev, struct video_format *fmt)
@@ -602,6 +634,8 @@ static int video_esp32_csi_set_fmt(const struct device *dev, struct video_format
 	if (ret < 0) {
 		return ret;
 	}
+
+	csi_pad_pitch(fmt);
 
 	data->fmt = *fmt;
 	return 0;
