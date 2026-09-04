@@ -205,21 +205,17 @@ static void csi_isp_start(struct video_esp32_csi_data *data, uint8_t bpp)
 	 * needs to be re-calculated according to input bits per pixel and IDI32.
 	 * Hsize now stands for the number of 32-bit in one line."
 	 *
-	 * NOT VERIFIED: the bypass branch has never produced a frame here. Applying
-	 * it to RAW8 as well - which should be equivalent to the processing path -
-	 * stopped RAW8 working too, so something else in the bypass setup is still
-	 * missing. RAW8 therefore keeps the mode that is known to work rather than
-	 * sharing an unproven one. See the driver README/notes before trusting
-	 * RAW10 or RAW12 capture.
+	 * Verified on hardware with an Arducam ToF module: 240x180 Y12P, 64800
+	 * bytes per frame. Note the two settings are not independent - bypass
+	 * needs BOTH the word-based Hsize here and isp_en left clear below.
+	 * Applying only the Hsize while the ISP stayed enabled is what made an
+	 * earlier attempt look like "bypass breaks RAW8 too".
 	 */
 	if (bpp == 8) {
 		isp_ll_set_input_data_color_format(&ISP, ISP_COLOR_RAW8);
 		isp_ll_set_output_data_color_format(&ISP, ISP_COLOR_RAW8);
 		isp_ll_set_intput_data_h_pixel_num(&ISP, data->fmt.width);
 	} else {
-		LOG_WRN("ISP bypass (%u bpp) is unverified - no frame has ever been "
-			"captured through it; expect silence, not an error",
-			bpp);
 		isp_ll_set_intput_data_h_pixel_num(&ISP, DIV_ROUND_UP(data->fmt.width * bpp, 32));
 	}
 	isp_ll_set_intput_data_v_row_num(&ISP, data->fmt.height);
@@ -240,7 +236,14 @@ static void csi_isp_start(struct video_esp32_csi_data *data, uint8_t bpp)
 	isp_ll_enable_line_start_packet_exist(&ISP, bpp != 8);
 	isp_ll_enable_line_end_packet_exist(&ISP, bpp != 8);
 
-	isp_ll_enable(&ISP, true);
+	/*
+	 * Bypass is the ISP left disabled while cntl.mipi_data_en - set by
+	 * isp_ll_set_input_data_source() above, independent of isp_en - holds the
+	 * CSI -> bridge path open. ESP-IDF says the same as a guard:
+	 * esp_isp_enable() refuses to run on a processor configured for bypass,
+	 * so isp_en is never set on that path.
+	 */
+	isp_ll_enable(&ISP, bpp == 8);
 }
 
 static void csi_isp_stop(void)
@@ -373,7 +376,14 @@ static int csi_hw_start(const struct device *dev)
 	link_freq = video_get_csi_link_freq(cfg->source_dev, bpp, cfg->lane_nb);
 	if (link_freq <= 0) {
 		LOG_ERR("Cannot get sensor link frequency (%lld)", link_freq);
-		return (int)link_freq;
+		/*
+		 * Not "return (int)link_freq": zero is a failure here (the source
+		 * advertised neither LINK_FREQ nor a usable PIXEL_RATE) but would
+		 * be returned to the caller as success. csi_hw_start() would then
+		 * be skipped without mipi_csi_hal_init() ever running, and the
+		 * first bridge access below faults on a NULL hal.bridge_dev.
+		 */
+		return link_freq < 0 ? (int)link_freq : -EINVAL;
 	}
 
 	/* CSI-2 D-PHY is DDR, so the per-lane bit rate is twice the link freq. */
@@ -564,6 +574,31 @@ static int video_esp32_csi_get_caps(const struct device *dev, struct video_caps 
 	return video_get_caps(cfg->source_dev, caps);
 }
 
+/*
+ * Round the stride up to a 32-bit word.
+ *
+ * In bypass the ISP is configured in words - its Hsize is
+ * DIV_ROUND_UP(width * bpp, 32) - so it emits whole words per line and pads a
+ * line that does not divide evenly. The bridge and the DMA are sized from
+ * fmt.pitch, and if that is the unpadded byte count the two ends disagree
+ * about line length: the ISP delivers more than the buffer was sized for and
+ * the DMA writes past its end, into the next heap chunk.
+ *
+ * Measured on hardware, IMX219 RAW10 at 1640x1232: pitch 2050 is 512.5 words,
+ * the ISP rounds to 513 (2052 bytes), and the DMA finished 1848 bytes beyond
+ * the buffer. Every geometry whose pitch is already a multiple of 4 - RAW10 at
+ * 1600/640/320, RAW8 at 1640, RAW12 at 240 - overran by exactly zero.
+ *
+ * This must be applied on BOTH set_fmt() and get_fmt(). get_fmt() does not
+ * return the stored format, it re-queries the source and recomputes the size,
+ * so padding only in set_fmt() leaves every consumer allocating the unpadded
+ * length while the DMA writes the padded one.
+ */
+static void csi_pad_pitch(struct video_format *fmt)
+{
+	fmt->pitch = ROUND_UP(fmt->pitch, sizeof(uint32_t));
+}
+
 static int video_esp32_csi_get_fmt(const struct device *dev, struct video_format *fmt)
 {
 	const struct video_esp32_csi_config *cfg = dev->config;
@@ -574,7 +609,14 @@ static int video_esp32_csi_get_fmt(const struct device *dev, struct video_format
 		return ret;
 	}
 
-	return video_estimate_fmt_size(fmt);
+	ret = video_estimate_fmt_size(fmt);
+	if (ret < 0) {
+		return ret;
+	}
+
+	csi_pad_pitch(fmt);
+
+	return 0;
 }
 
 static int video_esp32_csi_set_fmt(const struct device *dev, struct video_format *fmt)
@@ -592,6 +634,8 @@ static int video_esp32_csi_set_fmt(const struct device *dev, struct video_format
 	if (ret < 0) {
 		return ret;
 	}
+
+	csi_pad_pitch(fmt);
 
 	data->fmt = *fmt;
 	return 0;

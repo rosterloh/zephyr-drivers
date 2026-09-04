@@ -86,6 +86,7 @@ struct pivariety_data {
 	uint8_t num_caps;
 
 	struct video_ctrl linkfreq;
+	struct video_ctrl pixelrate;
 	struct video_ctrl generic[PIV_MAX_GENERIC_CTRLS];
 	uint32_t generic_id[PIV_MAX_GENERIC_CTRLS];
 	uint8_t num_generic;
@@ -395,6 +396,7 @@ static int pivariety_get_fmt(const struct device *dev, struct video_format *fmt)
 
 static int pivariety_set_stream(const struct device *dev, bool on, enum video_buf_type type)
 {
+	struct pivariety_data *data = dev->data;
 	int ret;
 
 	if (type != VIDEO_BUF_TYPE_OUTPUT) {
@@ -406,7 +408,48 @@ static int pivariety_set_stream(const struct device *dev, bool on, enum video_bu
 		return ret;
 	}
 
-	return piv_write(dev, MODE_SELECT_REG, on ? PIV_MODE_STREAMING : PIV_MODE_STANDBY);
+	ret = piv_write(dev, MODE_SELECT_REG, on ? PIV_MODE_STREAMING : PIV_MODE_STANDBY);
+	if (ret < 0 || !on) {
+		return ret;
+	}
+
+	/*
+	 * Push every control to the module now that it is streaming.
+	 *
+	 * pivariety_start_streaming() writes MODE_SELECT first and only then calls
+	 * __v4l2_ctrl_handler_setup(), which applies every control value to the
+	 * hardware. We had no equivalent: values were written when the application
+	 * called video_set_ctrl(), which is typically while stopped, and never
+	 * re-applied on the transition into streaming. Follow the reference driver
+	 * rather than assume the orders are interchangeable.
+	 *
+	 * The idle wait after each pair is also from that driver, whose comment
+	 * reads: "When starting streaming, controls are set in batches, and the
+	 * short interval will cause some controls to be unsuccessfully set."
+	 */
+	ret = piv_wait_idle(dev);
+	if (ret < 0) {
+		return ret;
+	}
+
+	for (uint8_t i = 0; i < data->num_generic; i++) {
+		ret = piv_write(dev, CTRL_ID_REG, data->generic_id[i]);
+		if (ret < 0) {
+			return ret;
+		}
+
+		ret = piv_write(dev, CTRL_VALUE_REG, data->generic[i].val);
+		if (ret < 0) {
+			return ret;
+		}
+
+		ret = piv_wait_idle(dev);
+		if (ret < 0) {
+			return ret;
+		}
+	}
+
+	return 0;
 }
 
 /* The module reports raw V4L2 control IDs. Register the ones Zephyr also
@@ -436,14 +479,31 @@ static int piv_init_ctrls(const struct device *dev)
 	struct pivariety_data *data = dev->data;
 	int ret;
 
-	data->link_freq_menu[0] = cfg->link_freq_hz;
+	/*
+	 * link-frequencies is an optional override. Left out - which is the
+	 * normal case - the receiver derives the link frequency from the module's
+	 * own VIDEO_CID_PIXEL_RATE below, exactly as the Raspberry Pi kernel does
+	 * in v4l2_get_link_freq_ctrl(). Both arrive at the same number because
+	 * video_get_csi_link_freq() uses the same expression:
+	 *
+	 *   link_freq = pixel_rate * bpp / (2 * lanes)
+	 *
+	 * Only set link-frequencies in devicetree for a module that misreports its
+	 * pixel rate. A guessed value here is worse than none: it silently puts
+	 * the receiver's D-PHY in the wrong frequency band, which shows up as a
+	 * CSI link that carries no packets and reports no errors.
+	 */
+	if (cfg->link_freq_hz > 0) {
+		data->link_freq_menu[0] = cfg->link_freq_hz;
 
-	ret = video_init_int_menu_ctrl(&data->linkfreq, dev, VIDEO_CID_LINK_FREQ, 0,
-				       data->link_freq_menu, ARRAY_SIZE(data->link_freq_menu));
-	if (ret < 0) {
-		return ret;
+		ret = video_init_int_menu_ctrl(&data->linkfreq, dev, VIDEO_CID_LINK_FREQ, 0,
+					       data->link_freq_menu,
+					       ARRAY_SIZE(data->link_freq_menu));
+		if (ret < 0) {
+			return ret;
+		}
+		data->linkfreq.flags |= VIDEO_CTRL_FLAG_READ_ONLY;
 	}
-	data->linkfreq.flags |= VIDEO_CTRL_FLAG_READ_ONLY;
 
 	for (uint32_t i = 0; i < UINT8_MAX; i++) {
 		uint32_t id = 0, min = 0, max = 0, step = 0, def = 0;
@@ -464,6 +524,44 @@ static int piv_init_ctrls(const struct device *dev)
 		}
 		if (id == NO_DATA_AVAILABLE) {
 			break;
+		}
+
+		/*
+		 * PIXEL_RATE is what the link frequency is derived from when
+		 * devicetree does not override it, so it is registered directly
+		 * rather than through the generic path: it is 64-bit and
+		 * read-only, and it must not consume a generic[] slot.
+		 */
+		if (id == VIDEO_CID_PIXEL_RATE) {
+			uint32_t rate = 0;
+
+			/*
+			 * Read DEF, not VALUE. CTRL_VALUE_REG does not behave as a
+			 * per-control readback on this module - it returns the same
+			 * stale figure whichever control is selected - whereas the
+			 * attribute registers are valid for the index just written.
+			 * The ToF camera reports min = max = def = 50 MHz.
+			 */
+			ret = piv_read(dev, CTRL_DEF_REG, &rate);
+			if (ret < 0) {
+				return ret;
+			}
+
+			if (rate == 0 || rate == NO_DATA_AVAILABLE) {
+				LOG_WRN("Module reported no usable pixel rate (0x%08x)", rate);
+				continue;
+			}
+
+			ret = video_init_ctrl(
+				&data->pixelrate, dev, VIDEO_CID_PIXEL_RATE,
+				(struct video_ctrl_range){
+					.min64 = rate, .max64 = rate, .step64 = 1, .def64 = rate});
+			if (ret < 0) {
+				return ret;
+			}
+			data->pixelrate.flags |= VIDEO_CTRL_FLAG_READ_ONLY;
+			LOG_DBG("Module reports pixel rate %u Hz", rate);
+			continue;
 		}
 
 		if (!piv_ctrl_is_supported(id)) {
@@ -588,8 +686,8 @@ static int pivariety_init(const struct device *dev)
 		return -ENODEV;
 	}
 
-	LOG_INF("Pivariety device 0x%04x sensor 0x%04x version 0x%04x, link %lld Hz", device_id,
-		sensor_id, version, cfg->link_freq_hz);
+	LOG_INF("Pivariety device 0x%04x sensor 0x%04x version 0x%04x", device_id, sensor_id,
+		version);
 
 	ret = piv_enumerate(dev);
 	if (ret < 0) {
@@ -632,7 +730,9 @@ static DEVICE_API(video, pivariety_driver_api) = {
                                                                                                    \
 	static const struct pivariety_config pivariety_cfg_##n = {                                 \
 		.i2c = I2C_DT_SPEC_INST_GET(n),                                                    \
-		.link_freq_hz = DT_PROP_BY_IDX(PIV_ENDPOINT(n), link_frequencies, 0),              \
+		.link_freq_hz =                                                                    \
+			COND_CODE_1(DT_NODE_HAS_PROP(PIV_ENDPOINT(n), link_frequencies),           \
+				    (DT_PROP_BY_IDX(PIV_ENDPOINT(n), link_frequencies, 0)), (0)),  \
 	};                                                                                         \
                                                                                                    \
 	DEVICE_DT_INST_DEFINE(n, &pivariety_init, NULL, &pivariety_data_##n, &pivariety_cfg_##n,   \
@@ -676,7 +776,13 @@ static int cmd_pivariety_regs(const struct shell *sh, size_t argc, char **argv)
 		}
 	}
 
-	shell_print(sh, "link frequency  = %lld Hz", cfg->link_freq_hz);
+	if (cfg->link_freq_hz > 0) {
+		shell_print(sh, "link frequency  = %lld Hz (devicetree override)",
+			    cfg->link_freq_hz);
+	} else {
+		shell_print(sh, "link frequency  = derived from pixel rate %lld Hz",
+			    data->pixelrate.range.max64);
+	}
 	shell_print(sh, "enumerated caps = %u", data->num_caps);
 
 	for (uint8_t i = 0; i < data->num_caps; i++) {
