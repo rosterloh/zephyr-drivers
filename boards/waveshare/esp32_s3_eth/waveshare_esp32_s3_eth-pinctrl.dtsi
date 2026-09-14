@@ -19,4 +19,14 @@
 			output-low;
 		};
 	};
+
+	/* Onboard WS2812B status LED on GPIO21, driven from RMT transmit
+	 * channel 0. The ESP32-S3 has four transmit channels (0-3), so
+	 * channels 1-3 stay free for an application to drive external strips.
+	 */
+	rmt_ws2812: rmt_ws2812 {
+		group1 {
+			pinmux = <RMT_OUT0_GPIO21>;
+		};
+	};
 };

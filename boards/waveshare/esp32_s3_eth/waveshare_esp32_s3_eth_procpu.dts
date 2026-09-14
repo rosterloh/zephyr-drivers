@@ -11,6 +11,7 @@
 #include <espressif/esp32s3/esp32s3_wroom_n16r8.dtsi>
 #include <espressif/partitions_0x0_amp_16M.dtsi>
 #include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/led/led.h>
 #include "waveshare_esp32_s3_eth-pinctrl.dtsi"
 
 / {
@@ -19,6 +20,22 @@
 
 	aliases {
 		watchdog0 = &wdt0;
+		led-strip = &status_led;
+	};
+
+	/* Single onboard WS2812B on GPIO21. It is an addressable LED, not a
+	 * plain GPIO one, so it cannot be driven through the led-gpios/leds
+	 * bindings -- it needs a 24-bit GRB frame at WS2812 timing, which the
+	 * RMT peripheral generates via the vendor-neutral pulse_io API.
+	 */
+	status_led: ws2812 {
+		compatible = "worldsemi,ws2812-pulse-io";
+		pulse-ios = <&rmt 0>;
+		chain-length = <1>;
+		color-mapping = <LED_COLOR_ID_GREEN
+				 LED_COLOR_ID_RED
+				 LED_COLOR_ID_BLUE>;
+		reset-delay = <300>;
 	};
 
 	chosen {
@@ -63,6 +80,12 @@
 		local-mac-address = [02 00 00 00 02 03];
 		status = "okay";
 	};
+};
+
+&rmt {
+	pinctrl-0 = <&rmt_ws2812>;
+	pinctrl-names = "default";
+	status = "okay";
 };
 
 &wdt0 {
