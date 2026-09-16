@@ -70,6 +70,21 @@ SCLK       GPIO7
 CS         GPIO4
 =========  =========
 
+Emulation
+=========
+
+A ``/qemu`` board variant runs the board under Espressif's QEMU fork:
+
+.. code-block:: console
+
+   west build -b waveshare_esp32_s3_eth/esp32s3/procpu/qemu <app>
+   west build -t run
+
+The variant disables what QEMU does not model (Wi-Fi, Bluetooth, USB, SPI and
+therefore both the W5500 and the TF slot, I2C and RMT) and moves the console to
+UART0, since the USB-Serial/JTAG console is not emulated. See
+:zephyr_file:`boards/espressif/common/qemu.rst` for prerequisites.
+
 Supported Features
 ==================
 

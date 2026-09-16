@@ -10,3 +10,7 @@ include(${ZEPHYR_BASE}/boards/common/openocd.board.cmake)
 
 board_runner_args(probe-rs "--chip=esp32s3")
 include(${ZEPHYR_BASE}/boards/common/probe-rs.board.cmake)
+
+if(CONFIG_ESPRESSIF_QEMU_TARGET AND NOT CONFIG_MCUBOOT)
+  include(${ZEPHYR_BASE}/boards/espressif/common/esp_qemu.cmake)
+endif()
