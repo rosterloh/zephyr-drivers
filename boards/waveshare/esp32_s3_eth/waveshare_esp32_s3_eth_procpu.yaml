@@ -8,6 +8,8 @@ supported:
   - gpio
   - uart
   - spi
+  - i2c
+  - sdhc
   - watchdog
   - entropy
   - netif:eth

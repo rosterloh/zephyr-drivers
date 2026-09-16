@@ -11,6 +11,8 @@
 #include <espressif/esp32s3/esp32s3.dtsi>
 #include <espressif/partitions_0x0_amp_16M.dtsi>
 #include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/i2c/i2c.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/dt-bindings/led/led.h>
 #include "waveshare_esp32_s3_eth-pinctrl.dtsi"
 
@@ -21,6 +23,18 @@
 	aliases {
 		watchdog0 = &wdt0;
 		led-strip = &status_led;
+		sw0 = &button0;
+		sdhc0 = &sd0;
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+
+		button0: button_0 {
+			gpios = <&gpio0 0 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "BOOT Button";
+			zephyr,code = <INPUT_KEY_0>;
+		};
 	};
 
 	/* Single onboard WS2812B on GPIO21. It is an addressable LED, not a
@@ -92,6 +106,39 @@
 		local-mac-address = [02 00 00 00 02 03];
 		status = "okay";
 	};
+};
+
+/* Onboard microSD/TF slot, wired in SPI mode. */
+&spi3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	pinctrl-0 = <&spim3_tf>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpio0 4 GPIO_ACTIVE_LOW>;
+
+	sd0: sd@0 {
+		compatible = "zephyr,sdhc-spi-slot";
+		reg = <0x0>;
+		status = "okay";
+		/* Cards negotiate up from 400kHz; 20MHz is the usual safe
+		 * ceiling for an SPI-mode slot with no length-matched traces.
+		 */
+		spi-max-frequency = <20000000>;
+
+		mmc {
+			compatible = "zephyr,sdmmc-disk";
+			disk-name = "SD";
+			status = "okay";
+		};
+	};
+};
+
+&i2c0 {
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_STANDARD>;
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
 };
 
 &rmt {

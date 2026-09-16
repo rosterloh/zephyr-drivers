@@ -20,6 +20,47 @@
 		};
 	};
 
+	/* SPI3 wired to the microSD/TF slot, which is in SPI mode:
+	 * MOSI=GPIO6 MISO=GPIO5 SCLK=GPIO7. CS (GPIO4) is driven as a GPIO via
+	 * cs-gpios, as the SD stack toggles it per transaction.
+	 */
+	spim3_tf: spim3_tf {
+		group1 {
+			pinmux = <SPIM3_MISO_GPIO5>, <SPIM3_SCLK_GPIO7>;
+		};
+		group2 {
+			pinmux = <SPIM3_MOSI_GPIO6>;
+			output-low;
+		};
+	};
+
+	/* I2C0 on the Pico-compatible header; these are also the camera's
+	 * SCCB pins, which is the same bus.
+	 */
+	i2c0_default: i2c0_default {
+		group1 {
+			pinmux = <I2C0_SDA_GPIO48>, <I2C0_SCL_GPIO47>;
+			bias-pull-up;
+			drive-open-drain;
+			output-high;
+		};
+	};
+
+	/* UART0 exists on the module but is not brought out to the USB-C port,
+	 * which carries the native USB-Serial/JTAG console instead. The group
+	 * is here for the QEMU variant and for anyone wiring the pads directly.
+	 */
+	uart0_default: uart0_default {
+		group1 {
+			pinmux = <UART0_TX_GPIO43>;
+			output-high;
+		};
+		group2 {
+			pinmux = <UART0_RX_GPIO44>;
+			bias-pull-up;
+		};
+	};
+
 	/* Onboard WS2812B status LED on GPIO21, driven from RMT transmit
 	 * channel 0. The ESP32-S3 has four transmit channels (0-3), so
 	 * channels 1-3 stay free for an application to drive external strips.

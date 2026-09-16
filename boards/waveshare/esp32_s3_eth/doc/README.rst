@@ -27,7 +27,14 @@ Hardware
   - 2.4 GHz Wi-Fi and Bluetooth LE
 
 - WIZnet W5500 10/100 Ethernet (RJ45) over SPI2
+- microSD/TF card slot over SPI3
+- WS2812B RGB status LED on GPIO21
+- BOOT button on GPIO0
 - USB Type-C (native USB-Serial/JTAG)
+
+The board also carries an OV5640-compatible DVP camera header and a
+Pico-compatible expansion header. Neither is described in the board devicetree
+yet; the camera's SCCB lines are the same GPIO47/48 pair exposed as ``i2c0``.
 
 Ethernet wiring
 ===============
@@ -48,6 +55,20 @@ INT        GPIO10
 The interrupt line (GPIO10) is wired in the board devicetree, so the W5500
 driver runs IRQ-driven. Override ``int-gpios`` in an application overlay to
 fall back to polling.
+
+microSD wiring
+==============
+
+The TF slot is wired for SPI mode on SPI3, exposed as ``sdhc0``:
+
+=========  =========
+TF slot    ESP32-S3
+=========  =========
+MOSI       GPIO6
+MISO       GPIO5
+SCLK       GPIO7
+CS         GPIO4
+=========  =========
 
 Supported Features
 ==================
