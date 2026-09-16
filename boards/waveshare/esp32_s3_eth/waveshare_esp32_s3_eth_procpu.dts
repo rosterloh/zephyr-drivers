@@ -8,7 +8,7 @@
  */
 /dts-v1/;
 
-#include <espressif/esp32s3/esp32s3_wroom_n16r8.dtsi>
+#include <espressif/esp32s3/esp32s3.dtsi>
 #include <espressif/partitions_0x0_amp_16M.dtsi>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/led/led.h>
@@ -48,6 +48,18 @@
 		zephyr,code-partition = &slot0_partition;
 		zephyr,bt-hci = &esp32_bt_hci;
 	};
+};
+
+/* ESP32-S3-WROOM-1U-N16R8: 16MB quad flash, 8MB octal PSRAM. The SoC dtsi no
+ * longer carries per-module sizes, so the board states its own.
+ */
+&flash0 {
+	reg = <0x0 DT_SIZE_M(16)>;
+	ranges = <0x0 0x0 DT_SIZE_M(16)>;
+};
+
+&psram0 {
+	size = <DT_SIZE_M(8)>;
 };
 
 &usb_serial {
