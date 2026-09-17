@@ -1,6 +1,7 @@
 /dts-v1/;
 
 #include <espressif/esp32/esp32.dtsi>
+#include <espressif/partitions_0x0_amp_4M.dtsi>
 #include "ros_driver-pinctrl.dtsi"
 // #include "grove_connectors.dtsi"
 // #include "raspberrypi_40pins_connector.dtsi"
@@ -286,46 +287,13 @@
 	status = "disabled";
 };
 
-/* 4MB flash on the WROOM-32UE-N4; the SoC dtsi no longer sets reg or ranges. */
+/* 4MB flash on the WROOM-32UE-N4; the SoC dtsi no longer sets reg or ranges.
+ * Partitions come from partitions_0x0_amp_4M.dtsi, included above.
+ */
 &flash0 {
 	reg = <0x0 DT_SIZE_M(4)>;
 	ranges = <0x0 0x0 DT_SIZE_M(4)>;
 	status = "okay";
-	partitions {
-		compatible = "fixed-partitions";
-		#address-cells = <1>;
-		#size-cells = <1>;
-
-		/* Reserve 60kB for the bootloader */
-		boot_partition: partition@1000 {
-			label = "mcuboot";
-			reg = <0x00001000 DT_SIZE_K(60)>;
-			read-only;
-		};
-
-		/* Reserve 1024kB for the application in slot 0 */
-		slot0_partition: partition@10000 {
-			label = "image-0";
-			reg = <0x00010000 DT_SIZE_M(1)>;
-		};
-
-		/* Reserve 1024kB for the application in slot 1 */
-		slot1_partition: partition@110000 {
-			label = "image-1";
-			reg = <0x00110000 DT_SIZE_M(1)>;
-		};
-
-		/* Reserve 256kB for the scratch partition */
-		scratch_partition: partition@210000 {
-			label = "image-scratch";
-			reg = <0x00210000 DT_SIZE_K(256)>;
-		};
-
-		storage_partition: partition@250000 {
-			label = "storage";
-			reg = <0x00250000 DT_SIZE_K(24)>;
-		};
-	};
 };
 
 &esp32_bt_hci {
