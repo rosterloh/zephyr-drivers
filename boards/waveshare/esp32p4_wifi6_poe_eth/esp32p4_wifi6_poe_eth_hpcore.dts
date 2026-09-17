@@ -5,8 +5,9 @@
 
 /dts-v1/;
 
-#include <espressif/esp32p4/esp32p4_n32r32.dtsi>
+#include <espressif/esp32p4/esp32p4.dtsi>
 #include "esp32p4_wifi6_poe_eth-pinctrl.dtsi"
+#include "esp32p4_wifi6_poe_eth-connector.dtsi"
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/dt-bindings/video/video-interfaces.h>
 /*
@@ -100,6 +101,18 @@
  * which only exists on v3.x, and soc/espressif/esp32p4/soc.c BUILD_ASSERTs the
  * set membership per revision - leaving the default here is a build failure.
  */
+/* ESP32-P4-WIFI6-POE-ETH: 32MB flash, 32MB PSRAM. This is the physical flash
+ * size; the 16M partition table included above deliberately leaves the upper
+ * 16MB unpartitioned. The SoC dtsi no longer sets reg or ranges. */
+&flash0 {
+	reg = <0x0 DT_SIZE_M(32)>;
+	ranges = <0x0 0x0 DT_SIZE_M(32)>;
+};
+
+&psram0 {
+	size = <DT_SIZE_M(32)>;
+};
+
 &cpu0 {
 	clock-frequency = <DT_FREQ_M(360)>;
 };

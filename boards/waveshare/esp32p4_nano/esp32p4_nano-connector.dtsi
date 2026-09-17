@@ -1,0 +1,56 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Raspberry Pi compatible header, 26-pin.
+ *
+ * The board's left-hand 2x13 header is the classic 26-pin Raspberry Pi GPIO
+ * header: every power and ground position matches, with 3V3 on pins 1 and 17,
+ * 5V on 2 and 4, and GND on 6, 9, 14, 20 and 25. The signal positions carry
+ * ESP32-P4 GPIOs, and the two RPi bus positions keep their RPi meaning:
+ * pins 3/5 are the I2C bus and pins 8/10 the UART.
+ *
+ * This is the first 26 pins of the 40-pin header, so the
+ * raspberrypi-40pins-header binding describes it and indices 0..16 are
+ * mapped. Indices 17..27 are RPi pins 27..40, which this header does not
+ * have, and are deliberately absent: referencing one is a build error rather
+ * than a silent connection to nothing.
+ *
+ * The board's right-hand 2x13 header is not a Raspberry Pi layout - it
+ * carries ESP32-C6 GPIOs, the RTC crystal pins and an LDO output - so it is
+ * not described here.
+ *
+ * Positions that are not free:
+ *   idx 0/1   GPIO7/GPIO8 are i2c0, the bus this board already enables.
+ *   idx 3/4   GPIO37/GPIO38 are uart0, the console.
+ */
+
+/ {
+	rpi_header: connector {
+		compatible = "raspberrypi-40pins-header";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <0 0 &gpio0 7 0>,	/* idx 0  pin 3  GPIO7  (I2C SDA) */
+			   <1 0 &gpio0 8 0>,	/* idx 1  pin 5  GPIO8  (I2C SCL) */
+			   <2 0 &gpio0 23 0>,	/* idx 2  pin 7  GPIO23 */
+			   <3 0 &gpio1 5 0>,	/* idx 3  pin 8  GPIO37 (UART TXD) */
+			   <4 0 &gpio1 6 0>,	/* idx 4  pin 10 GPIO38 (UART RXD) */
+			   <5 0 &gpio0 5 0>,	/* idx 5  pin 11 GPIO5 */
+			   <6 0 &gpio0 4 0>,	/* idx 6  pin 12 GPIO4 */
+			   <7 0 &gpio0 20 0>,	/* idx 7  pin 13 GPIO20 */
+			   <8 0 &gpio0 21 0>,	/* idx 8  pin 15 GPIO21 */
+			   <9 0 &gpio0 22 0>,	/* idx 9  pin 16 GPIO22 */
+			   <10 0 &gpio0 24 0>,	/* idx 10 pin 18 GPIO24 */
+			   <11 0 &gpio0 25 0>,	/* idx 11 pin 19 GPIO25 */
+			   <12 0 &gpio0 26 0>,	/* idx 12 pin 21 GPIO26 */
+			   <13 0 &gpio0 27 0>,	/* idx 13 pin 22 GPIO27 */
+			   <14 0 &gpio1 0 0>,	/* idx 14 pin 23 GPIO32 */
+			   <15 0 &gpio1 1 0>,	/* idx 15 pin 24 GPIO33 */
+			   <16 0 &gpio1 4 0>;	/* idx 16 pin 26 GPIO36 */
+	};
+};
+
+rpi_i2c: &i2c0 {};
+rpi_serial: &uart0 {};

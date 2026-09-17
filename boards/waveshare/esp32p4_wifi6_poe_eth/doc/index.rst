@@ -61,6 +61,58 @@ All values below were read off the board schematic.
    * - BOOT button
      - GPIO35 (shared with RMII TXD1)
 
+Expansion header
+================
+
+The 2x20 header is Raspberry Pi 40-pin compatible: every power and ground
+position matches a Pi, with 3V3 on pins 1 and 17, 5V on 2 and 4, and GND on
+6, 9, 14, 20, 25, 30, 34 and 39. The two RPi bus positions keep their RPi
+meaning, so pins 3/5 are ``i2c0`` and pins 8/10 are the ``uart0`` console.
+
+``rpi_header`` is a GPIO nexus, so an overlay addresses a position by its
+header index rather than by the ESP32-P4 GPIO behind it:
+
+.. code-block:: devicetree
+
+   my_device {
+           /* index 2, header pin 7, which is GPIO23 */
+           int-gpios = <&rpi_header 2 GPIO_ACTIVE_HIGH>;
+   };
+
+The index is the ``raspberrypi-40pins-header`` index: 0 to 27 across the
+signal positions, skipping power and ground.
+
+=====  =======  ========    =====  =======  ========
+Index  Hdr pin  ESP32-P4    Index  Hdr pin  ESP32-P4
+=====  =======  ========    =====  =======  ========
+0      3        GPIO7       14     23       GPIO0
+1      5        GPIO8       15     24       GPIO36
+2      7        GPIO23      16     26       GPIO32
+3      8        GPIO37      17     27       GPIO24
+4      10       GPIO38      18     28       GPIO25
+5      11       GPIO21      19     29       GPIO33
+6      12       GPIO22      20     31       GPIO26
+7      13       GPIO20      21     32       GPIO54
+8      15       GPIO6       22     33       GPIO48
+9      16       GPIO5       23     35       GPIO53
+10     18       GPIO4       24     36       GPIO46
+11     19       GPIO3       25     37       GPIO47
+12     21       GPIO2       26     38       GPIO27
+13     22       GPIO1       27     40       GPIO45
+=====  =======  ========    =====  =======  ========
+
+Four positions are wired to both the header and an onboard function. An
+expansion board that drives them will disturb that function:
+
+- **Index 0/1** (GPIO7/GPIO8) are ``i2c0``, which the codec, the CSI SCCB and
+  the DSI touch controller share.
+- **Index 3/4** (GPIO37/GPIO38) are the ``uart0`` console.
+- **Index 21** (GPIO54) is the ESP32-C6 ``CHIP_PU``. Driving it resets the
+  Wi-Fi co-processor.
+- **Index 23** (GPIO53) is the speaker amplifier enable.
+- **Index 27** (GPIO45) is the microSD VDD enable, active low. Driving it high
+  removes power from the card.
+
 Flash layout
 ============
 

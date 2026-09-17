@@ -8,11 +8,14 @@
  */
 /dts-v1/;
 
-#include <espressif/esp32s3/esp32s3_wroom_n16r8.dtsi>
+#include <espressif/esp32s3/esp32s3.dtsi>
 #include <espressif/partitions_0x0_amp_16M.dtsi>
 #include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/i2c/i2c.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/dt-bindings/led/led.h>
 #include "waveshare_esp32_s3_eth-pinctrl.dtsi"
+#include "waveshare_esp32_s3_eth-connector.dtsi"
 
 / {
 	model = "Waveshare ESP32-S3-ETH PROCPU";
@@ -21,6 +24,18 @@
 	aliases {
 		watchdog0 = &wdt0;
 		led-strip = &status_led;
+		sw0 = &button0;
+		sdhc0 = &sd0;
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+
+		button0: button_0 {
+			gpios = <&gpio0 0 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "BOOT Button";
+			zephyr,code = <INPUT_KEY_0>;
+		};
 	};
 
 	/* Single onboard WS2812B on GPIO21. It is an addressable LED, not a
@@ -48,6 +63,18 @@
 		zephyr,code-partition = &slot0_partition;
 		zephyr,bt-hci = &esp32_bt_hci;
 	};
+};
+
+/* ESP32-S3-WROOM-1U-N16R8: 16MB quad flash, 8MB octal PSRAM. The SoC dtsi no
+ * longer carries per-module sizes, so the board states its own.
+ */
+&flash0 {
+	reg = <0x0 DT_SIZE_M(16)>;
+	ranges = <0x0 0x0 DT_SIZE_M(16)>;
+};
+
+&psram0 {
+	size = <DT_SIZE_M(8)>;
 };
 
 &usb_serial {
@@ -80,6 +107,39 @@
 		local-mac-address = [02 00 00 00 02 03];
 		status = "okay";
 	};
+};
+
+/* Onboard microSD/TF slot, wired in SPI mode. */
+&spi3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	pinctrl-0 = <&spim3_tf>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpio0 4 GPIO_ACTIVE_LOW>;
+
+	sd0: sd@0 {
+		compatible = "zephyr,sdhc-spi-slot";
+		reg = <0x0>;
+		status = "okay";
+		/* Cards negotiate up from 400kHz; 20MHz is the usual safe
+		 * ceiling for an SPI-mode slot with no length-matched traces.
+		 */
+		spi-max-frequency = <20000000>;
+
+		mmc {
+			compatible = "zephyr,sdmmc-disk";
+			disk-name = "SD";
+			status = "okay";
+		};
+	};
+};
+
+&i2c0 {
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_STANDARD>;
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
 };
 
 &rmt {

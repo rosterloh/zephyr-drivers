@@ -5,7 +5,7 @@
 
 /dts-v1/;
 
-#include <espressif/esp32p4/esp32p4_lpcore_n32.dtsi>
+#include <espressif/esp32p4/esp32p4_lpcore.dtsi>
 /* Must match the HP core's table; see the comment there for why it is 16M. */
 #include <espressif/partitions_0x2000_default_16M.dtsi>
 
@@ -20,6 +20,12 @@
 		zephyr,flash = &flash0;
 		zephyr,code-partition = &slot0_lpcore_partition;
 	};
+};
+
+/* Must match the HPCORE flash: the partition offsets are shared. The SoC dtsi no longer sets reg or ranges. */
+&flash0 {
+	reg = <0x0 DT_SIZE_M(32)>;
+	ranges = <0x0 0x0 DT_SIZE_M(32)>;
 };
 
 &lp_uart {
