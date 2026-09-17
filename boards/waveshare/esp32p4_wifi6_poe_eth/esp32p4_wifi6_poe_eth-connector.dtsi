@@ -1,0 +1,69 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Raspberry Pi 40-pin compatible header.
+ *
+ * Every power and ground position matches a Raspberry Pi exactly: 3V3 on
+ * pins 1 and 17, 5V on 2 and 4, and GND on 6, 9, 14, 20, 25, 30, 34 and 39.
+ * The signal positions carry ESP32-P4 GPIOs, and the two RPi bus positions
+ * keep their RPi meaning: pins 3/5 are the I2C bus and pins 8/10 the UART.
+ *
+ * The nexus index is the raspberrypi-40pins-header index (0..27 over the
+ * signal positions, skipping power and ground), not a physical pin number
+ * and not an ESP32-P4 GPIO number.
+ *
+ * Positions that are not free:
+ *   idx 0/1   GPIO7/GPIO8 are i2c0, the bus this board already enables.
+ *   idx 3/4   GPIO37/GPIO38 are uart0, the console.
+ *   idx 21    GPIO54 also drives the ESP32-C6 CHIP_PU through R54. Driving
+ *             it resets the Wi-Fi co-processor.
+ *   idx 23    GPIO53 is also the speaker amplifier enable.
+ *   idx 27    GPIO45 also drives the gate of Q1, the P-channel FET in the
+ *             microSD VDD rail. Driving it high removes power from the card.
+ *
+ * These four are wired to both the header and an onboard function, so an
+ * expansion board that drives them will disturb that function. They are
+ * mapped because the header really does route them.
+ */
+
+/ {
+	rpi_header: connector {
+		compatible = "raspberrypi-40pins-header";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <0 0 &gpio0 7 0>,	/* idx 0  pin 3  GPIO7  (I2C SDA) */
+			   <1 0 &gpio0 8 0>,	/* idx 1  pin 5  GPIO8  (I2C SCL) */
+			   <2 0 &gpio0 23 0>,	/* idx 2  pin 7  GPIO23 */
+			   <3 0 &gpio1 5 0>,	/* idx 3  pin 8  GPIO37 (UART TXD) */
+			   <4 0 &gpio1 6 0>,	/* idx 4  pin 10 GPIO38 (UART RXD) */
+			   <5 0 &gpio0 21 0>,	/* idx 5  pin 11 GPIO21 */
+			   <6 0 &gpio0 22 0>,	/* idx 6  pin 12 GPIO22 */
+			   <7 0 &gpio0 20 0>,	/* idx 7  pin 13 GPIO20 */
+			   <8 0 &gpio0 6 0>,	/* idx 8  pin 15 GPIO6 */
+			   <9 0 &gpio0 5 0>,	/* idx 9  pin 16 GPIO5 */
+			   <10 0 &gpio0 4 0>,	/* idx 10 pin 18 GPIO4 */
+			   <11 0 &gpio0 3 0>,	/* idx 11 pin 19 GPIO3 */
+			   <12 0 &gpio0 2 0>,	/* idx 12 pin 21 GPIO2 */
+			   <13 0 &gpio0 1 0>,	/* idx 13 pin 22 GPIO1 */
+			   <14 0 &gpio0 0 0>,	/* idx 14 pin 23 GPIO0 */
+			   <15 0 &gpio1 4 0>,	/* idx 15 pin 24 GPIO36 */
+			   <16 0 &gpio1 0 0>,	/* idx 16 pin 26 GPIO32 */
+			   <17 0 &gpio0 24 0>,	/* idx 17 pin 27 GPIO24 */
+			   <18 0 &gpio0 25 0>,	/* idx 18 pin 28 GPIO25 */
+			   <19 0 &gpio1 1 0>,	/* idx 19 pin 29 GPIO33 */
+			   <20 0 &gpio0 26 0>,	/* idx 20 pin 31 GPIO26 */
+			   <21 0 &gpio1 22 0>,	/* idx 21 pin 32 GPIO54 (C6 reset) */
+			   <22 0 &gpio1 16 0>,	/* idx 22 pin 33 GPIO48 */
+			   <23 0 &gpio1 21 0>,	/* idx 23 pin 35 GPIO53 */
+			   <24 0 &gpio1 14 0>,	/* idx 24 pin 36 GPIO46 */
+			   <25 0 &gpio1 15 0>,	/* idx 25 pin 37 GPIO47 */
+			   <26 0 &gpio0 27 0>,	/* idx 26 pin 38 GPIO27 */
+			   <27 0 &gpio1 13 0>;	/* idx 27 pin 40 GPIO45 (SD VDD) */
+	};
+};
+
+rpi_i2c: &i2c0 {};
+rpi_serial: &uart0 {};

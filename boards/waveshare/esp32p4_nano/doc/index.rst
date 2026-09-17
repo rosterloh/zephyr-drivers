@@ -59,6 +59,53 @@ this is the newer ``espressif,esp-hosted-mcu`` driver, not the SPI-only
 The co-processor firmware, its supported chipsets and transports, and the
 protocol are documented in the upstream `ESP-Hosted-MCU`_ project.
 
+Expansion headers
+*****************
+
+The board has two 2x13 headers, one along each edge.
+
+The **left-hand header** is the classic 26-pin Raspberry Pi GPIO header: every
+power and ground position matches a Pi, with 3V3 on pins 1 and 17, 5V on 2 and
+4, and GND on 6, 9, 14, 20 and 25. The two RPi bus positions keep their RPi
+meaning, so pins 3/5 are ``i2c0`` and pins 8/10 are the ``uart0`` console.
+
+``rpi_header`` is a GPIO nexus, so an overlay addresses a position by its
+header index rather than by the ESP32-P4 GPIO behind it:
+
+.. code-block:: devicetree
+
+   my_device {
+           /* index 2, header pin 7, which is GPIO23 */
+           int-gpios = <&rpi_header 2 GPIO_ACTIVE_HIGH>;
+   };
+
+The index is the ``raspberrypi-40pins-header`` index, because this header is
+the first 26 pins of that layout. Indices 0 to 16 are mapped; 17 to 27 are
+RPi pins 27 to 40, which this header does not have, and referencing one is a
+devicetree error rather than a silent connection to nothing.
+
+=====  =======  ========    =====  =======  ========
+Index  Hdr pin  ESP32-P4    Index  Hdr pin  ESP32-P4
+=====  =======  ========    =====  =======  ========
+0      3        GPIO7       9      16       GPIO22
+1      5        GPIO8       10     18       GPIO24
+2      7        GPIO23      11     19       GPIO25
+3      8        GPIO37      12     21       GPIO26
+4      10       GPIO38      13     22       GPIO27
+5      11       GPIO5       14     23       GPIO32
+6      12       GPIO4       15     24       GPIO33
+7      13       GPIO20      16     26       GPIO36
+8      15       GPIO21
+=====  =======  ========    =====  =======  ========
+
+Index 0/1 (GPIO7/GPIO8) are ``i2c0``, shared with the onboard ES8311 codec,
+and index 3/4 (GPIO37/GPIO38) are the ``uart0`` console. Driving either pair
+as GPIO disturbs that function.
+
+The **right-hand header** is not a Raspberry Pi layout - it carries ESP32-C6
+GPIOs, the RTC crystal pins and an LDO output - so it is not described in
+devicetree.
+
 Not Yet Supported
 *****************
 
