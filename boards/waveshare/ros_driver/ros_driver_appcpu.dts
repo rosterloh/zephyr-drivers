@@ -10,6 +10,7 @@
 		zephyr,sram = &sram0;
 		zephyr,ipc_shm = &shm0;
 		zephyr,ipc = &ipm0;
+		zephyr,flash = &flash0;
 	};
 };
 
@@ -21,7 +22,12 @@
 	status = "okay";
 };
 
+/* Must match the PROCPU flash: esp32_appcpu.dtsi no longer sets reg or ranges,
+ * and the partition offsets below are shared with it.
+ */
 &flash0 {
+	reg = <0x0 DT_SIZE_M(4)>;
+	ranges = <0x0 0x0 DT_SIZE_M(4)>;
 	status = "okay";
 	partitions {
 		compatible = "fixed-partitions";

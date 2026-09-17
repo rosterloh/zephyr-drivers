@@ -1,6 +1,6 @@
 /dts-v1/;
 
-#include <espressif/esp32/esp32_wroom_32ue_n4.dtsi>
+#include <espressif/esp32/esp32.dtsi>
 #include "ros_driver-pinctrl.dtsi"
 // #include "grove_connectors.dtsi"
 // #include "raspberrypi_40pins_connector.dtsi"
@@ -160,11 +160,17 @@
 	};
 };
 
+/* Pins the ESP32-WROOM-32UE-N4 module consumes or does not bond out. The SoC
+ * dtsi no longer reserves these, so the board states them.
+ */
 &gpio0 {
+	gpio-reserved-ranges = <6 6>,			/* SPI flash */
+			       <20 1>, <24 1>, <28 4>;	/* not connected */
 	status = "okay";
 };
 
 &gpio1 {
+	gpio-reserved-ranges = <5 2>;			/* GPIO37-38 not connected */
 	status = "okay";
 };
 
@@ -280,7 +286,10 @@
 	status = "disabled";
 };
 
+/* 4MB flash on the WROOM-32UE-N4; the SoC dtsi no longer sets reg or ranges. */
 &flash0 {
+	reg = <0x0 DT_SIZE_M(4)>;
+	ranges = <0x0 0x0 DT_SIZE_M(4)>;
 	status = "okay";
 	partitions {
 		compatible = "fixed-partitions";
