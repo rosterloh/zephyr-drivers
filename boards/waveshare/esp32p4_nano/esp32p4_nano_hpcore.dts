@@ -5,7 +5,7 @@
 
 /dts-v1/;
 
-#include <espressif/esp32p4/esp32p4_n16r32.dtsi>
+#include <espressif/esp32p4/esp32p4.dtsi>
 #include "esp32p4_nano-pinctrl.dtsi"
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/dt-bindings/video/video-interfaces.h>
@@ -69,6 +69,16 @@
  * BUILD_ASSERTs set membership per revision, so leaving the default here is a
  * build failure; before that assert landed it was a boot failure.
  */
+/* ESP32-P4-Nano: 16MB flash, 32MB PSRAM. The SoC dtsi no longer sets reg or ranges. */
+&flash0 {
+	reg = <0x0 DT_SIZE_M(16)>;
+	ranges = <0x0 0x0 DT_SIZE_M(16)>;
+};
+
+&psram0 {
+	size = <DT_SIZE_M(32)>;
+};
+
 &cpu0 {
 	clock-frequency = <DT_FREQ_M(360)>;
 };
