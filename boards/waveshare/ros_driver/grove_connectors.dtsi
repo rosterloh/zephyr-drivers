@@ -1,11 +1,36 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The two external I2C connectors, P3 and P4 on the schematic.
+ *
+ * Both are 4-pin PH2.0 sockets wired in parallel to the same bus, so one
+ * nexus describes both. That bus is the board's i2c0 - GPIO32 is IIC_SDA and
+ * GPIO33 is IIC_SCL, the same nets the schematic also calls ICM_SDA/ICM_SCL -
+ * shared with the onboard SSD1306, the INA219, and the ICM-20948 behind the
+ * LSF0204 level shifter. Anything plugged in here must not collide with
+ * 0x3c, 0x42 or 0x68.
+ *
+ * GPIO32 and GPIO33 live on the gpio1 controller at indices 0 and 1: on the
+ * ESP32, gpio0 only covers GPIO0-31. The same correction applies to i2c0's
+ * sda-gpios/scl-gpios in the board dts.
+ *
+ * Physical pin order is 1 VDD3V3, 2 GND, 3 SDA, 4 SCL. That is NOT the Grove
+ * order (1 SCL, 2 SDA, 3 VCC, 4 GND), so a Grove cable plugged straight in
+ * puts 3V3 on the module's SCL pin. The grove-header binding is used only for
+ * its nexus semantics - index 0 is SCL and index 1 is SDA - not as a claim
+ * that Grove modules are mechanically compatible.
+ */
+
 / {
 	grove_iic: grove_header0 {
 		compatible = "grove-header";
 		#gpio-cells = <2>;
 		gpio-map-mask = <0xffffffff 0xffffffc0>;
 		gpio-map-pass-thru = <0 0x3f>;
-		gpio-map = <0 0 &gpio0 33 0>,	/* IIC_SCL */
-			   <1 0 &gpio0 32 0>;	/* IIC_SDA */
+		gpio-map = <0 0 &gpio1 1 0>,	/* SCL, GPIO33 */
+			   <1 0 &gpio1 0 0>;	/* SDA, GPIO32 */
 	};
 };
 
