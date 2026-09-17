@@ -1,0 +1,63 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Pico-compatible 2x20 expansion header.
+ *
+ * The board carries the Raspberry Pi Pico footprint, so the power and ground
+ * positions match a Pico exactly (40 VBUS, 39 VSYS, 38 GND, 37 3V3_EN,
+ * 36 3V3, and the GND pins at 3/8/13/18/23/28/33). The signal positions carry
+ * ESP32-S3 GPIOs instead of RP2040 ones, which is what this nexus maps: index
+ * N is the Pico GP<N> position, not an ESP32-S3 GPIO number.
+ *
+ * Two positions have no GP index and so are not mapped:
+ *   pin 30  CHIP_UP  (the Pico's RUN)
+ *   pin 35  GPIO21   (the Pico's ADC_VREF; also the onboard WS2812)
+ *
+ * Caveats on the mapped pins:
+ *   GP0/GP1   GPIO20/GPIO19 are the native USB D+/D- lines. Driving them as
+ *             GPIO conflicts with the USB console and the USB runner.
+ *   GP11-GP15 GPIO37..GPIO33 are the octal PSRAM interconnect on the
+ *             ESP32-S3-WROOM-1U-N16R8. They are physically present on the
+ *             header but unusable on this module; Waveshare document them as
+ *             internally occupied. They are mapped so the header description
+ *             stays faithful, not because they can be driven.
+ *   GP16/GP17 GPIO43/GPIO44 are UART0. Free unless uart0 is enabled.
+ *   GP18      GPIO0 is also the BOOT button.
+ */
+
+/ {
+	pico_header: connector {
+		compatible = "raspberrypi,pico-header";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <0 0 &gpio0 20 0>,	/* GP0  pin 1  GPIO20 (USB D+) */
+			   <1 0 &gpio0 19 0>,	/* GP1  pin 2  GPIO19 (USB D-) */
+			   <2 0 &gpio1 16 0>,	/* GP2  pin 4  GPIO48 */
+			   <3 0 &gpio1 15 0>,	/* GP3  pin 5  GPIO47 */
+			   <4 0 &gpio1 14 0>,	/* GP4  pin 6  GPIO46 */
+			   <5 0 &gpio1 13 0>,	/* GP5  pin 7  GPIO45 */
+			   <6 0 &gpio1 10 0>,	/* GP6  pin 9  GPIO42 */
+			   <7 0 &gpio1 9 0>,	/* GP7  pin 10 GPIO41 */
+			   <8 0 &gpio1 8 0>,	/* GP8  pin 11 GPIO40 */
+			   <9 0 &gpio1 7 0>,	/* GP9  pin 12 GPIO39 */
+			   <10 0 &gpio1 6 0>,	/* GP10 pin 14 GPIO38 */
+			   <11 0 &gpio1 5 0>,	/* GP11 pin 15 GPIO37 (PSRAM) */
+			   <12 0 &gpio1 4 0>,	/* GP12 pin 16 GPIO36 (PSRAM) */
+			   <13 0 &gpio1 3 0>,	/* GP13 pin 17 GPIO35 (PSRAM) */
+			   <14 0 &gpio1 2 0>,	/* GP14 pin 19 GPIO34 (PSRAM) */
+			   <15 0 &gpio1 1 0>,	/* GP15 pin 20 GPIO33 (PSRAM) */
+			   <16 0 &gpio1 11 0>,	/* GP16 pin 21 GPIO43 (UART0 TX) */
+			   <17 0 &gpio1 12 0>,	/* GP17 pin 22 GPIO44 (UART0 RX) */
+			   <18 0 &gpio0 0 0>,	/* GP18 pin 24 GPIO0 (BOOT) */
+			   <19 0 &gpio0 1 0>,	/* GP19 pin 25 GPIO1 */
+			   <20 0 &gpio0 2 0>,	/* GP20 pin 26 GPIO2 */
+			   <21 0 &gpio0 3 0>,	/* GP21 pin 27 GPIO3 */
+			   <22 0 &gpio0 15 0>,	/* GP22 pin 29 GPIO15 */
+			   <26 0 &gpio0 18 0>,	/* GP26 pin 31 GPIO18 */
+			   <27 0 &gpio0 16 0>,	/* GP27 pin 32 GPIO16 */
+			   <28 0 &gpio0 17 0>;	/* GP28 pin 34 GPIO17 */
+	};
+};
