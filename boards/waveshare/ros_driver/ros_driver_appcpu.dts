@@ -1,7 +1,7 @@
 /dts-v1/;
 
 #include <espressif/esp32/esp32_appcpu.dtsi>
-#include <espressif/partitions_0x0_amp_4M.dtsi>
+#include <espressif/partitions_0x1000_amp_4M.dtsi>
 
 / {
 	model = "Waveshare ROS Driver for Robotics APPCPU";

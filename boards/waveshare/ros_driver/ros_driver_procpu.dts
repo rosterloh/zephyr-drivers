@@ -1,7 +1,7 @@
 /dts-v1/;
 
 #include <espressif/esp32/esp32.dtsi>
-#include <espressif/partitions_0x0_amp_4M.dtsi>
+#include <espressif/partitions_0x1000_amp_4M.dtsi>
 #include "ros_driver-pinctrl.dtsi"
 #include "grove_connectors.dtsi"
 #include <zephyr/dt-bindings/input/input-event-codes.h>
