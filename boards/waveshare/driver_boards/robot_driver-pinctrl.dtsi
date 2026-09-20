@@ -1,0 +1,17 @@
+#include "waveshare_driver_common-pinctrl.dtsi"
+
+&pinctrl {
+	spim2_default: spim2_default {
+		group1 {
+			/* CS (GPIO15) is intentionally not routed here: the SD-over-SPI
+			 * driver drives it as a GPIO via &spi2 cs-gpios, since SPI-mode SD
+			 * holds CS asserted across multi-byte transactions. */
+			pinmux = <SPIM2_MISO_GPIO12>,
+				 <SPIM2_SCLK_GPIO14>;
+		};
+		group2 {
+			pinmux = <SPIM2_MOSI_GPIO13>;
+			output-low;
+		};
+	};
+};

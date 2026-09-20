@@ -1,0 +1,17 @@
+# General Robot Driver board configuration
+
+config BOARD_ROBOT_DRIVER
+	# Was SOC_ESP32_WROOM_32UE_N4, which no longer exists: upstream 8094e612
+	# deleted the per-module SoC symbols along with their dtsi files. It was
+	# also the wrong variant -- this board carries 16MB, not 4 -- but the
+	# symbol only selected SOC_ESP32, so nothing depended on the difference.
+	# The flash size now comes from &flash0 in the board devicetree.
+	select SOC_ESP32
+	# These guarded on BOARD_ROS_DRIVER_* rather than BOARD_ROBOT_DRIVER_*,
+	# copy-pasted from the ros_driver board, so neither select ever fired here.
+	select SOC_ESP32_PROCPU if BOARD_ROBOT_DRIVER_ESP32_PROCPU
+	select SOC_ESP32_APPCPU if BOARD_ROBOT_DRIVER_ESP32_APPCPU
+	# The board's partition table reserves slot0 at 0x10000; mark this so
+	# Zephyr's USE_DT_CODE_PARTITION can satisfy its dependency when sysbuild
+	# enables BOOTLOADER_MCUBOOT.
+	select HAS_FLASH_LOAD_OFFSET

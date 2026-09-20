@@ -1,0 +1,116 @@
+/dts-v1/;
+
+#include <espressif/esp32/esp32.dtsi>
+#include "robot_driver-pinctrl.dtsi"
+#include "waveshare_driver_common.dtsi"
+
+/ {
+	model = "Waveshare General Robot Driver PROCPU";
+};
+
+/*
+ * 16MB on the WROOM-32UE-N16. Zephyr removed the per-module SoC dtsi files
+ * (esp32_wroom_32ue_n16.dtsi and every sibling) in upstream 8094e612, "dts:
+ * espressif: remove the per-module SoC dtsi and Kconfig symbols", so the flash
+ * size is the board's to declare -- and it has to be, because the table below
+ * runs to 0x850000 and the partitions otherwise have no flash to sit in.
+ *
+ * FIXME: this table is this board's own rather than one of Zephyr's
+ * partitions_0x1000_amp_*.dtsi, and it has no APPCPU slot, which is why
+ * robot_driver_appcpu.dts carries a second, contradictory table for the same
+ * physical flash. partitions_0x1000_amp_16M.dtsi exists and would fix both.
+ * Changing it moves every partition on a flashed board, so it needs a full
+ * erase and a hardware verification pass, not a build.
+ */
+&flash0 {
+	reg = <0x0 DT_SIZE_M(16)>;
+	ranges = <0x0 0x0 DT_SIZE_M(16)>;
+	status = "okay";
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/* Reserve 60kB for the bootloader */
+		boot_partition: partition@1000 {
+			label = "mcuboot";
+			reg = <0x00001000 DT_SIZE_K(60)>;
+			read-only;
+		};
+
+		/* Reserve 4MB for the application in slot 0 */
+		slot0_partition: partition@10000 {
+			label = "image-0";
+			reg = <0x00010000 DT_SIZE_M(4)>;
+		};
+
+		/* Reserve 4MB for the application in slot 1 */
+		slot1_partition: partition@410000 {
+			label = "image-1";
+			reg = <0x00410000 DT_SIZE_M(4)>;
+		};
+
+		/* No image-scratch: MCUboot runs CONFIG_BOOT_SWAP_USING_MOVE, which
+		 * swaps in place and never uses a scratch area. Re-add one here if
+		 * CONFIG_BOOT_SWAP_USING_SCRATCH is ever selected.
+		 */
+
+		storage_partition: partition@810000 {
+			label = "storage";
+			reg = <0x00810000 DT_SIZE_K(256)>;
+		};
+	};
+};
+
+&i2c0 {
+	/* BMP280 barometric pressure/temperature sensor (SDO high => 0x77).
+	 * The BME280 driver also drives the BMP280 (it dispatches on chip id).
+	 * NOTE (2026-08-03): not fitted on the unit tested here -- `i2c scan` finds
+	 * nothing at either 0x77 or 0x76, so this device stays DISABLED and every
+	 * `sensor get bmp280` fails. Left enabled for board variants that do carry
+	 * it; set status = "disabled" if none of yours do. */
+	bmp280: bmp280@77 {
+		compatible = "bosch,bme280";
+		reg = <0x77>;
+	};
+
+	/* QMI8658C 6-axis IMU. SA0 is pulled HIGH on this board, so the address is
+	 * 0x6b, not the 0x6a the datasheet lists first -- at 0x6a the driver's
+	 * WHO_AM_I read got no reply and the device stayed DISABLED (visible only
+	 * via `device list`, since a failed sensor init is not otherwise announced).
+	 * Confirmed with `i2c scan i2c@3ff53000`: 0x0c, 0x3c, 0x42, 0x6b respond.
+	 * The qst,qmi8658a driver matches the C variant: same register map and
+	 * WHO_AM_I (0x05). Data-ready INT is not wired, so the driver runs in
+	 * polling mode (QMI8658A_TRIGGER_NONE). */
+	qmi8658c: qmi8658c@6b {
+		compatible = "qst,qmi8658a";
+		reg = <0x6b>;
+	};
+
+	/* AK09918C 3-axis magnetometer. Fixed I2C address 0x0c (no address-select
+	 * pins on the part). Polling mode; DRDY not wired. */
+	ak09918c: ak09918c@c {
+		compatible = "asahi-kasei,akm09918c";
+		reg = <0x0c>;
+	};
+};
+
+&spi2 {
+	/* MicroSD card in SPI mode: SCLK=GPIO14, MOSI(CMD)=GPIO13, MISO(D0)=GPIO12.
+	 * The SD CD/DAT3 pin is the chip-select on GPIO15, driven as a GPIO (see the
+	 * pinctrl note) so it stays asserted across the SD SPI command sequences. */
+	cs-gpios = <&gpio0 15 GPIO_ACTIVE_LOW>;
+
+	sdcard: sdhc@0 {
+		compatible = "zephyr,sdhc-spi-slot";
+		reg = <0>;
+		status = "okay";
+		spi-max-frequency = <20000000>;
+
+		mmc {
+			compatible = "zephyr,sdmmc-disk";
+			disk-name = "SD";
+			status = "okay";
+		};
+	};
+};

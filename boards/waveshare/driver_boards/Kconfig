@@ -1,0 +1,9 @@
+# Waveshare ESP32 driver boards, common configuration
+#
+# This file is sourced for every board in this directory, so each symbol has to
+# name all of them.
+
+config HEAP_MEM_POOL_ADD_SIZE_BOARD
+	int
+	default 4096 if BOARD_ROS_DRIVER_ESP32_PROCPU || BOARD_ROBOT_DRIVER_ESP32_PROCPU
+	default 256 if BOARD_ROS_DRIVER_ESP32_APPCPU || BOARD_ROBOT_DRIVER_ESP32_APPCPU

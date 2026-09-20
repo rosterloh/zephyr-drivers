@@ -1,0 +1,25 @@
+identifier: robot_driver/esp32/procpu
+name: General Robot Driver
+type: mcu
+arch: xtensa
+toolchain:
+  - zephyr
+supported:
+  - adc
+  - dac
+  - gpio
+  - i2c
+  - watchdog
+  - uart
+  - nvs
+  - pwm
+  - sdhc
+  - spi
+  - counter
+  - entropy
+  - input
+testing:
+  ignore_tags:
+    - net
+    - bluetooth
+vendor: waveshare

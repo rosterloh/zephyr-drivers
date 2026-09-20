@@ -1,17 +1,41 @@
 .. _ros_driver:
+.. _robot_driver:
 
-ROS-DRIVER
-##############
+Waveshare ESP32 driver boards
+#############################
 
 Overview
 ********
 
-ROS Driver for Robotics is an ESP32-based development board produced by `Waveshare <https://www.waveshare.com/>`_.
+Two ESP32-based robot controller boards produced by `Waveshare <https://www.waveshare.com/>`_,
+sharing one board directory because they share most of a design:
+
+``ros_driver``
+   ROS Driver for Robots, as shipped with the RaspRover. ESP32-WROOM-32UE-N4,
+   4 MB of flash, an ICM-20948 9-axis IMU at 0x68, and nothing on SPI2.
+
+``robot_driver``
+   General Driver for Robots. ESP32-WROOM-32UE-N16, 16 MB of flash, a QMI8658C
+   6-axis IMU at 0x6b paired with a separate AK09918C magnetometer at 0x0c, an
+   unfitted BMP280 footprint at 0x77, and a microSD slot on SPI2.
+
+Everything else is common and lives in ``waveshare_driver_common.dtsi``: the
+TB6612 dual H-bridge on LEDC channels 2 and 3 with PCNT encoders, the ST3215
+serial bus servo connector on ``uart1`` at 1 Mbps, the SSD1306 128x32 display
+at 0x3c and INA219 current monitor at 0x42 on ``i2c0``, two LEDs and the BOOT
+button.
+
+.. note::
+
+   The IMUs are not interchangeable in an application: different driver,
+   different register map, and the ICM-20948 keeps its AK09916 magnetometer
+   behind its own I2C master rather than on the host bus, which is why an
+   ``i2c scan`` on ``ros_driver`` shows no 0x0c.
 
 Functionality Overview
 **********************
 
-The block diagram below shows the main components of ROS-DRIVER and their interconnections.
+The block diagram below shows the main components and their interconnections.
 
 .. image:: img/esp-wroom-32-pinout.jpg
      :align: center
@@ -20,11 +44,11 @@ The block diagram below shows the main components of ROS-DRIVER and their interc
 External I2C connectors
 ***********************
 
-The board has two 4-pin PH2.0 I2C sockets, P3 and P4 on the schematic, wired
-in parallel to the same bus. That bus is ``i2c0``: GPIO32 is SDA and GPIO33 is
-SCL. It is shared with the onboard SSD1306 display (0x3c), the INA219 current
-monitor (0x42) and the ICM-20948 IMU (0x68, behind an LSF0204 level shifter),
-so an external device must not use those addresses.
+``ros_driver`` has two 4-pin PH2.0 I2C sockets, P3 and P4 on the schematic,
+wired in parallel to the same bus. That bus is ``i2c0``: GPIO32 is SDA and
+GPIO33 is SCL. It is shared with the onboard SSD1306 display (0x3c), the INA219
+current monitor (0x42) and the ICM-20948 IMU (0x68, behind an LSF0204 level
+shifter), so an external device must not use those addresses.
 
 ``grove_iic`` is a GPIO nexus over the two pins, for a driver that needs to
 bit-bang or recover the bus:
