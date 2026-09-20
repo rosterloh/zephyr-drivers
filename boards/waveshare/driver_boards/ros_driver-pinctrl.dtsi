@@ -1,0 +1,21 @@
+#include "waveshare_driver_common-pinctrl.dtsi"
+
+&pinctrl {
+	/* Nothing is attached to SPI2 on this board, so the hardware chip select
+	 * is routed through pinctrl rather than driven as a GPIO. A SPI device
+	 * added here that needs CS held across a multi-byte transaction -- an SD
+	 * card in SPI mode, as on general_driver -- must move GPIO15 to &spi2
+	 * cs-gpios and drop it from this group.
+	 */
+	spim2_default: spim2_default {
+		group1 {
+			pinmux = <SPIM2_MISO_GPIO12>,
+				 <SPIM2_SCLK_GPIO14>,
+				 <SPIM2_CSEL_GPIO15>;
+		};
+		group2 {
+			pinmux = <SPIM2_MOSI_GPIO13>;
+			output-low;
+		};
+	};
+};

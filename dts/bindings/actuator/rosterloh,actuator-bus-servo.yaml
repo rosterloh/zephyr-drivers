@@ -20,12 +20,42 @@ properties:
 
   position-min-rad-milli:
     type: int
+    description: |
+      Lower travel limit in milliradians. OMITTING THIS MEANS UNLIMITED TRAVEL,
+      not a safe default: the driver substitutes INT32_MIN, which rad_to_ticks()
+      reads as the "no limit" sentinel and skips the clamp entirely. A node that
+      forgets it drives the servo into its mechanical stop with no build error
+      and no runtime error -- only the LOG_WRN that bus_servo_actuator_init()
+      emits when either limit is absent.
+
+      This is deliberately not `required: true`. A board devicetree may legally
+      create the servo node for a connector it carries while knowing nothing
+      about what is plugged into it, leaving the measured geometry to the
+      application overlay; requiring the property here would make every such
+      board unbuildable by any application that does not describe a head.
+
+      Set it from a measurement, not a datasheet. rad_to_ticks() clamps to this
+      range SILENTLY, so a too-narrow value is invisible from the host and
+      presents as missing travel.
 
   position-max-rad-milli:
     type: int
+    description: |
+      Upper travel limit in milliradians. Absent means unlimited; see
+      position-min-rad-milli for why that is a trap and why neither limit is
+      required.
 
   invert-position:
     type: boolean
+    description: |
+      Flip the sign of the joint's positive sense relative to the servo's.
+
+      This is a property of how the joint is assembled, not of the controller,
+      so it belongs wherever the rest of the measured geometry lives. Note that
+      a devicetree boolean cannot be un-set by a later fragment -- an overlay
+      that needs it off must use `/delete-property/ invert-position;` -- which
+      is the main reason a board devicetree should not assert it on behalf of
+      an application.
 
   speed:
     type: int

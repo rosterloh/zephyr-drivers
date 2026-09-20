@@ -1,13 +1,26 @@
-/dts-v1/;
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Everything the Waveshare ESP32 driver boards in this directory have in
+ * common. They are different products -- different ESP32 module, different
+ * flash size, different IMU, and only one of them carries a microSD slot --
+ * but the rest of the board is the same design: the same TB6612 motor pair on
+ * the same LEDC channels and PCNT units, the same ST3215 servo bus on uart1,
+ * the same SSD1306 and INA219 on i2c0, the same two LEDs and BOOT button.
+ *
+ * WHAT DOES NOT BELONG HERE: anything a board disagrees about. That is the
+ * model string, &flash0 and its partitions, the IMU nodes on i2c0, and the
+ * SD card under &spi2. Each board's .dts includes this file and then states
+ * its own. Anything measured about what is BOLTED TO the board -- joint
+ * limits above all -- belongs in the application overlay and not in any file
+ * here; see the servo nodes below.
+ */
 
-#include <espressif/esp32/esp32.dtsi>
-#include <espressif/partitions_0x1000_amp_4M.dtsi>
-#include "ros_driver-pinctrl.dtsi"
-#include "grove_connectors.dtsi"
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
-	model = "Waveshare ROS Driver for Robotics PROCPU";
 	compatible = "espressif,esp32";
 
 	aliases {
@@ -127,21 +140,34 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
+		/*
+		 * Identity only: which servo sits at which bus id on the servo
+		 * connector these boards carry. Every measured value -- travel
+		 * limits and the tilt inversion -- belongs to the head rather than
+		 * to the controller, and belongs in the application overlay;
+		 * ticks-per-rev, rad-zero-tick, speed and accel are already
+		 * defaulted by rosterloh,actuator-bus-servo.yaml and do not need
+		 * restating anywhere.
+		 *
+		 * Do not add a measured value back here. A board devicetree is
+		 * applied BEFORE the application overlay, so a limit stated here is
+		 * silently overridden on the applications that set their own and
+		 * silently authoritative on any that forgets -- which is how
+		 * ros_driver came to carry a tilt minimum of -524 mrad against the
+		 * -785 measured on the rig, giving away 15 deg of travel that
+		 * rad_to_ticks() then clamped without a word. Omitting the limits
+		 * is not free either: absent means UNLIMITED, so the driver logs a
+		 * warning at init when an application leaves them out.
+		 */
 		gimbal_pan_servo: servo@2 {
 			compatible = "rosterloh,actuator-bus-servo";
 			reg = <2>;
 			/* The actuator shell addresses devices by this label, and a
 			 * space makes the name unusable there: `actuator get
 			 * feedback pan` reports not found, and the quoted form
-			 * matches nothing either. Matches robot_driver. */
+			 * matches nothing either. */
 			label = "pan";
 			default-mode = "position";
-			ticks-per-rev = <4096>;
-			rad-zero-tick = <2047>;
-			position-min-rad-milli = <(-3142)>;
-			position-max-rad-milli = <3142>;
-			speed = <300>;
-			accel = <20>;
 		};
 
 		gimbal_tilt_servo: servo@1 {
@@ -149,19 +175,13 @@
 			reg = <1>;
 			label = "tilt";
 			default-mode = "position";
-			ticks-per-rev = <4096>;
-			rad-zero-tick = <2047>;
-			position-min-rad-milli = <(-524)>;
-			position-max-rad-milli = <1571>;
-			invert-position;
-			speed = <300>;
-			accel = <20>;
 		};
 	};
 };
 
-/* Pins the ESP32-WROOM-32UE-N4 module consumes or does not bond out. The SoC
- * dtsi no longer reserves these, so the board states them.
+/* Pins the ESP32-WROOM-32UE module consumes or does not bond out. The SoC
+ * dtsi no longer reserves these, so the board states them. Identical on both
+ * modules: the N4 and the N16 differ only in flash size.
  */
 &gpio0 {
 	gpio-reserved-ranges = <6 6>,			/* SPI flash */
@@ -213,22 +233,15 @@
 		lsb-microamp = <100>;
 	};
 
-	/* ICM-20948 9-axis IMU. This board carries the ICM-20948 where later
-	 * revisions of the Waveshare driver boards carry a QMI8658C + AK09918C
-	 * pair, so the two are not interchangeable in an application: different
-	 * driver, different register map, different magnetometer arrangement.
-	 *
-	 * Address 0x68 (AD0 low) confirmed 2026-08-28 by `i2c scan
-	 * i2c@3ff53000` on a bench unit, which answered at 0x3c, 0x42 and 0x68
-	 * and nothing else. Note the absence of 0x0c: the AK09916 magnetometer
-	 * is behind this part's own I2C master, not on the host bus, which is
-	 * why the driver does not expose it. */
-	icm20948: icm20948@68 {
-		compatible = "invensense,icm20948";
-		reg = <0x68>;
-	};
+	/* The IMU is the one i2c0 device the boards disagree about -- ICM-20948
+	 * on ros_driver, QMI8658C plus a separate AK09918C on general_driver -- so
+	 * it is declared in each board's own .dts. They are not interchangeable
+	 * in an application: different driver, different register map, different
+	 * magnetometer arrangement.
+	 */
 };
 
+/* The bus itself is common; only general_driver has anything on it. */
 &spi2 {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -236,7 +249,6 @@
 	pinctrl-0 = <&spim2_default>;
 	pinctrl-names = "default";
 };
-
 
 &ledc0 {
 	pinctrl-0 = <&ledc0_default>;
@@ -284,15 +296,6 @@
 
 &psram0 {
 	status = "disabled";
-};
-
-/* 4MB flash on the WROOM-32UE-N4; the SoC dtsi no longer sets reg or ranges.
- * Partitions come from partitions_0x0_amp_4M.dtsi, included above.
- */
-&flash0 {
-	reg = <0x0 DT_SIZE_M(4)>;
-	ranges = <0x0 0x0 DT_SIZE_M(4)>;
-	status = "okay";
 };
 
 &esp32_bt_hci {

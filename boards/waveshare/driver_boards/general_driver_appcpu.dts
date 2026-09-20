@@ -1,10 +1,10 @@
 /dts-v1/;
 
 #include <espressif/esp32/esp32_appcpu.dtsi>
-#include <espressif/partitions_0x1000_amp_4M.dtsi>
+#include <espressif/partitions_0x1000_amp_16M.dtsi>
 
 / {
-	model = "Waveshare ROS Driver for Robotics APPCPU";
+	model = "Waveshare General Driver for Robots APPCPU";
 	compatible = "espressif,esp32";
 
 	chosen {
@@ -28,7 +28,7 @@
  * and the partition table above describes the same physical flash.
  */
 &flash0 {
-	reg = <0x0 DT_SIZE_M(4)>;
-	ranges = <0x0 0x0 DT_SIZE_M(4)>;
+	reg = <0x0 DT_SIZE_M(16)>;
+	ranges = <0x0 0x0 DT_SIZE_M(16)>;
 	status = "okay";
 };

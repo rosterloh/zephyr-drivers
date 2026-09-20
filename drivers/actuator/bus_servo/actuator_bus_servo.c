@@ -289,6 +289,18 @@ static int bus_servo_actuator_init(const struct device *dev)
 		return -ENODEV;
 	}
 
+	/* An absent position-min/max-rad-milli is INT32_MIN/INT32_MAX here, which
+	 * rad_to_ticks() reads as "no limit" and skips the clamp for. That is a
+	 * legal configuration -- a test rig wants it -- but on a real joint it
+	 * means the servo will drive into its mechanical stop, and nothing else
+	 * says so: the property is optional, so there is no build error, and the
+	 * actuator still inits and reports READY. Say it once, here.
+	 */
+	if (cfg->pos_min_milli == INT32_MIN || cfg->pos_max_milli == INT32_MAX) {
+		LOG_WRN("%s: no position-%s-rad-milli, travel is unbounded", dev->name,
+			cfg->pos_min_milli == INT32_MIN ? "min" : "max");
+	}
+
 	d->self = dev;
 	d->common.state = ACTUATOR_STATE_DISABLED;
 	d->common.caps = cfg->caps;

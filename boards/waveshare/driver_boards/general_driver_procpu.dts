@@ -1,0 +1,73 @@
+/dts-v1/;
+
+#include <espressif/esp32/esp32.dtsi>
+#include <espressif/partitions_0x1000_amp_16M.dtsi>
+#include "general_driver-pinctrl.dtsi"
+#include "waveshare_driver_common.dtsi"
+
+/ {
+	model = "Waveshare General Driver for Robots PROCPU";
+};
+
+/* 16MB flash on the WROOM-32UE-N16; the SoC dtsi no longer sets reg or ranges
+ * (upstream 8094e612 removed the per-module SoC dtsi files). Partitions come
+ * from partitions_0x1000_amp_16M.dtsi, included above.
+ */
+&flash0 {
+	reg = <0x0 DT_SIZE_M(16)>;
+	ranges = <0x0 0x0 DT_SIZE_M(16)>;
+	status = "okay";
+};
+
+&i2c0 {
+	/* BMP280 barometric pressure/temperature sensor (SDO high => 0x77).
+	 * The BME280 driver also drives the BMP280 (it dispatches on chip id).
+	 * NOTE (2026-08-03): not fitted on the unit tested here -- `i2c scan` finds
+	 * nothing at either 0x77 or 0x76, so this device stays DISABLED and every
+	 * `sensor get bmp280` fails. Left enabled for board variants that do carry
+	 * it; set status = "disabled" if none of yours do. */
+	bmp280: bmp280@77 {
+		compatible = "bosch,bme280";
+		reg = <0x77>;
+	};
+
+	/* QMI8658C 6-axis IMU. SA0 is pulled HIGH on this board, so the address is
+	 * 0x6b, not the 0x6a the datasheet lists first -- at 0x6a the driver's
+	 * WHO_AM_I read got no reply and the device stayed DISABLED (visible only
+	 * via `device list`, since a failed sensor init is not otherwise announced).
+	 * Confirmed with `i2c scan i2c@3ff53000`: 0x0c, 0x3c, 0x42, 0x6b respond.
+	 * The qst,qmi8658a driver matches the C variant: same register map and
+	 * WHO_AM_I (0x05). Data-ready INT is not wired, so the driver runs in
+	 * polling mode (QMI8658A_TRIGGER_NONE). */
+	qmi8658c: qmi8658c@6b {
+		compatible = "qst,qmi8658a";
+		reg = <0x6b>;
+	};
+
+	/* AK09918C 3-axis magnetometer. Fixed I2C address 0x0c (no address-select
+	 * pins on the part). Polling mode; DRDY not wired. */
+	ak09918c: ak09918c@c {
+		compatible = "asahi-kasei,akm09918c";
+		reg = <0x0c>;
+	};
+};
+
+&spi2 {
+	/* MicroSD card in SPI mode: SCLK=GPIO14, MOSI(CMD)=GPIO13, MISO(D0)=GPIO12.
+	 * The SD CD/DAT3 pin is the chip-select on GPIO15, driven as a GPIO (see the
+	 * pinctrl note) so it stays asserted across the SD SPI command sequences. */
+	cs-gpios = <&gpio0 15 GPIO_ACTIVE_LOW>;
+
+	sdcard: sdhc@0 {
+		compatible = "zephyr,sdhc-spi-slot";
+		reg = <0>;
+		status = "okay";
+		spi-max-frequency = <20000000>;
+
+		mmc {
+			compatible = "zephyr,sdmmc-disk";
+			disk-name = "SD";
+			status = "okay";
+		};
+	};
+};

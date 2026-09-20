@@ -1,5 +1,5 @@
 identifier: ros_driver/esp32/appcpu
-name: ROS Driver for Robotics
+name: ROS Driver for Robots
 type: mcu
 arch: xtensa
 toolchain:

@@ -1,12 +1,10 @@
-identifier: ros_driver/esp32/procpu
-name: ROS Driver for Robotics
+identifier: general_driver/esp32/procpu
+name: General Driver for Robots
 type: mcu
 arch: xtensa
 toolchain:
   - zephyr
 supported:
-  - adc
-  - dac
   - gpio
   - i2c
   - watchdog
