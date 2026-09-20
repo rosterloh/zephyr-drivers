@@ -9,7 +9,7 @@
 #include "waveshare_driver_common.dtsi"
 
 / {
-	model = "Waveshare ROS Driver for Robotics PROCPU";
+	model = "Waveshare ROS Driver for Robots PROCPU";
 };
 
 /* 4MB flash on the WROOM-32UE-N4; the SoC dtsi no longer sets reg or ranges.

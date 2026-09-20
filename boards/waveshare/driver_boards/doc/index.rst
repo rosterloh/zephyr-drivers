@@ -66,11 +66,88 @@ bit-bang or recover the bus:
    puts 3V3 on the module's SCL pin. The ``grove-header`` binding is used for
    its nexus semantics only, not as a claim of mechanical compatibility.
 
+``general_driver`` does not enable a nexus over its connectors. Its ``i2c0`` is
+the same bus on the same pins, shared with the SSD1306 (0x3c), the INA219
+(0x42), the QMI8658C IMU (0x6b), the AK09918C magnetometer (0x0c) and the
+BMP280 footprint (0x77), so an external device must avoid all five.
+
+microSD, ``general_driver`` only
+********************************
+
+The microSD slot is an SD card in SPI mode on ``spi2``: SCLK on GPIO14,
+MOSI (CMD) on GPIO13, MISO (D0) on GPIO12. The card's CD/DAT3 pin is the chip
+select on GPIO15, driven as a **GPIO** through ``&spi2 cs-gpios`` rather than
+routed through pinctrl, because SPI-mode SD holds CS asserted across a
+multi-byte command sequence and the hardware CS does not.
+
+``ros_driver`` has no card slot. Its ``spi2`` is enabled with no devices on it
+and its chip select *is* routed through pinctrl, so a SPI peripheral added
+there that needs CS held across a transaction has to move GPIO15 into
+``cs-gpios`` the way ``general_driver`` does.
+
+Flash layout
+************
+
+Both boards use Zephyr's shared Espressif AMP partition tables, so the PROCPU
+and APPCPU describe the same physical flash and each core's image has a slot
+of its own.
+
+``ros_driver`` — ``espressif/partitions_0x1000_amp_4M.dtsi``
+
+===================  ==========  ==========
+Partition            Offset      Size
+===================  ==========  ==========
+``mcuboot``          0x001000    60 KiB
+``sys``              0x010000    64 KiB
+``image-0``          0x020000    1344 KiB
+``image-1``          0x170000    1344 KiB
+``image-0-appcpu``   0x2c0000    448 KiB
+``image-1-appcpu``   0x330000    448 KiB
+``storage``          0x3b0000    192 KiB
+``coredump``         0x3ff000    4 KiB
+===================  ==========  ==========
+
+``general_driver`` — ``espressif/partitions_0x1000_amp_16M.dtsi``
+
+===================  ==========  ==========
+Partition            Offset      Size
+===================  ==========  ==========
+``mcuboot``          0x001000    60 KiB
+``sys``              0x010000    64 KiB
+``image-0``          0x020000    5952 KiB
+``image-1``          0x5f0000    5952 KiB
+``image-0-appcpu``   0xbc0000    1984 KiB
+``image-1-appcpu``   0xdb0000    1984 KiB
+``storage``          0xfb0000    192 KiB
+``coredump``         0xfff000    4 KiB
+===================  ==========  ==========
+
+Both tables also carry a pair of 32 KiB ``lpcore`` slots. The ESP32 has no
+low-power core, so they are dead weight that comes with the shared table.
+
+Neither table has an ``image-scratch``. MCUboot must therefore run
+``CONFIG_BOOT_SWAP_USING_MOVE`` and not ``CONFIG_BOOT_SWAP_USING_SCRATCH``.
+
+.. warning::
+
+   ``general_driver`` adopted this table in place of a hand-written one where
+   the application sat at 0x10000 with a 4 MB slot0 and ``storage`` at
+   0x810000. **A board programmed with the older layout needs a full erase**,
+   not a flash — otherwise MCUboot looks for an image where there is none and
+   stale key-value data sits at an address nothing reads:
+
+   .. code-block:: console
+
+      esptool erase-flash
+
+   Anything kept in ``storage`` — WiFi credentials, hostname, application
+   settings — is lost and has to be re-provisioned.
+
 System requirements
-===================
+*******************
 
 Prerequisites
--------------
+=============
 
 Espressif HAL requires WiFi and Bluetooth binary blobs in order work. Run the command
 below to retrieve those files.
@@ -85,6 +162,15 @@ below to retrieve those files.
 
 Building & Flashing
 *******************
+
+Every example below uses ``ros_driver``. Substitute ``general_driver`` for the
+other board; the two take identical commands. Four board targets exist and all
+four build:
+
+* ``ros_driver/esp32/procpu``
+* ``ros_driver/esp32/appcpu``
+* ``general_driver/esp32/procpu``
+* ``general_driver/esp32/appcpu``
 
 Simple boot
 ===========
@@ -110,10 +196,14 @@ There are two options to be used when building an application:
 .. note::
 
    User can select the MCUboot bootloader by adding the following line
-   to the board default configuration file.
-   ```
-   CONFIG_BOOTLOADER_MCUBOOT=y
-   ```
+   to the board default configuration file:
+
+   .. code-block:: cfg
+
+      CONFIG_BOOTLOADER_MCUBOOT=y
+
+   ``Kconfig.sysbuild`` in this directory already defaults both boards to
+   MCUboot with ``BOOT_SIGNATURE_TYPE_NONE`` under sysbuild.
 
 Sysbuild
 ========
@@ -207,9 +297,9 @@ Debugging
 ESP32 support on OpenOCD is available upstream as of version 0.12.0.
 Download and install OpenOCD from `OpenOCD`_.
 
-On the ROS Driver board, the JTAG pins are not run to a
-standard connector (e.g. ARM 20-pin) and need to be manually connected
-to the external programmer (e.g. a Flyswatter2):
+On both boards the JTAG pins are not run to a standard connector (e.g. ARM
+20-pin) and need to be manually connected to the external programmer (e.g. a
+Flyswatter2):
 
 +------------+-----------+
 | ESP32 pin  | JTAG pin  |
@@ -228,6 +318,20 @@ to the external programmer (e.g. a Flyswatter2):
 +------------+-----------+
 | IO15       | TDO       |
 +------------+-----------+
+
+.. warning::
+
+   **JTAG and SPI2 are the same four pins.** IO12, IO13, IO14 and IO15 are
+   MISO, MOSI, SCLK and CS on ``spi2``, which on ``general_driver`` is the
+   microSD slot. A debug probe and the card cannot both have them: attach the
+   probe and SD transfers fail, leave the card in and JTAG is unreliable.
+   Disable ``&spi2`` (and on ``general_driver`` the ``sdcard`` node) in an
+   overlay for the duration of a JTAG session, or debug over the serial
+   console instead.
+
+   This is why ``spim2_default`` lives in each board's own ``-pinctrl.dtsi``
+   rather than the shared one — the two boards make different claims on
+   GPIO15.
 
 Further documentation can be obtained from the SoC vendor in `JTAG debugging
 for ESP32`_.
@@ -264,7 +368,15 @@ GDB stub is enabled on ESP32.
 Related Documents
 *****************
 
-.. _ROS_DRIVER schematics: https://files.waveshare.com/wiki/RaspRover/ROS_Driver_for_Robots.pdf (PDF)
-.. _ESP32 Datasheet: https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf (PDF)
-.. _ESP32-WROOM-32UE Datasheet: https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32e_esp32-wroom-32ue_datasheet_en.pdf (PDF)
+* `ROS Driver for Robots schematic`_ (PDF)
+* `General Driver for Robots wiki`_
+* `ESP32 Datasheet`_ (PDF)
+* `ESP32-WROOM-32UE Datasheet`_ (PDF) — the N4 is on ``ros_driver``, the N16 on
+  ``general_driver``; the modules differ only in flash size
+* `ESP32 Hardware Reference`_
+
+.. _ROS Driver for Robots schematic: https://files.waveshare.com/wiki/RaspRover/ROS_Driver_for_Robots.pdf
+.. _General Driver for Robots wiki: https://www.waveshare.com/wiki/General_Driver_for_Robots
+.. _ESP32 Datasheet: https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf
+.. _ESP32-WROOM-32UE Datasheet: https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32e_esp32-wroom-32ue_datasheet_en.pdf
 .. _ESP32 Hardware Reference: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/index.html
