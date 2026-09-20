@@ -127,6 +127,25 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
+		/*
+		 * Identity only: which servo sits at which bus id on THIS board's
+		 * connector. Every measured value -- travel limits and the tilt
+		 * inversion -- belongs to the head rather than to the controller,
+		 * and belongs in the application overlay; ticks-per-rev,
+		 * rad-zero-tick, speed and accel are already defaulted by
+		 * rosterloh,actuator-bus-servo.yaml and do not need restating
+		 * anywhere.
+		 *
+		 * Do not add a measured value back here. A board devicetree is
+		 * applied BEFORE the application overlay, so a limit stated here is
+		 * silently overridden on the applications that set their own and
+		 * silently authoritative on any that forgets -- which is how this
+		 * board came to carry a tilt minimum of -524 mrad against the -785
+		 * measured on the rig, giving away 15 deg of travel that
+		 * rad_to_ticks() then clamped without a word. Omitting the limits
+		 * is not free either: absent means UNLIMITED, so the driver logs a
+		 * warning at init when an application leaves them out.
+		 */
 		gimbal_pan_servo: servo@2 {
 			compatible = "rosterloh,actuator-bus-servo";
 			reg = <2>;
@@ -136,12 +155,6 @@
 			 * matches nothing either. Matches robot_driver. */
 			label = "pan";
 			default-mode = "position";
-			ticks-per-rev = <4096>;
-			rad-zero-tick = <2047>;
-			position-min-rad-milli = <(-3142)>;
-			position-max-rad-milli = <3142>;
-			speed = <300>;
-			accel = <20>;
 		};
 
 		gimbal_tilt_servo: servo@1 {
@@ -149,13 +162,6 @@
 			reg = <1>;
 			label = "tilt";
 			default-mode = "position";
-			ticks-per-rev = <4096>;
-			rad-zero-tick = <2047>;
-			position-min-rad-milli = <(-524)>;
-			position-max-rad-milli = <1571>;
-			invert-position;
-			speed = <300>;
-			accel = <20>;
 		};
 	};
 };
