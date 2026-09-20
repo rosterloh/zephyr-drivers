@@ -1,6 +1,7 @@
 /dts-v1/;
 
 #include <espressif/esp32/esp32_appcpu.dtsi>
+#include <espressif/partitions_0x1000_amp_16M.dtsi>
 
 / {
 	model = "Waveshare General Robot Driver APPCPU";
@@ -10,6 +11,8 @@
 		zephyr,sram = &sram0;
 		zephyr,ipc_shm = &shm0;
 		zephyr,ipc = &ipm0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_appcpu_partition;
 	};
 };
 
@@ -21,68 +24,11 @@
 	status = "okay";
 };
 
-/*
- * BROKEN, AND KNOWINGLY LEFT SO. `west build -b robot_driver/esp32/appcpu`
- * does not configure, for hello_world or anything else. Moving this board into
- * the shared directory is what surfaced it; nothing in eit_firmware builds the
- * APPCPU, so nobody had tried.
- *
- * Three things are missing, and only the first two are safe to add:
- *
- *  1. &flash0 has no reg/ranges. esp32_appcpu.dtsi stopped supplying them when
- *     upstream 8094e612 removed the per-module SoC dtsi files, so dtc rejects
- *     the tree outright: "flash@0: node has a unit name, but no reg or ranges".
- *  2. /chosen has no zephyr,flash, so soc/espressif/common/CMakeLists.txt:62
- *     calls dt_reg_size() on an empty path and fails.
- *  3. There is nowhere for an APPCPU image to go. The table below is a SECOND,
- *     CONTRADICTORY description of the same physical flash as
- *     robot_driver_procpu.dts, and the two OVERLAP: slot0 here is 1MB at
- *     0x10000, which sits entirely inside the 4MB slot0 the PROCPU occupies
- *     from the same address. Supplying a zephyr,code-partition to make the
- *     build succeed would link an APPCPU image over the main application. A
- *     configure-time failure is the better of the two.
- *
- * THE FIX is the one ros_driver already has: share a single AMP table between
- * both cores. partitions_0x1000_amp_16M.dtsi is the 16MB equivalent and gives
- * slot0_appcpu_partition a home of its own. It moves every partition on an
- * already-flashed board, so it needs a full erase and a hardware pass rather
- * than a build, which is why it is not part of the directory migration.
+/* Must match the PROCPU flash: esp32_appcpu.dtsi no longer sets reg or ranges,
+ * and the partition table above describes the same physical flash.
  */
 &flash0 {
+	reg = <0x0 DT_SIZE_M(16)>;
+	ranges = <0x0 0x0 DT_SIZE_M(16)>;
 	status = "okay";
-	partitions {
-		compatible = "fixed-partitions";
-		#address-cells = <1>;
-		#size-cells = <1>;
-
-		/* Reserve 60kB for the bootloader */
-		boot_partition: partition@1000 {
-			label = "mcuboot";
-			reg = <0x00001000 DT_SIZE_K(60)>;
-			read-only;
-		};
-
-		/* Reserve 1024kB for the application in slot 0 */
-		slot0_partition: partition@10000 {
-			label = "image-0";
-			reg = <0x00010000 DT_SIZE_M(1)>;
-		};
-
-		/* Reserve 1024kB for the application in slot 1 */
-		slot1_partition: partition@110000 {
-			label = "image-1";
-			reg = <0x00110000 DT_SIZE_M(1)>;
-		};
-
-		/* Reserve 256kB for the scratch partition */
-		scratch_partition: partition@210000 {
-			label = "image-scratch";
-			reg = <0x00210000 DT_SIZE_K(256)>;
-		};
-
-		storage_partition: partition@250000 {
-			label = "storage";
-			reg = <0x00250000 DT_SIZE_K(24)>;
-		};
-	};
 };
