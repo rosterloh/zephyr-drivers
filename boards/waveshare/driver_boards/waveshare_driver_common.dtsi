@@ -234,14 +234,14 @@
 	};
 
 	/* The IMU is the one i2c0 device the boards disagree about -- ICM-20948
-	 * on ros_driver, QMI8658C plus a separate AK09918C on robot_driver -- so
+	 * on ros_driver, QMI8658C plus a separate AK09918C on general_driver -- so
 	 * it is declared in each board's own .dts. They are not interchangeable
 	 * in an application: different driver, different register map, different
 	 * magnetometer arrangement.
 	 */
 };
 
-/* The bus itself is common; only robot_driver has anything on it. */
+/* The bus itself is common; only general_driver has anything on it. */
 &spi2 {
 	#address-cells = <1>;
 	#size-cells = <0>;

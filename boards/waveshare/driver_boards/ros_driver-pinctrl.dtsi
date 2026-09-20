@@ -4,7 +4,7 @@
 	/* Nothing is attached to SPI2 on this board, so the hardware chip select
 	 * is routed through pinctrl rather than driven as a GPIO. A SPI device
 	 * added here that needs CS held across a multi-byte transaction -- an SD
-	 * card in SPI mode, as on robot_driver -- must move GPIO15 to &spi2
+	 * card in SPI mode, as on general_driver -- must move GPIO15 to &spi2
 	 * cs-gpios and drop it from this group.
 	 */
 	spim2_default: spim2_default {

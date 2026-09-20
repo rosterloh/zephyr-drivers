@@ -1,5 +1,5 @@
 .. _ros_driver:
-.. _robot_driver:
+.. _general_driver:
 
 Waveshare ESP32 driver boards
 #############################
@@ -14,7 +14,7 @@ sharing one board directory because they share most of a design:
    ROS Driver for Robots, as shipped with the RaspRover. ESP32-WROOM-32UE-N4,
    4 MB of flash, an ICM-20948 9-axis IMU at 0x68, and nothing on SPI2.
 
-``robot_driver``
+``general_driver``
    General Driver for Robots. ESP32-WROOM-32UE-N16, 16 MB of flash, a QMI8658C
    6-axis IMU at 0x6b paired with a separate AK09918C magnetometer at 0x0c, an
    unfitted BMP280 footprint at 0x77, and a microSD slot on SPI2.

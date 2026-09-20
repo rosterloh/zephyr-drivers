@@ -3,7 +3,7 @@
 #
 # They are separate products with separate board names, not variants of one
 # board: different ESP32 module (N4 vs N16), different flash size, different
-# IMU, and only robot_driver carries a microSD slot. Zephyr's `variants:` would
+# IMU, and only general_driver carries a microSD slot. Zephyr's `variants:` would
 # not help -- a variant needs its own complete .dts and its own _defconfig, so
 # it shares nothing that a #include does not already share, while renaming
 # every board target in every consuming repository.
@@ -13,7 +13,7 @@ boards:
     vendor: waveshare
     socs:
       - name: esp32
-  - name: robot_driver
+  - name: general_driver
     full_name: Waveshare General Driver for Robots
     vendor: waveshare
     socs:

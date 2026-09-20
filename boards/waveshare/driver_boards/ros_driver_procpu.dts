@@ -23,7 +23,7 @@
 
 &i2c0 {
 	/* ICM-20948 9-axis IMU. This board carries the ICM-20948 where
-	 * robot_driver carries a QMI8658C + AK09918C pair, so the two are not
+	 * general_driver carries a QMI8658C + AK09918C pair, so the two are not
 	 * interchangeable in an application: different driver, different register
 	 * map, different magnetometer arrangement.
 	 *
