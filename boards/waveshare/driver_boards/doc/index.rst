@@ -125,6 +125,18 @@ Partition            Offset      Size
 Both tables also carry a pair of 32 KiB ``lpcore`` slots. The ESP32 has no
 low-power core, so they are dead weight that comes with the shared table.
 
+.. note::
+
+   **Flash size comes from the devicetree, not from Kconfig.**
+   ``soc/espressif/common/CMakeLists.txt`` takes ``reg`` on the ``zephyr,flash``
+   chosen node and feeds it to both ``esptool elf2image --flash-size``, which
+   writes the size field in the image header, and the ``esp32`` runner's
+   ``--esp-flash-size``. Setting ``CONFIG_ESPTOOLPY_FLASHSIZE_4MB`` or
+   ``_16MB`` in a board defconfig changes neither: the string
+   ``CONFIG_ESPTOOLPY_FLASHSIZE`` has no consumer in the tree, and the boolean
+   variants are read only by ``esp_flash_spi_init.c``, which tests just the
+   32/64/128MB cases. Declare the size once, on ``&flash0``.
+
 Neither table has an ``image-scratch``. MCUboot must therefore run
 ``CONFIG_BOOT_SWAP_USING_MOVE`` and not ``CONFIG_BOOT_SWAP_USING_SCRATCH``.
 
