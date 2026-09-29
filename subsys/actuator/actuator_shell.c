@@ -81,17 +81,20 @@ static int cmd_status(const struct shell *sh, size_t argc, char **argv)
 		}
 		const char *state = state_name(actuator_get_state(dev));
 
-		if (actuator_get_feedback(dev, &fb) != 0 || !(fb.valid_mask & ACTUATOR_FB_POSITION)) {
+		if (actuator_get_feedback(dev, &fb) != 0 ||
+		    !(fb.valid_mask & ACTUATOR_FB_POSITION)) {
 			shell_print(sh, "%-10s %-8s pos=--", dev->name, state);
 			continue;
 		}
 		if (fb.timestamp_us == 0U || fb.timestamp_us > now_us) {
 			shell_print(sh, "%-10s %-8s pos=%10.4f vel=%9.4f flags=0x%08x", dev->name,
-				    state, (double)fb.position, (double)fb.velocity, fb.fault_flags);
+				    state, (double)fb.position, (double)fb.velocity,
+				    fb.fault_flags);
 		} else {
 			shell_print(sh, "%-10s %-8s pos=%10.4f vel=%9.4f flags=0x%08x age=%u ms",
 				    dev->name, state, (double)fb.position, (double)fb.velocity,
-				    fb.fault_flags, (unsigned int)((now_us - fb.timestamp_us) / 1000U));
+				    fb.fault_flags,
+				    (unsigned int)((now_us - fb.timestamp_us) / 1000U));
 		}
 	}
 	if (count == 0) {
