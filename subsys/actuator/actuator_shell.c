@@ -7,9 +7,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include <zephyr/device.h>
+#include <zephyr/kernel.h>
 #include <zephyr/shell/shell.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/actuator/actuator.h>
+
+static const char *const state_names[] = {"DISABLED", "READY", "ALIGNING", "ACTIVE", "FAULT"};
+
+static const char *state_name(enum actuator_state s)
+{
+	return (size_t)s < ARRAY_SIZE(state_names) ? state_names[s] : "?";
+}
 
 static const struct device *resolve(const struct shell *sh, const char *name)
 {
@@ -37,6 +45,54 @@ static int cmd_list(const struct shell *sh, size_t argc, char **argv)
 		}
 		shell_print(sh, "%s%s", dev->name, device_is_ready(dev) ? "" : " (not ready)");
 		count++;
+	}
+	if (count == 0) {
+		shell_print(sh, "no actuators configured");
+	}
+	return 0;
+}
+
+/*
+ * One line per actuator from the CACHED feedback sample: no bus traffic, so it
+ * is safe to repeat while axes move, and a sample's age exposes a device whose
+ * poller has gone quiet. `get feedback` is the live read.
+ */
+static int cmd_status(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	const struct device *devs;
+	size_t n = z_device_get_all_static(&devs);
+	size_t count = 0;
+	uint64_t now_us = (uint64_t)k_uptime_get() * 1000U;
+
+	for (size_t i = 0; i < n; i++) {
+		const struct device *dev = &devs[i];
+		struct actuator_feedback fb;
+
+		if (!DEVICE_API_IS(actuator, dev)) {
+			continue;
+		}
+		count++;
+		if (!device_is_ready(dev)) {
+			shell_print(sh, "%-10s not ready", dev->name);
+			continue;
+		}
+		const char *state = state_name(actuator_get_state(dev));
+
+		if (actuator_get_feedback(dev, &fb) != 0 || !(fb.valid_mask & ACTUATOR_FB_POSITION)) {
+			shell_print(sh, "%-10s %-8s pos=--", dev->name, state);
+			continue;
+		}
+		if (fb.timestamp_us == 0U || fb.timestamp_us > now_us) {
+			shell_print(sh, "%-10s %-8s pos=%10.4f vel=%9.4f flags=0x%08x", dev->name,
+				    state, (double)fb.position, (double)fb.velocity, fb.fault_flags);
+		} else {
+			shell_print(sh, "%-10s %-8s pos=%10.4f vel=%9.4f flags=0x%08x age=%u ms",
+				    dev->name, state, (double)fb.position, (double)fb.velocity,
+				    fb.fault_flags, (unsigned int)((now_us - fb.timestamp_us) / 1000U));
+		}
 	}
 	if (count == 0) {
 		shell_print(sh, "no actuators configured");
@@ -109,9 +165,7 @@ static int cmd_get_state(const struct shell *sh, size_t argc, char **argv)
 	if (!dev) {
 		return -ENODEV;
 	}
-	static const char *const names[] = {"DISABLED", "READY", "ALIGNING", "ACTIVE", "FAULT"};
-	enum actuator_state s = actuator_get_state(dev);
-	shell_print(sh, "%s", (size_t)s < ARRAY_SIZE(names) ? names[s] : "?");
+	shell_print(sh, "%s", state_name(actuator_get_state(dev)));
 	return 0;
 }
 
@@ -196,6 +250,10 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 
 SHELL_STATIC_SUBCMD_SET_CREATE(
 	actuator_subcmds,
+	SHELL_CMD(status, NULL,
+		  "Every actuator's state and last cached position, velocity and fault flags,\n"
+		  "with the sample's age. No bus traffic. Usage: actuator status",
+		  cmd_status),
 	SHELL_CMD(list, NULL, "List the names of all configured actuators.\nUsage: actuator list",
 		  cmd_list),
 	SHELL_CMD_ARG(enable, NULL, "Energize an actuator.\nUsage: actuator enable <name>",
