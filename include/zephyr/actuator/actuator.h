@@ -44,6 +44,19 @@ __syscall int actuator_set_velocity(const struct device *dev, float rad_s);
 __syscall int actuator_set_effort(const struct device *dev, float nm);
 
 /**
+ * Command an open-loop drive: a signed fraction of the supply, -1.0..1.0.
+ * The sign sets the direction; out-of-range values are clamped. Nothing
+ * regulates speed or torque, so use this rather than velocity/effort on a
+ * backend without a closed loop.
+ *
+ * @retval 0         Setpoint accepted.
+ * @retval -EINVAL   @p duty is NaN.
+ * @retval -ENOTSUP  Backend does not advertise ACTUATOR_CAP_DUTY.
+ * @retval -EPERM    Actuator is in FAULT state; clear fault first.
+ */
+__syscall int actuator_set_duty(const struct device *dev, float duty);
+
+/**
  * Set the output policy of the actuator's power stage.
  *
  * Orthogonal to the actuator state machine: setting a drive mode does not

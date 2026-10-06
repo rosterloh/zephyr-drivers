@@ -15,7 +15,9 @@ the kinematics/control code is welded to one motor type.
 
 The subsystem hides that behind one API with **typed SI setpoints**
 (position in rad, velocity in rad/s, effort in N·m) so the same control code
-runs against any backend. See `include/zephyr/actuator/actuator.h`.
+runs against any backend. A backend with no closed loop (e.g. the H-bridge)
+offers open-loop `duty` instead (-1.0..1.0 of supply) rather than pretending a
+duty cycle is a velocity. See `include/zephyr/actuator/actuator.h`.
 
 ## Core ideas
 
@@ -24,9 +26,9 @@ runs against any backend. See `include/zephyr/actuator/actuator.h`.
 Not every actuator can do everything — a cheap servo may only do position, an
 FOC controller may need a startup alignment phase. Each backend advertises what
 it supports as a capability bitmask (`ACTUATOR_CAP_POSITION`,
-`ACTUATOR_CAP_VELOCITY`, `ACTUATOR_CAP_EFFORT`, `ACTUATOR_CAP_NEEDS_ALIGN`,
-`ACTUATOR_CAP_FAULT_LATCHING`, `ACTUATOR_CAP_DRIVE_MODE`,
-`ACTUATOR_CAP_GROUP_NATIVE`). The subsystem checks the requested operation
+`ACTUATOR_CAP_VELOCITY`, `ACTUATOR_CAP_EFFORT`, `ACTUATOR_CAP_DUTY`,
+`ACTUATOR_CAP_NEEDS_ALIGN`, `ACTUATOR_CAP_FAULT_LATCHING`,
+`ACTUATOR_CAP_DRIVE_MODE`, `ACTUATOR_CAP_GROUP_NATIVE`). The subsystem checks the requested operation
 against the bitmask and returns `-ENOTSUP` rather than dispatching something the
 hardware can't do. Query at runtime with `actuator_get_capabilities()`.
 

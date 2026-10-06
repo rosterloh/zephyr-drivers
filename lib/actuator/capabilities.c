@@ -19,6 +19,9 @@ int actuator_cap_check_mode(uint32_t caps, enum actuator_mode mode)
 	case ACTUATOR_MODE_EFFORT:
 		needed = ACTUATOR_CAP_EFFORT;
 		break;
+	case ACTUATOR_MODE_DUTY:
+		needed = ACTUATOR_CAP_DUTY;
+		break;
 	case ACTUATOR_MODE_DISABLED:
 	default:
 		return -EINVAL;

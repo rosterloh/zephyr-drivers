@@ -7,4 +7,4 @@ include: [actuator-common.yaml]
 properties:
   capabilities:
     type: int
-    default: 7  # POSITION | VELOCITY | EFFORT
+    default: 135  # POSITION | VELOCITY | EFFORT | DUTY

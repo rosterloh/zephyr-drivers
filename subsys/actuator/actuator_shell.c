@@ -140,7 +140,8 @@ static int cmd_clear_fault(const struct shell *sh, size_t argc, char **argv)
 static int cmd_set(const struct shell *sh, size_t argc, char **argv)
 {
 	if (argc < 4) {
-		shell_error(sh, "usage: actuator set <name> <position|velocity|effort> <value>");
+		shell_error(sh,
+			    "usage: actuator set <name> <position|velocity|effort|duty> <value>");
 		return -EINVAL;
 	}
 	const struct device *dev = resolve(sh, argv[1]);
@@ -156,6 +157,9 @@ static int cmd_set(const struct shell *sh, size_t argc, char **argv)
 	}
 	if (strcmp(argv[2], "effort") == 0) {
 		return actuator_set_effort(dev, v);
+	}
+	if (strcmp(argv[2], "duty") == 0) {
+		return actuator_set_duty(dev, v);
 	}
 	shell_error(sh, "unknown mode: %s", argv[2]);
 	return -EINVAL;
@@ -197,10 +201,11 @@ static int cmd_get_caps(const struct shell *sh, size_t argc, char **argv)
 		return -ENODEV;
 	}
 	uint32_t c = actuator_get_capabilities(dev);
-	shell_print(sh, "caps=0x%02x%s%s%s%s%s%s%s", c,
+	shell_print(sh, "caps=0x%02x%s%s%s%s%s%s%s%s", c,
 		    (c & ACTUATOR_CAP_POSITION) ? " POSITION" : "",
 		    (c & ACTUATOR_CAP_VELOCITY) ? " VELOCITY" : "",
 		    (c & ACTUATOR_CAP_EFFORT) ? " EFFORT" : "",
+		    (c & ACTUATOR_CAP_DUTY) ? " DUTY" : "",
 		    (c & ACTUATOR_CAP_NEEDS_ALIGN) ? " NEEDS_ALIGN" : "",
 		    (c & ACTUATOR_CAP_GROUP_NATIVE) ? " GROUP_NATIVE" : "",
 		    (c & ACTUATOR_CAP_FAULT_LATCHING) ? " FAULT_LATCHING" : "",
@@ -268,8 +273,8 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		      "Usage: actuator clear_fault <name>",
 		      cmd_clear_fault, 2, 0),
 	SHELL_CMD_ARG(set, NULL,
-		      "Command a setpoint (position rad, velocity rad/s, effort Nm).\n"
-		      "Usage: actuator set <name> <position|velocity|effort> <value>",
+		      "Command a setpoint (position rad, velocity rad/s, effort Nm, duty -1..1).\n"
+		      "Usage: actuator set <name> <position|velocity|effort|duty> <value>",
 		      cmd_set, 4, 0),
 	SHELL_CMD_ARG(mode, NULL,
 		      "Set the power-stage drive mode.\n"

@@ -19,6 +19,7 @@ enum actuator_mode {
 	ACTUATOR_MODE_POSITION, /**< setpoint in radians                  */
 	ACTUATOR_MODE_VELOCITY, /**< setpoint in rad/s                    */
 	ACTUATOR_MODE_EFFORT,   /**< setpoint in N*m (torque)             */
+	ACTUATOR_MODE_DUTY,     /**< open-loop drive, -1.0..1.0 of supply */
 };
 
 /** Driver capability bits. Returned by actuator_get_capabilities(). */
@@ -29,6 +30,7 @@ enum actuator_mode {
 #define ACTUATOR_CAP_GROUP_NATIVE   BIT(4) /**< backend has a real group_op */
 #define ACTUATOR_CAP_FAULT_LATCHING BIT(5) /**< faults need explicit clear  */
 #define ACTUATOR_CAP_DRIVE_MODE     BIT(6) /**< supports actuator_set_drive_mode  */
+#define ACTUATOR_CAP_DUTY           BIT(7) /**< open-loop duty setpoints         */
 
 /** State machine. Owned by the subsystem; transitions reported by drivers. */
 enum actuator_state {

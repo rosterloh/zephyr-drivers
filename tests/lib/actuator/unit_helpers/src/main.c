@@ -47,3 +47,34 @@ ZTEST(actuator_units, test_scale_linear_clamps_out_of_range)
 	zassert_equal(actuator_scale_linear(-2.0f, -1.0f, 1.0f, 0, 4095), 0);
 	zassert_equal(actuator_scale_linear(5.0f, -1.0f, 1.0f, 0, 4095), 4095);
 }
+
+ZTEST(actuator_units, test_ramp_accelerates_at_up_rate)
+{
+	/* 2/s over 0.1 s = 0.2 per tick */
+	zassert_within(actuator_ramp_step(0.0f, 1.0f, 2.0f, 4.0f, 0.1f), 0.2f, 1e-6f);
+	zassert_within(actuator_ramp_step(0.0f, -1.0f, 2.0f, 4.0f, 0.1f), -0.2f, 1e-6f);
+}
+
+ZTEST(actuator_units, test_ramp_decelerates_at_down_rate)
+{
+	zassert_within(actuator_ramp_step(1.0f, 0.0f, 2.0f, 4.0f, 0.1f), 0.6f, 1e-6f);
+	zassert_within(actuator_ramp_step(-1.0f, -0.5f, 2.0f, 4.0f, 0.1f), -0.6f, 1e-6f);
+}
+
+ZTEST(actuator_units, test_ramp_reversal_stops_at_zero_first)
+{
+	zassert_within(actuator_ramp_step(0.3f, -1.0f, 2.0f, 4.0f, 0.1f), 0.0f, 1e-6f);
+	zassert_within(actuator_ramp_step(0.0f, -1.0f, 2.0f, 4.0f, 0.1f), -0.2f, 1e-6f);
+}
+
+ZTEST(actuator_units, test_ramp_lands_exactly_on_target)
+{
+	zassert_equal(actuator_ramp_step(0.9f, 1.0f, 2.0f, 4.0f, 0.1f), 1.0f);
+}
+
+ZTEST(actuator_units, test_ramp_zero_rate_is_unlimited)
+{
+	zassert_equal(actuator_ramp_step(0.0f, 1.0f, 0.0f, 0.0f, 0.1f), 1.0f);
+	/* unlimited down still decelerates to 0 before reversing */
+	zassert_equal(actuator_ramp_step(1.0f, -1.0f, 2.0f, 0.0f, 0.1f), 0.0f);
+}

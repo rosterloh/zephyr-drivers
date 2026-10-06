@@ -34,6 +34,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/slist.h>
 #include <zephyr/actuator/actuator.h>
+#include <zephyr/actuator/internal/unit_helpers.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846f
@@ -49,6 +50,12 @@ struct hbridge_data {
 	struct actuator_cb_node cb_pool[HB_CB_POOL];
 	const struct device *self;
 	struct k_work_delayable feedback_work;
+	/* Guards the duty fields and every PWM/IN1/IN2 write. */
+	struct k_mutex duty_lock;
+	struct k_work_delayable ramp_work;
+	float duty;
+	float duty_target;
+	bool ramping;
 	float last_position_rad;
 	uint64_t last_timestamp_us;
 	bool position_valid;
@@ -74,6 +81,9 @@ struct hbridge_config {
 #endif
 	uint32_t pwm_period_ns;
 	uint32_t update_period_ms;
+	float ramp_up_per_s; /* 0 = unlimited */
+	float ramp_down_per_s;
+	uint32_t ramp_period_ms;
 	enum actuator_mode default_mode;
 	uint32_t caps;
 };
@@ -232,7 +242,12 @@ static int hb_disable(const struct device *dev)
 	struct hbridge_data *d = dev->data;
 	const struct hbridge_config *cfg = dev->config;
 
+	k_mutex_lock(&d->duty_lock, K_FOREVER);
+	d->ramping = false;
+	d->duty = 0.0f;
+	d->duty_target = 0.0f;
 	(void)pwm_set_dt(&cfg->pwm, cfg->pwm_period_ns, 0);
+	k_mutex_unlock(&d->duty_lock);
 	k_work_cancel_delayable(&d->feedback_work);
 	d->position_valid = false;
 	if (cfg->has_stby) {
@@ -241,26 +256,72 @@ static int hb_disable(const struct device *dev)
 	return 0;
 }
 
-static int hb_set_setpoint(const struct device *dev, enum actuator_mode mode, float value)
+static void hb_ramp_work(struct k_work *work)
 {
+	struct k_work_delayable *dw = k_work_delayable_from_work(work);
+	struct hbridge_data *d = CONTAINER_OF(dw, struct hbridge_data, ramp_work);
+	const struct device *dev = d->self;
 	const struct hbridge_config *cfg = dev->config;
+	int err = 0;
 
-	if (mode != ACTUATOR_MODE_VELOCITY && mode != ACTUATOR_MODE_EFFORT) {
-		return -ENOTSUP;
+	k_mutex_lock(&d->duty_lock, K_FOREVER);
+	/* The subsystem leaves the outputs alone on FAULT; at least stop ramping up. */
+	if (d->ramping && d->common.state == ACTUATOR_STATE_FAULT) {
+		d->ramping = false;
 	}
-	return hbridge_set_pwm(cfg, value);
+	if (d->ramping) {
+		d->duty = actuator_ramp_step(d->duty, d->duty_target, cfg->ramp_up_per_s,
+					     cfg->ramp_down_per_s, cfg->ramp_period_ms / 1000.0f);
+		err = hbridge_set_pwm(cfg, d->duty);
+		d->ramping = (err == 0) && (d->duty != d->duty_target);
+		if (d->ramping) {
+			k_work_schedule(&d->ramp_work, K_MSEC(cfg->ramp_period_ms));
+		}
+	}
+	k_mutex_unlock(&d->duty_lock);
+
+	if (err != 0) {
+		actuator_report_state(dev, ACTUATOR_SM_EVT_FAULT, ACTUATOR_FAULT_DRIVER(0));
+	}
 }
 
-static int hb_set_drive_mode(const struct device *dev, enum actuator_drive_mode mode)
+static int hb_set_setpoint(const struct device *dev, enum actuator_mode mode, float value)
 {
+	struct hbridge_data *d = dev->data;
 	const struct hbridge_config *cfg = dev->config;
 
-	if (!cfg->has_in2) {
-		/* Single-GPIO (PWM+DIR) variant: cannot independently command
-		 * brake or coast; the silicon decides what PWM=0 means. The
-		 * subsystem should already have rejected this via the cap, but
-		 * guard anyway. */
+	if (mode != ACTUATOR_MODE_DUTY) {
 		return -ENOTSUP;
+	}
+
+	k_mutex_lock(&d->duty_lock, K_FOREVER);
+	d->duty_target = CLAMP(value, -1.0f, 1.0f);
+	if (cfg->ramp_up_per_s <= 0.0f && cfg->ramp_down_per_s <= 0.0f) {
+		d->duty = d->duty_target;
+	}
+	/* Reassert the current duty now: the subsystem's NORMAL drive-mode call
+	 * just before this zeroed the outputs. */
+	int err = hbridge_set_pwm(cfg, d->duty);
+
+	d->ramping = (err == 0) && (d->duty != d->duty_target);
+	if (d->ramping) {
+		k_work_schedule(&d->ramp_work, K_MSEC(cfg->ramp_period_ms));
+	}
+	k_mutex_unlock(&d->duty_lock);
+	return err;
+}
+
+/* Caller holds duty_lock. */
+static int hb_apply_drive_mode(struct hbridge_data *d, const struct hbridge_config *cfg,
+			       enum actuator_drive_mode mode)
+{
+	/* Any drive mode stops the ramp. NORMAL keeps the duty so the setpoint
+	 * that follows it resumes the ramp from where it was; BRAKE/COAST stop
+	 * the motor, so the next ramp starts from 0. */
+	d->ramping = false;
+	if (mode != ACTUATOR_DRIVE_MODE_NORMAL) {
+		d->duty = 0.0f;
+		d->duty_target = 0.0f;
 	}
 
 	int err = pwm_set_dt(&cfg->pwm, cfg->pwm_period_ns, 0);
@@ -291,6 +352,26 @@ static int hb_set_drive_mode(const struct device *dev, enum actuator_drive_mode 
 		return err;
 	}
 	return gpio_pin_set_dt(&cfg->in2, in2_val);
+}
+
+static int hb_set_drive_mode(const struct device *dev, enum actuator_drive_mode mode)
+{
+	struct hbridge_data *d = dev->data;
+	const struct hbridge_config *cfg = dev->config;
+
+	if (!cfg->has_in2) {
+		/* Single-GPIO (PWM+DIR) variant: cannot independently command
+		 * brake or coast; the silicon decides what PWM=0 means. The
+		 * subsystem should already have rejected this via the cap, but
+		 * guard anyway. */
+		return -ENOTSUP;
+	}
+
+	k_mutex_lock(&d->duty_lock, K_FOREVER);
+	int err = hb_apply_drive_mode(d, cfg, mode);
+
+	k_mutex_unlock(&d->duty_lock);
+	return err;
 }
 
 static DEVICE_API(actuator, hb_api) = {
@@ -359,6 +440,8 @@ static int hb_init(const struct device *dev)
 	atomic_set(&d->cb_storage.used, 0);
 	sys_slist_init(&d->cb_storage.list);
 	k_work_init_delayable(&d->feedback_work, hb_feedback_work);
+	k_mutex_init(&d->duty_lock);
+	k_work_init_delayable(&d->ramp_work, hb_ramp_work);
 	return 0;
 }
 
@@ -367,13 +450,10 @@ static int hb_init(const struct device *dev)
 #define HB_HAS_ENCODER(inst)       DT_INST_NODE_HAS_PROP(inst, encoder)
 #define HB_HAS_CURRENT_SENSE(inst) DT_INST_NODE_HAS_PROP(inst, io_channels)
 
-#define HB_CAPS(inst)                                                                              \
-	(ACTUATOR_CAP_VELOCITY |                                                                   \
-	 ((HB_HAS_CURRENT_SENSE(inst) && DT_INST_PROP_OR(inst, torque_constant_mnm_per_a, 0) > 0)  \
-		  ? ACTUATOR_CAP_EFFORT                                                            \
-		  : 0) |                                                                           \
-	 (HB_HAS_ENCODER(inst) ? ACTUATOR_CAP_POSITION : 0) |                                      \
-	 (HB_HAS_IN2(inst) ? ACTUATOR_CAP_DRIVE_MODE : 0))
+/* Open loop only: the encoder and current sense feed feedback, not a loop. */
+#define HB_CAPS(inst) (ACTUATOR_CAP_DUTY | (HB_HAS_IN2(inst) ? ACTUATOR_CAP_DRIVE_MODE : 0))
+
+#define HB_RAMP_UP(inst) (DT_INST_PROP_OR(inst, ramp_up_permille_per_s, 0) / 1000.0f)
 
 #ifdef CONFIG_ACTUATOR_HBRIDGE_ENCODER
 #define HB_ENCODER_INIT(inst)                                                                      \
@@ -412,7 +492,13 @@ static int hb_init(const struct device *dev)
 		HB_ENCODER_INIT(inst) HB_CURRENT_SENSE_INIT(inst).pwm_period_ns =                  \
 			DT_INST_PROP(inst, pwm_period_ns),                                         \
 		.update_period_ms = DT_INST_PROP(inst, update_period_ms),                          \
-		.default_mode = ACTUATOR_MODE_VELOCITY,                                            \
+		.ramp_up_per_s = HB_RAMP_UP(inst),                                                 \
+		.ramp_down_per_s =                                                                 \
+			COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, ramp_down_permille_per_s),         \
+				    (DT_INST_PROP(inst, ramp_down_permille_per_s) / 1000.0f),      \
+				    (HB_RAMP_UP(inst))),                                           \
+		.ramp_period_ms = DT_INST_PROP(inst, ramp_period_ms),                              \
+		.default_mode = ACTUATOR_MODE_DUTY,                                                \
 		.caps = HB_CAPS(inst),                                                             \
 	};                                                                                         \
 	DEVICE_DT_INST_DEFINE(inst, hb_init, NULL, &hb_data_##inst, &hb_config_##inst,             \

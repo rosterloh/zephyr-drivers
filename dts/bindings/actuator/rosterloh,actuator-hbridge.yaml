@@ -1,6 +1,10 @@
 description: |
   H-bridge DC motor with optional encoder and current sense.
 
+  Open loop: the backend advertises ACTUATOR_CAP_DUTY only, and
+  actuator_set_duty() sets the signed PWM duty (-1.0..1.0). The encoder
+  and current sense populate feedback; nothing closes a loop on them.
+
   Signalling is selected by the presence of in2-gpios:
     - Only in1-gpios present  → PWM + DIR signalling (one direction GPIO).
       The driver does not advertise ACTUATOR_CAP_DRIVE_MODE in this mode.
@@ -45,14 +49,14 @@ properties:
   io-channels:
     type: phandle-array
     description: |
-      Optional ADC channel for current sense. Enables CAP_EFFORT and
-      ACTUATOR_FAULT_OVERCURRENT detection.
+      Optional ADC channel for current sense. Enables effort feedback (with
+      torque-constant-mnm-per-a) and ACTUATOR_FAULT_OVERCURRENT detection.
 
   encoder:
     type: phandle
     description: |
-      Optional phandle to a qdec sensor node. Enables CAP_POSITION and
-      CAP_VELOCITY.
+      Optional phandle to a qdec sensor node. Enables position and velocity
+      feedback.
 
   torque-constant-mnm-per-a:
     type: int
@@ -70,3 +74,22 @@ properties:
   pwm-period-ns:
     type: int
     default: 50000  # 20 kHz
+
+  ramp-up-permille-per-s:
+    type: int
+    description: |
+      Slew limit while the duty magnitude grows, in per-mille of full scale
+      per second (2000 = 0 to full in 0.5 s). Unset or 0 = no limit.
+
+  ramp-down-permille-per-s:
+    type: int
+    description: |
+      Slew limit while the duty magnitude shrinks toward 0, including the
+      first half of a reversal. Unset uses ramp-up-permille-per-s; 0 = no
+      limit. A gentle value avoids reverse-current spikes when braking a
+      loaded motor. actuator_disable() and BRAKE/COAST bypass the ramp.
+
+  ramp-period-ms:
+    type: int
+    default: 10
+    description: Tick of the ramp worker.

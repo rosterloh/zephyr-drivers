@@ -24,6 +24,13 @@ float actuator_clamp_nan(float value, float min, float max);
 int32_t actuator_scale_linear(float value, float src_lo, float src_hi, int32_t dst_lo,
 			      int32_t dst_hi);
 
+/**
+ * Advance @p current one tick of @p dt_s toward @p target. Growing magnitude
+ * moves at @p up_per_s, shrinking magnitude at @p down_per_s; a sign change
+ * first decelerates to 0. A rate <= 0 means unlimited.
+ */
+float actuator_ramp_step(float current, float target, float up_per_s, float down_per_s, float dt_s);
+
 #ifdef __cplusplus
 }
 #endif

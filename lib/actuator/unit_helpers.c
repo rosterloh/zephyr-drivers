@@ -4,6 +4,7 @@
  */
 
 #include <math.h>
+#include <stdbool.h>
 #include <zephyr/actuator/internal/unit_helpers.h>
 
 float actuator_clamp_nan(float value, float min, float max)
@@ -32,4 +33,23 @@ int32_t actuator_scale_linear(float value, float src_lo, float src_hi, int32_t d
 	float t = (value - src_lo) / (src_hi - src_lo);
 	float scaled = (float)dst_lo + t * (float)(dst_hi - dst_lo);
 	return (int32_t)scaled;
+}
+
+float actuator_ramp_step(float current, float target, float up_per_s, float down_per_s, float dt_s)
+{
+	bool reversing = (current > 0.0f && target < 0.0f) || (current < 0.0f && target > 0.0f);
+	bool shrinking = reversing || fabsf(target) < fabsf(current);
+	float goal = reversing ? 0.0f : target;
+	float rate = shrinking ? down_per_s : up_per_s;
+
+	if (rate <= 0.0f) {
+		return goal;
+	}
+	float max_step = rate * dt_s;
+	float delta = goal - current;
+
+	if (fabsf(delta) <= max_step) {
+		return goal;
+	}
+	return current + copysignf(max_step, delta);
 }

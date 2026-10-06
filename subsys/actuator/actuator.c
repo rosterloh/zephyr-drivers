@@ -4,6 +4,7 @@
  */
 
 #include <errno.h>
+#include <math.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/actuator/actuator.h>
@@ -261,6 +262,14 @@ int z_impl_actuator_set_velocity(const struct device *dev, float rad_s)
 int z_impl_actuator_set_effort(const struct device *dev, float nm)
 {
 	return set_setpoint_typed(dev, ACTUATOR_MODE_EFFORT, nm);
+}
+
+int z_impl_actuator_set_duty(const struct device *dev, float duty)
+{
+	if (isnan(duty)) {
+		return -EINVAL;
+	}
+	return set_setpoint_typed(dev, ACTUATOR_MODE_DUTY, duty);
 }
 
 /* Implemented in actuator_callbacks.c. */

@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <math.h>
 #include <zephyr/ztest.h>
 #include <zephyr/device.h>
 #include <zephyr/actuator/actuator.h>
@@ -148,4 +149,12 @@ ZTEST(actuator_subsys, test_setpoint_auto_clears_drive_mode)
 	zassert_ok(actuator_set_position(FAKE0, 0.5f));
 	zassert_equal(fake_get_drive_mode(FAKE0), ACTUATOR_DRIVE_MODE_NORMAL,
 		      "setpoint must implicitly return to NORMAL");
+}
+
+ZTEST(actuator_subsys, test_set_duty_rejects_nan_and_missing_cap)
+{
+	zassert_equal(actuator_set_duty(FAKE0, NAN), -EINVAL);
+	/* fake0 does not advertise ACTUATOR_CAP_DUTY */
+	zassert_equal(actuator_set_duty(FAKE0, 0.5f), -ENOTSUP);
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_DISABLED);
 }
