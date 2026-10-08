@@ -46,6 +46,7 @@ int actuator_group_clear_fault(const struct actuator_group *grp);
 int actuator_group_set_position(const struct actuator_group *grp, const float rad[]);
 int actuator_group_set_velocity(const struct actuator_group *grp, const float rad_s[]);
 int actuator_group_set_effort(const struct actuator_group *grp, const float nm[]);
+int actuator_group_set_duty(const struct actuator_group *grp, const float duty[]);
 
 int actuator_group_read_feedback(const struct actuator_group *grp, struct actuator_feedback fb[]);
 

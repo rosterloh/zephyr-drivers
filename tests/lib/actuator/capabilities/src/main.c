@@ -24,3 +24,9 @@ ZTEST(actuator_caps, test_all_modes_caps)
 	const uint32_t caps = ACTUATOR_CAP_POSITION | ACTUATOR_CAP_VELOCITY | ACTUATOR_CAP_EFFORT;
 	zassert_equal(actuator_cap_check_mode(caps, ACTUATOR_MODE_EFFORT), 0);
 }
+
+ZTEST(actuator_caps, test_duty_needs_its_own_cap)
+{
+	zassert_equal(actuator_cap_check_mode(ACTUATOR_CAP_VELOCITY, ACTUATOR_MODE_DUTY), -ENOTSUP);
+	zassert_equal(actuator_cap_check_mode(ACTUATOR_CAP_DUTY, ACTUATOR_MODE_DUTY), 0);
+}

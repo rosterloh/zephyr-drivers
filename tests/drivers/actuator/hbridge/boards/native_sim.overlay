@@ -28,5 +28,7 @@
 		in1-gpios = <&gpio_emul 1 GPIO_ACTIVE_HIGH>;
 		in2-gpios = <&gpio_emul 2 GPIO_ACTIVE_HIGH>;
 		stby-gpios = <&gpio_emul 3 GPIO_ACTIVE_HIGH>;
+		ramp-up-permille-per-s = <2000>;
+		ramp-down-permille-per-s = <4000>;
 	};
 };

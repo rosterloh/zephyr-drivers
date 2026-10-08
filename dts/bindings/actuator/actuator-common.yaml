@@ -8,6 +8,7 @@ properties:
       - "position"
       - "velocity"
       - "effort"
+      - "duty"
     default: "position"
     description: |
       Mode the subsystem promotes the actuator to on first setpoint call.

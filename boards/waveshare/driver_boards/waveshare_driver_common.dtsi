@@ -95,7 +95,7 @@
 		in2-gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>; /* AIN1 */
 		encoder = <&pcnt_unit0>;
 		pwm-period-ns = <10000>; /* 100 kHz, vendor-proven */
-		default-mode = "velocity";
+		default-mode = "duty";
 		label = "Left motor";
 	};
 
@@ -106,7 +106,7 @@
 		in2-gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>; /* BIN1 */
 		encoder = <&pcnt_unit1>;
 		pwm-period-ns = <10000>;
-		default-mode = "velocity";
+		default-mode = "duty";
 		label = "Right motor";
 	};
 };

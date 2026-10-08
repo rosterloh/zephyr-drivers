@@ -94,6 +94,9 @@ static int per_device_set(const struct actuator_group *grp, enum actuator_mode m
 		case ACTUATOR_MODE_EFFORT:
 			err = actuator_set_effort(grp->devs[i], values[i]);
 			break;
+		case ACTUATOR_MODE_DUTY:
+			err = actuator_set_duty(grp->devs[i], values[i]);
+			break;
 		default:
 			return -EINVAL;
 		}
@@ -131,6 +134,11 @@ int actuator_group_set_velocity(const struct actuator_group *grp, const float ra
 int actuator_group_set_effort(const struct actuator_group *grp, const float nm[])
 {
 	return dispatch_set(grp, ACTUATOR_MODE_EFFORT, nm);
+}
+
+int actuator_group_set_duty(const struct actuator_group *grp, const float duty[])
+{
+	return dispatch_set(grp, ACTUATOR_MODE_DUTY, duty);
 }
 
 int actuator_group_read_feedback(const struct actuator_group *grp, struct actuator_feedback fb[])
