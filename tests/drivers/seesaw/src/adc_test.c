@@ -59,8 +59,8 @@ ZTEST(adc_seesaw, test_read_returns_seeded_value)
 	zassert_not_null(target);
 	zassert_ok(adc_channel_setup(adc_dev, &cfg));
 
-	/* SAMD09: logical channel 3 -> pin 5 -> reg = ADC_BASE(0x09) | (0x07+5) = 0x090C. */
-	zassert_ok(mfd_seesaw_mock_set_register(target->data, (0x09 << 8) | (0x07 + 5), 0x02AB));
+	/* SAMD09: logical channel 3 (pin 5) -> reg = ADC_BASE(0x09) | (0x07+3) = 0x090A. */
+	zassert_ok(mfd_seesaw_mock_set_register(target->data, (0x09 << 8) | (0x07 + 3), 0x02AB));
 
 	uint16_t sample = 0;
 	const struct adc_sequence seq = {
@@ -72,6 +72,36 @@ ZTEST(adc_seesaw, test_read_returns_seeded_value)
 
 	zassert_ok(adc_read(adc_dev, &seq));
 	zassert_equal(sample, 0x02AB, "expected 0x02AB, got 0x%04x", sample);
+}
+
+/* The SAMD09 firmware indexes its ADC result registers by ADC input (0..3),
+ * not by GPIO pin (2..5): Adafruit_seesaw::analogRead() maps pin 2 to offset
+ * 0. Reading OFFSET + pin returns another input's (or no) sample.
+ */
+ZTEST(adc_seesaw, test_samd09_channel_is_register_offset)
+{
+	const struct emul *target = EMUL_DT_GET(DT_PARENT(ADC_NODE));
+	struct adc_channel_cfg cfg = {
+		.gain = ADC_GAIN_1,
+		.reference = ADC_REF_INTERNAL,
+		.acquisition_time = ADC_ACQ_TIME_DEFAULT,
+		.channel_id = 0,
+	};
+
+	zassert_ok(adc_channel_setup(adc_dev, &cfg));
+	zassert_ok(mfd_seesaw_mock_set_register(target->data, (0x09 << 8) | (0x07 + 0), 0x0111));
+	zassert_ok(mfd_seesaw_mock_set_register(target->data, (0x09 << 8) | (0x07 + 2), 0x0222));
+
+	uint16_t sample = 0;
+	const struct adc_sequence seq = {
+		.channels = BIT(0),
+		.buffer = &sample,
+		.buffer_size = sizeof(sample),
+		.resolution = 10,
+	};
+
+	zassert_ok(adc_read(adc_dev, &seq));
+	zassert_equal(sample, 0x0111, "expected input 0's sample 0x0111, got 0x%04x", sample);
 }
 
 ZTEST(adc_seesaw, test_high_channel_id_not_truncated)

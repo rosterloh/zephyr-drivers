@@ -18,8 +18,10 @@ LOG_MODULE_REGISTER(adc_seesaw, CONFIG_ADC_ADAFRUIT_SEESAW_LOG_LEVEL);
 #define SEESAW_ADC_CHANNEL_OFFSET 0x07U
 #define SEESAW_HW_ID_CODE_SAMD09  0x55U
 
-/* SAMD09 maps logical ADC inputs 0..3 to chip GPIO pins 2,3,4,5. */
-static const uint8_t samd09_adc_pin_map[4] = {2U, 3U, 4U, 5U};
+/* SAMD09 has four ADC inputs (chip GPIO pins 2..5). Its result registers are
+ * indexed by input number, matching Adafruit_seesaw::analogRead().
+ */
+#define SAMD09_ADC_INPUTS 4U
 
 #define ADC_SEESAW_MAX_CHANNELS 32U
 
@@ -57,24 +59,19 @@ static int adc_seesaw_channel_setup(const struct device *dev, const struct adc_c
 static int adc_seesaw_read_one(const struct device *dev, uint8_t logical_chan, uint16_t *out)
 {
 	const struct adc_seesaw_config *cfg = dev->config;
-	uint8_t pin;
 	uint8_t buf[2];
 	int ret;
 
-	if (mfd_seesaw_hw_id(cfg->mfd) == SEESAW_HW_ID_CODE_SAMD09) {
-		if (logical_chan >= ARRAY_SIZE(samd09_adc_pin_map)) {
-			return -EINVAL;
-		}
-		pin = samd09_adc_pin_map[logical_chan];
-	} else {
-		pin = logical_chan;
+	if (mfd_seesaw_hw_id(cfg->mfd) == SEESAW_HW_ID_CODE_SAMD09 &&
+	    logical_chan >= SAMD09_ADC_INPUTS) {
+		return -EINVAL;
 	}
 
 	/* Seesaw ADC conversion needs ~500 us after the channel-select write
 	 * before the result register is valid.
 	 */
-	ret = mfd_seesaw_read(cfg->mfd, SEESAW_ADC_BASE, SEESAW_ADC_CHANNEL_OFFSET + pin, buf,
-			      sizeof(buf), 500);
+	ret = mfd_seesaw_read(cfg->mfd, SEESAW_ADC_BASE, SEESAW_ADC_CHANNEL_OFFSET + logical_chan,
+			      buf, sizeof(buf), 500);
 	if (ret == 0) {
 		*out = sys_get_be16(buf);
 	}
