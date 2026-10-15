@@ -201,8 +201,11 @@ static const struct i2c_emul_api mfd_seesaw_emul_api_i2c = {
 				{SEESAW_GPIO_BASE, SEESAW_GPIO_INTFLAG, 4, 0},                     \
 				{SEESAW_GPIO_BASE, SEESAW_GPIO_PULLENSET, 4, 0},                   \
 				{SEESAW_GPIO_BASE, SEESAW_GPIO_PULLENCLR, 4,                       \
-				 0}, /* ADC: SAMD09 logical channel 3 -> pin 5 */                  \
-				{SEESAW_ADC_BASE, SEESAW_ADC_CHANNEL_OFFSET + 5, 2,                \
+				 0}, /* ADC: SAMD09 logical channels 0..3 */                       \
+				{SEESAW_ADC_BASE, SEESAW_ADC_CHANNEL_OFFSET + 0, 2, 0},            \
+				{SEESAW_ADC_BASE, SEESAW_ADC_CHANNEL_OFFSET + 1, 2, 0},            \
+				{SEESAW_ADC_BASE, SEESAW_ADC_CHANNEL_OFFSET + 2, 2, 0},            \
+				{SEESAW_ADC_BASE, SEESAW_ADC_CHANNEL_OFFSET + 3, 2,                \
 				 0}, /* PWM timer: freq and duty per-pin writes */                 \
 				{SEESAW_TIMER_BASE, SEESAW_TIMER_FREQ, 3, 0},                      \
 				{SEESAW_TIMER_BASE, SEESAW_TIMER_PWM, 3,                           \
