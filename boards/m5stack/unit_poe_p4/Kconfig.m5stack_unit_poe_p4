@@ -1,0 +1,15 @@
+# M5Stack Unit PoE-P4 board configuration
+
+# Copyright (c) 2026 Richard Osterloh
+
+config BOARD_M5STACK_UNIT_POE_P4
+	select SOC_ESP32P4_HPCORE
+	# The module is an ESP32-P4NRW32, i.e. the pre-v3 (v1.3) die -- the v3.x
+	# parts are marketed as ESP32-P4X (compare Zephyr's own
+	# esp32p4_function_ev_board, REV_1_3, against esp32p4x_function_ev_board,
+	# REV_3_1). Getting this wrong is not silent: soc/espressif/esp32p4/hw_init.c
+	# compares the fused revision against SOC_ESP32P4_REV_MIN_FULL and refuses to
+	# boot with "chip revision below minimum", and the v1.3 paths in memory.h and
+	# soc_irq.S key off this symbol directly. Confirm with `esptool chip_id` on
+	# the first unit and flip to SOC_ESP32P4_REV_3_1 if it reports v3.x.
+	select SOC_ESP32P4_REV_1_3

@@ -1,0 +1,6 @@
+board:
+  name: m5stack_unit_poe_p4
+  full_name: M5Stack Unit PoE-P4
+  vendor: m5stack
+  socs:
+  - name: esp32p4
