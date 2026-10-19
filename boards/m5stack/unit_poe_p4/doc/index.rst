@@ -24,6 +24,12 @@ Hardware
 - MIPI DSI display and MIPI CSI camera FPC connectors
 - RGB LED (G14 green, G15 blue, G16 red), IR TX (G17), user button (G45)
 
+.. figure:: img/m5stack_unit_poe_p4_pinmap.jpg
+   :align: center
+   :alt: M5Stack Unit PoE-P4 pin map
+
+   M5Stack Unit PoE-P4 pin map (image courtesy of M5Stack)
+
 Supported Features
 ==================
 
