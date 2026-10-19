@@ -2,7 +2,7 @@
 
 # Copyright (c) 2026 Richard Osterloh
 
-if BOARD_M5STACK_UNIT_POE_P4
+if BOARD_M5STACK_UNIT_POE_P4_ESP32P4_HPCORE
 
 configdefault NET_L2_ETHERNET
 	default y
@@ -15,4 +15,4 @@ configdefault NET_L2_ETHERNET
 configdefault ETH_DRIVER
 	default y
 
-endif # BOARD_M5STACK_UNIT_POE_P4
+endif # BOARD_M5STACK_UNIT_POE_P4_ESP32P4_HPCORE

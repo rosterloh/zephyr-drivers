@@ -42,8 +42,9 @@ Not enabled: MIPI DSI/CSI, the touch controller, I2C, and SDIO. There is no
 microSD slot on this unit, so unlike the Waveshare ESP32-P4-ETH there is no
 ``sdhc0``.
 
-The LP core is not supported — no ``lpcore`` devicetree is provided, so only
-``m5stack_unit_poe_p4/esp32p4/hpcore`` builds.
+The LP core builds as ``m5stack_unit_poe_p4/esp32p4/lpcore``, with no console:
+the LP UART's fixed pins (TX G14, RX G15) drive the RGB LED, so ``lp_uart``
+stays disabled. Use the mailbox and shared memory to reach the HP core.
 
 Relationship to the Waveshare ESP32-P4-ETH
 ==========================================

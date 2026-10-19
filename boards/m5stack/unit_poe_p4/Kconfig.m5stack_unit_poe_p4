@@ -3,7 +3,8 @@
 # Copyright (c) 2026 Richard Osterloh
 
 config BOARD_M5STACK_UNIT_POE_P4
-	select SOC_ESP32P4_HPCORE
+	select SOC_ESP32P4_HPCORE if BOARD_M5STACK_UNIT_POE_P4_ESP32P4_HPCORE
+	select SOC_ESP32P4_LPCORE if BOARD_M5STACK_UNIT_POE_P4_ESP32P4_LPCORE
 	# The module is an ESP32-P4NRW32, i.e. the pre-v3 (v1.3) die -- the v3.x
 	# parts are marketed as ESP32-P4X (compare Zephyr's own
 	# esp32p4_function_ev_board, REV_1_3, against esp32p4x_function_ev_board,
