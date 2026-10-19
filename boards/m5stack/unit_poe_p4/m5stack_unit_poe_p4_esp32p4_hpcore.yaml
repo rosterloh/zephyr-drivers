@@ -1,0 +1,19 @@
+identifier: m5stack_unit_poe_p4/esp32p4/hpcore
+name: M5Stack Unit PoE-P4 HP Core
+vendor: m5stack
+type: mcu
+arch: riscv
+toolchain:
+  - zephyr
+testing:
+  ignore_tags:
+    - heap
+supported:
+  - counter
+  - entropy
+  - gpio
+  - hwinfo
+  - netif:eth
+  - uart
+  - usb_device
+  - watchdog

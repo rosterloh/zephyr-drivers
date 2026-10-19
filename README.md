@@ -21,6 +21,8 @@ This repository provides a shared drivers module for all my other projects
 
 - `waveshare/ros_driver` — ESP32-S3 dual-core board (`procpu` + `appcpu`)
 - `waveshare/esp32p4_nano` — ESP32-P4 board (`hpcore` + `lpcore`); Ethernet, SD, I2C, UART console
+- `m5stack/unit_poe_p4` — M5Stack Unit PoE-P4, ESP32-P4 (`hpcore`) with 16 MB flash and PoE Ethernet
+- `adafruit/qt_py_esp32c3` — Adafruit QT Py ESP32-C3 with a Seeed XIAO connector
 
 ### Shields
 

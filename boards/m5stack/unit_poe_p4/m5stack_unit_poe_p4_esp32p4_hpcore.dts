@@ -1,0 +1,185 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <espressif/esp32p4/esp32p4.dtsi>
+#include "m5stack_unit_poe_p4_esp32p4_hpcore-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <espressif/partitions_0x2000_default_16M.dtsi>
+
+/ {
+	model = "M5Stack Unit PoE-P4 HP Core";
+	compatible = "m5stack,unit-poe-p4";
+
+	chosen {
+		zephyr,sram = &sramhp;
+		zephyr,console = &usb_serial;
+		zephyr,shell-uart = &usb_serial;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+	};
+
+	aliases {
+		led0 = &led_red;
+		led1 = &led_green;
+		led2 = &led_blue;
+		mcuboot-button0 = &user_button;
+		sw0 = &user_button;
+		uart-0 = &uart0;
+		watchdog0 = &wdt0;
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+
+		user_button: button {
+			label = "User Button";
+			gpios = <&gpio1 13 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			zephyr,code = <INPUT_KEY_0>;
+		};
+	};
+
+	/*
+	 * Three discrete GPIOs, not an addressable strip. Polarity is not stated in
+	 * M5Stack's documentation; active-high is the assumption. If the LED is lit
+	 * at reset and dark when set, flip these to GPIO_ACTIVE_LOW -- it is a status
+	 * LED, so getting it backwards costs nothing but confusion.
+	 */
+	leds {
+		compatible = "gpio-leds";
+
+		led_green: led_0 {
+			gpios = <&gpio0 14 GPIO_ACTIVE_HIGH>;
+			label = "Green LED";
+		};
+
+		led_blue: led_1 {
+			gpios = <&gpio0 15 GPIO_ACTIVE_HIGH>;
+			label = "Blue LED";
+		};
+
+		led_red: led_2 {
+			gpios = <&gpio0 16 GPIO_ACTIVE_HIGH>;
+			label = "Red LED";
+		};
+	};
+};
+
+/*
+ * 16 MB flash, 32 MB PSRAM (the "N16R32" module). Upstream dropped the
+ * per-variant esp32p4_n16r32.dtsi in 2026-09 and boards now declare both on
+ * top of esp32p4.dtsi, as every upstream P4 board does.
+ */
+&flash0 {
+	reg = <0x0 DT_SIZE_M(16)>;
+	ranges = <0x0 0x0 DT_SIZE_M(16)>;
+};
+
+&psram0 {
+	size = <DT_SIZE_M(32)>;
+};
+
+/*
+ * Pre-v3 (v1.3) ESP32-P4 silicon, whose valid CPU frequencies are 90/180/360
+ * MHz. Anything outside that set builds but fails at boot with "invalid CPU
+ * frequency". See Kconfig.m5stack_unit_poe_p4 for the revision selection.
+ */
+&cpu0 {
+	clock-frequency = <DT_FREQ_M(360)>;
+};
+
+&cpu1 {
+	clock-frequency = <DT_FREQ_M(360)>;
+};
+
+/* Console/shell over the download USB-C (USB0, G25/G24). */
+&usb_serial {
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-names = "default";
+};
+
+&trng0 {
+	status = "okay";
+};
+
+&coretemp {
+	status = "okay";
+};
+
+&wdt0 {
+	status = "okay";
+};
+
+&dma {
+	status = "okay";
+};
+
+&dma_axi {
+	status = "okay";
+};
+
+&ldo {
+	status = "okay";
+
+	ldo1@1 {
+		regulator-init-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	ldo2@2 {
+		regulator-init-microvolt = <1800000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	ldo4@4 {
+		regulator-init-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+};
+
+&mdio {
+	pinctrl-0 = <&mdio_default>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	phy: ethernet-phy@1 {
+		compatible = "ethernet-phy";
+		reg = <1>;
+		reset-gpios = <&gpio1 19 GPIO_ACTIVE_LOW>;
+		/*
+		 * Both timings are mandatory, not tuning. phy_mii.c defaults them to 0,
+		 * i.e. a zero-width reset pulse with no settling time, so the PHY's ID
+		 * registers are read while it is still in internal reset and the driver
+		 * reports "phy_mii: No PHY found at address 1" -- no network interface,
+		 * so no DHCP, no zenoh, no hawkBit. Found the hard way on the Waveshare
+		 * ESP32-P4-ETH, whose upstream DTS omits them, so each app there patches
+		 * it back in from its own board overlay.
+		 */
+		reset-assert-duration-us = <10000>;
+		reset-deassertion-timeout-ms = <50>;
+	};
+};
+
+&eth {
+	status = "okay";
+	phy-handle = <&phy>;
+	pinctrl-0 = <&rmii_default>;
+	pinctrl-names = "default";
+};
+
+/* Native USB 2.0 HS OTG on the USB-C HOST port (dedicated UTMI DP/DM pads). */
+zephyr_udc0: &usb_otg {
+	status = "okay";
+};

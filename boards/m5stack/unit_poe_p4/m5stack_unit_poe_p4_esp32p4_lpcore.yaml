@@ -1,0 +1,17 @@
+identifier: m5stack_unit_poe_p4/esp32p4/lpcore
+name: M5Stack Unit PoE-P4 LP Core
+vendor: m5stack
+type: mcu
+arch: riscv
+toolchain:
+  - zephyr
+supported:
+  - cpu
+testing:
+  only_tags:
+    - introduction
+  ignore_tags:
+    - kernel
+    - posix
+    - chre
+    - cpp

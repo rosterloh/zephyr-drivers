@@ -1,0 +1,54 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/pinctrl/esp-pinctrl-common.h>
+#include <zephyr/dt-bindings/pinctrl/esp32p4-pinctrl.h>
+#include <zephyr/dt-bindings/pinctrl/esp32p4-gpio-sigmap.h>
+
+&pinctrl {
+	/*
+	 * UART0 on the SDIO-Bus header (2.54-9P), which M5Stack's own pin table
+	 * labels UART0_TX = G37 / UART0_RX = G38. There is no USB-to-UART bridge on
+	 * this unit, so this needs an external adapter; the console is usb_serial on
+	 * the download USB-C instead. Kept configured because a rack-mounted unit
+	 * wants a console that is not a USB port -- switch zephyr,console and
+	 * zephyr,shell-uart to &uart0 to use it.
+	 */
+	uart0_default: uart0_default {
+		group1 {
+			pinmux = <UART0_TX_GPIO37>;
+			output-high;
+		};
+
+		group2 {
+			pinmux = <UART0_RX_GPIO38>;
+			bias-pull-up;
+		};
+	};
+
+	/*
+	 * IP101GRI over RMII. Identical pinout to the Waveshare ESP32-P4-ETH -- both
+	 * follow the Espressif IP101 reference wiring, so do not "fix" a difference
+	 * that is not there.
+	 */
+	mdio_default: mdio_default {
+		group1 {
+			pinmux = <SMI_MDC_GPIO31>,
+				 <SMI_MDIO_GPIO52>;
+		};
+	};
+
+	rmii_default: rmii_default {
+		group1 {
+			pinmux = <RMII_CLK_GPIO50>,
+				 <RMII_TX_EN_GPIO49>,
+				 <RMII_TXD0_GPIO34>,
+				 <RMII_TXD1_GPIO35>,
+				 <RMII_CRS_DV_GPIO28>,
+				 <RMII_RXD0_GPIO29>,
+				 <RMII_RXD1_GPIO30>;
+		};
+	};
+};

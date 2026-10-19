@@ -1,0 +1,9 @@
+# Adafruit Qt Py ESP32C3 board configuration
+
+# Copyright (c) 2025 Richard Osterloh
+
+# SOC_ESP32C3, not the old SOC_ESP32C3_FN4: upstream removed the per-SIP
+# variant symbols (FN4/FH4/FX4 encoded the bundled flash), leaving one SoC and
+# the flash size declared by the board -- see the &flash0 node in the .dts.
+config BOARD_ADAFRUIT_QT_PY_ESP32C3
+	select SOC_ESP32C3

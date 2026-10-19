@@ -1,0 +1,30 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <espressif/esp32p4/esp32p4_lpcore.dtsi>
+#include <espressif/partitions_0x2000_default_16M.dtsi>
+
+/ {
+	model = "M5Stack Unit PoE-P4 LP Core";
+	compatible = "m5stack,unit-poe-p4";
+
+	/*
+	 * No console: lp_uart's fixed pins (TX G14, RX G15) drive the RGB LED on
+	 * this board, so it stays disabled. Talk to the HP core over mbox0/ipc_shm.
+	 */
+	chosen {
+		zephyr,sram = &sramlp;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_lpcore_partition;
+	};
+};
+
+/* Must match the HPCORE flash: the partition offsets are shared. */
+&flash0 {
+	reg = <0x0 DT_SIZE_M(16)>;
+	ranges = <0x0 0x0 DT_SIZE_M(16)>;
+};

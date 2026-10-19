@@ -1,0 +1,18 @@
+# M5Stack Unit PoE-P4 board configuration
+
+# Copyright (c) 2026 Richard Osterloh
+
+if BOARD_M5STACK_UNIT_POE_P4_ESP32P4_HPCORE
+
+configdefault NET_L2_ETHERNET
+	default y
+
+# NET_L2_ETHERNET alone builds the L2 but binds no MAC: &eth stays
+# uninstantiated, MDIO and the PHY are never pulled in, and the board boots with
+# zero network interfaces ("Default interface: -1") while every other networking
+# symbol still reads correct. ETH_DRIVER is what enables the driver tree, and is
+# what upstream's waveshare/esp32p4_eth Kconfig.defconfig sets.
+configdefault ETH_DRIVER
+	default y
+
+endif # BOARD_M5STACK_UNIT_POE_P4_ESP32P4_HPCORE
