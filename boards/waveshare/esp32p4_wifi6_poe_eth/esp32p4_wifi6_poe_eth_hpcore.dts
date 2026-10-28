@@ -341,7 +341,7 @@ zephyr_i2c: &i2c0 {
 / {
 	soc {
 		csi_interface: csi_capture_port: mipi_csi: mipi-csi@5009f000 {
-			compatible = "espressif,esp32p4-mipi-csi";
+			compatible = "espressif,esp-mipi-csi";
 			reg = <0x5009f000 0x800 0x5009f800 0x800>;
 			reg-names = "host", "bridge";
 			/*
@@ -351,6 +351,12 @@ zephyr_i2c: &i2c0 {
 			 */
 			interrupts = <DW_GDMA_INTR_SOURCE IRQ_DEFAULT_PRIORITY 0>;
 			interrupt-parent = <&intc>;
+			/*
+			 * The channel verified on hardware. The SoC's dsi_display
+			 * also defaults to DW-GDMA channel 0, so an application
+			 * enabling both moves one of them.
+			 */
+			dma-channel = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";

@@ -1,0 +1,26 @@
+common:
+  tags:
+    - drivers
+    - video
+  build_only: true
+  # The driver compiles hal_espressif sources, so the test is skipped in
+  # workspaces (such as this repo's CI) that do not carry that module.
+  modules:
+    - hal_espressif
+  platform_allow:
+    - esp32p4_nano/esp32p4/hpcore
+    - esp32p4_wifi6_poe_eth/esp32p4/hpcore
+  integration_platforms:
+    - esp32p4_wifi6_poe_eth/esp32p4/hpcore
+
+tests:
+  drivers.video.esp32_csi.build.ov5647:
+    extra_args:
+      - SHIELD=raspberry_pi_camera_module_1
+    extra_configs:
+      - CONFIG_VIDEO_ESP32_CSI=y
+  drivers.video.esp32_csi.build.pivariety:
+    extra_args:
+      - SHIELD=arducam_tof_camera
+    extra_configs:
+      - CONFIG_VIDEO_ESP32_CSI=y

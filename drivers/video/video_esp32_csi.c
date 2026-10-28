@@ -16,7 +16,7 @@
  * esp_cam_ctlr_csi + dw_gdma drivers and the in-tree video_esp32_dvp.c.
  */
 
-#define DT_DRV_COMPAT espressif_esp32p4_mipi_csi
+#define DT_DRV_COMPAT espressif_esp_mipi_csi
 
 #include <zephyr/device.h>
 #include <zephyr/cache.h>
@@ -24,18 +24,19 @@
 #include <zephyr/drivers/interrupt_controller/intc_esp32.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/util.h>
 
+#include <esp_intr_alloc.h>
+#include <hal/clk_gate_ll.h>
+#include <hal/dw_gdma_ll.h>
+#include <hal/isp_ll.h>
+#include <hal/mipi_csi_brg_ll.h>
 #include <hal/mipi_csi_hal.h>
 #include <hal/mipi_csi_ll.h>
-#include <hal/mipi_csi_brg_ll.h>
-#include <hal/dw_gdma_ll.h>
-#include <soc/reg_base.h>
-#include <soc/mipi_csi_host_struct.h>
+#include <soc/isp_struct.h>
 #include <soc/mipi_csi_bridge_struct.h>
-#include <hal/clk_gate_ll.h>
-
-#include "hal/isp_ll.h"
-#include "soc/isp_struct.h"
+#include <soc/mipi_csi_host_struct.h>
+#include <soc/reg_base.h>
 
 #include "video_common.h"
 
@@ -43,12 +44,22 @@ LOG_MODULE_REGISTER(video_esp32_csi, CONFIG_VIDEO_LOG_LEVEL);
 
 /* DW-GDMA transfers are 64-bit wide; a frame is one contiguous block. */
 #define CSI_DMA_TRANS_WIDTH_BYTES 8
-#define CSI_DMA_CHANNEL           0
 
-/* MIPI CSI-2 data types (payload format identifiers). */
-#define CSI_DT_RAW8  0x2a
-#define CSI_DT_RAW10 0x2b
-#define CSI_DT_RAW12 0x2c
+/* The D-PHY on the ESP32-P4 has two data lanes. */
+#define CSI_MAX_DATA_LANES 2
+
+/* Bounded wait for the DW-GDMA bus clock to come up after ungating it. */
+#define CSI_DMA_CLK_TIMEOUT_US 100
+
+/*
+ * The DMA destination must start on a cache line, or invalidating the head of
+ * a frame discards dirty data belonging to whatever precedes it on the heap.
+ * csi_cache_len() guards the tail.
+ */
+#if defined(CONFIG_DCACHE_LINE_SIZE) && (CONFIG_DCACHE_LINE_SIZE > 0)
+BUILD_ASSERT(CONFIG_VIDEO_BUFFER_POOL_ALIGN >= CONFIG_DCACHE_LINE_SIZE,
+	     "CONFIG_VIDEO_BUFFER_POOL_ALIGN must be at least CONFIG_DCACHE_LINE_SIZE");
+#endif
 
 /*
  * Channel events that are not faults and must not be logged as errors. The
@@ -68,11 +79,13 @@ LOG_MODULE_REGISTER(video_esp32_csi, CONFIG_VIDEO_LOG_LEVEL);
 struct video_esp32_csi_config {
 	const struct device *source_dev;
 	uint8_t lane_nb;
+	uint8_t dma_channel;
 	int irq_source;
+	uint8_t irq_priority;
+	uint8_t irq_flags;
 };
 
 struct video_esp32_csi_data {
-	const struct device *dev;
 	mipi_csi_hal_context_t hal;
 	struct video_format fmt;
 	struct video_buffer *active_vbuf;
@@ -97,37 +110,23 @@ struct video_esp32_csi_data {
 #define CSI_RAISE_SIG(data, res)
 #endif
 
-/* Map a pixel format to its bits-per-pixel and MIPI CSI-2 data type. Greyscale
- * and Bayer share a data type at each depth -- the CSI-2 payload is identical,
- * only the interpretation differs -- so ToF modules reporting Y10P land on the
- * same RAW10 path as a Bayer sensor.
+/*
+ * Map a pixel format to its bits-per-pixel and MIPI CSI-2 data type. Only RAW8,
+ * RAW10 and RAW12 are captured: those are the depths the ISP stage below can
+ * pass through untouched. Greyscale and Bayer share a data type at each depth -
+ * the CSI-2 payload is identical, only the interpretation differs - so ToF
+ * modules reporting Y10P land on the same RAW10 path as a Bayer sensor.
  */
-static int csi_pixfmt_info(uint32_t pixelformat, uint8_t *bpp, uint16_t *data_type)
+static int csi_pixfmt_info(uint32_t pixelformat, uint8_t *bpp, uint8_t *data_type)
 {
-	switch (pixelformat) {
-	case VIDEO_PIX_FMT_GREY:
-	case VIDEO_PIX_FMT_SBGGR8:
-	case VIDEO_PIX_FMT_SGBRG8:
-	case VIDEO_PIX_FMT_SGRBG8:
-	case VIDEO_PIX_FMT_SRGGB8:
-		*bpp = 8;
-		*data_type = CSI_DT_RAW8;
-		return 0;
-	case VIDEO_PIX_FMT_Y10P:
-	case VIDEO_PIX_FMT_SBGGR10P:
-	case VIDEO_PIX_FMT_SGBRG10P:
-	case VIDEO_PIX_FMT_SGRBG10P:
-	case VIDEO_PIX_FMT_SRGGB10P:
-		*bpp = 10;
-		*data_type = CSI_DT_RAW10;
-		return 0;
-	case VIDEO_PIX_FMT_Y12P:
-	case VIDEO_PIX_FMT_SBGGR12P:
-	case VIDEO_PIX_FMT_SGBRG12P:
-	case VIDEO_PIX_FMT_SGRBG12P:
-	case VIDEO_PIX_FMT_SRGGB12P:
-		*bpp = 12;
-		*data_type = CSI_DT_RAW12;
+	uint8_t dt = video_mipi_data_type(pixelformat);
+
+	switch (dt) {
+	case VIDEO_MIPI_CSI2_DT_RAW8:
+	case VIDEO_MIPI_CSI2_DT_RAW10:
+	case VIDEO_MIPI_CSI2_DT_RAW12:
+		*bpp = video_bits_per_pixel(pixelformat);
+		*data_type = dt;
 		return 0;
 	default:
 		return -ENOTSUP;
@@ -221,17 +220,12 @@ static void csi_isp_start(struct video_esp32_csi_data *data, uint8_t bpp)
 	isp_ll_set_intput_data_v_row_num(&ISP, data->fmt.height);
 
 	/*
-	 * Sensors driven by this tree are configured not to emit CSI-2 line
-	 * start/end short packets (the IMX219 never does; ov5647.c clears
-	 * MIPI_CTRL00's LINE_SYNC_ENABLE to match). A sensor that does send them
-	 * needs these set to true or the two ends disagree about line framing.
-	 */
-	/*
-	 * EXPERIMENT: line-sync short packets. The RAW8 sensors here send none
-	 * (IMX219 never does; ov5647.c's RAW8 modes clear LINE_SYNC_ENABLE), but
-	 * Espressif's OV5647 RAW10 mode table sets MIPI_CTRL00 = 0x34, i.e. line
-	 * sync on, and esp_video tells its ISP to expect them. Follow the depth
-	 * so both ends agree; the sensor driver picks the matching MIPI_CTRL00.
+	 * CSI-2 line start/end short packets. The ISP must be told whether the
+	 * sensor sends them or the two ends disagree about line framing. There
+	 * is no way to query a sensor for this through the video API, so follow
+	 * what the sensors verified here do: their RAW8 modes send none, and
+	 * Espressif's OV5647 RAW10 mode table (MIPI_CTRL00 = 0x34) turns line
+	 * sync on, as esp_video expects at the deeper depths.
 	 */
 	isp_ll_enable_line_start_packet_exist(&ISP, bpp != 8);
 	isp_ll_enable_line_end_packet_exist(&ISP, bpp != 8);
@@ -252,32 +246,38 @@ static void csi_isp_stop(void)
 }
 
 /* Point the (already configured) DW-GDMA channel at a buffer and start it. */
-static void csi_dma_arm(struct video_esp32_csi_data *data, struct video_buffer *vbuf)
+static void csi_dma_arm(const struct device *dev, struct video_buffer *vbuf)
 {
-	dw_gdma_dev_t *dev = DW_GDMA_LL_GET_HW(0);
+	const struct video_esp32_csi_config *cfg = dev->config;
+	struct video_esp32_csi_data *data = dev->data;
+	dw_gdma_dev_t *dma = DW_GDMA_LL_GET_HW(0);
+	uint8_t ch = cfg->dma_channel;
 
-	/* Drop any stale/dirty cache lines so nothing is written back over the
+	/*
+	 * Drop any stale/dirty cache lines so nothing is written back over the
 	 * DMA data, and so the CPU re-reads from PSRAM once the frame lands.
 	 */
 	sys_cache_data_invd_range(vbuf->buffer, csi_cache_len(vbuf));
 
-	dw_gdma_ll_channel_set_src_addr(dev, CSI_DMA_CHANNEL, MIPI_CSI_BRG_MEM_BASE);
-	dw_gdma_ll_channel_set_dst_addr(dev, CSI_DMA_CHANNEL, (uint32_t)(uintptr_t)vbuf->buffer);
-	dw_gdma_ll_channel_set_trans_block_size(dev, CSI_DMA_CHANNEL, data->trans_items);
-	dw_gdma_ll_channel_set_src_master_port(dev, CSI_DMA_CHANNEL, MIPI_CSI_BRG_MEM_BASE);
-	dw_gdma_ll_channel_set_dst_master_port(dev, CSI_DMA_CHANNEL, (uintptr_t)vbuf->buffer);
+	dw_gdma_ll_channel_set_src_addr(dma, ch, MIPI_CSI_BRG_MEM_BASE);
+	dw_gdma_ll_channel_set_dst_addr(dma, ch, (uint32_t)(uintptr_t)vbuf->buffer);
+	dw_gdma_ll_channel_set_trans_block_size(dma, ch, data->trans_items);
+	dw_gdma_ll_channel_set_src_master_port(dma, ch, MIPI_CSI_BRG_MEM_BASE);
+	dw_gdma_ll_channel_set_dst_master_port(dma, ch, (uintptr_t)vbuf->buffer);
 
 	data->active_vbuf = vbuf;
-	dw_gdma_ll_channel_enable(dev, CSI_DMA_CHANNEL, true);
+	dw_gdma_ll_channel_enable(dma, ch, true);
 }
 
 static void video_esp32_csi_isr(void *arg)
 {
-	struct video_esp32_csi_data *data = arg;
-	dw_gdma_dev_t *dev = DW_GDMA_LL_GET_HW(0);
-	uint32_t status = dw_gdma_ll_channel_get_intr_status(dev, CSI_DMA_CHANNEL);
+	const struct device *dev = arg;
+	const struct video_esp32_csi_config *cfg = dev->config;
+	struct video_esp32_csi_data *data = dev->data;
+	dw_gdma_dev_t *dma = DW_GDMA_LL_GET_HW(0);
+	uint32_t status = dw_gdma_ll_channel_get_intr_status(dma, cfg->dma_channel);
 
-	dw_gdma_ll_channel_clear_intr(dev, CSI_DMA_CHANNEL, status);
+	dw_gdma_ll_channel_clear_intr(dma, cfg->dma_channel, status);
 
 	if (status & DW_GDMA_LL_CHANNEL_EVENT_DMA_TFR_DONE) {
 		struct video_buffer *done = data->active_vbuf;
@@ -292,7 +292,7 @@ static void video_esp32_csi_isr(void *arg)
 
 		next = k_fifo_get(&data->fifo_in, K_NO_WAIT);
 		if (next != NULL) {
-			csi_dma_arm(data, next);
+			csi_dma_arm(dev, next);
 		} else {
 			data->active_vbuf = NULL;
 			CSI_RAISE_SIG(data, VIDEO_BUF_ERROR);
@@ -303,56 +303,75 @@ static void video_esp32_csi_isr(void *arg)
 	}
 }
 
-/* One-time DW-GDMA controller bring-up (bus clock, reset, enable, global IRQ). */
-static void csi_dma_controller_init(void)
+/*
+ * DW-GDMA controller bring-up. The controller is shared: the MIPI DSI display
+ * driver drives other channels of it, and there is no Zephyr DMA driver to
+ * arbitrate. Only reset it if nobody has enabled it yet, so bringing up the
+ * camera cannot wipe a channel the display is already scanning out on.
+ */
+static int csi_dma_controller_init(void)
 {
-	dw_gdma_dev_t *dev = DW_GDMA_LL_GET_HW(0);
-	unsigned int key = irq_lock();
+	dw_gdma_dev_t *dma = DW_GDMA_LL_GET_HW(0);
+	unsigned int key;
 
-	dw_gdma_ll_enable_bus_clock(0, true);
-	dw_gdma_ll_reset_register(0);
-	irq_unlock(key);
+	if (!dw_gdma_ll_is_bus_clock_enabled(0)) {
+		key = irq_lock();
+		dw_gdma_ll_enable_bus_clock(0, true);
+		irq_unlock(key);
+		if (!WAIT_FOR(dw_gdma_ll_is_bus_clock_enabled(0), CSI_DMA_CLK_TIMEOUT_US,
+			      k_busy_wait(1))) {
+			LOG_ERR("DW-GDMA bus clock did not come up");
+			return -ETIMEDOUT;
+		}
+	}
 
-	dw_gdma_ll_reset(dev);
-	dw_gdma_ll_enable_controller(dev, true);
-	dw_gdma_ll_enable_intr_global(dev, true);
+	if (dma->cfg0.dmac_en == 0) {
+		key = irq_lock();
+		dw_gdma_ll_reset_register(0);
+		irq_unlock(key);
+		dw_gdma_ll_reset(dma);
+		dw_gdma_ll_enable_controller(dma, true);
+	}
+	dw_gdma_ll_enable_intr_global(dma, true);
+
+	return 0;
 }
 
 /* Configure the DW-GDMA channel for a peripheral(CSI)->memory contiguous frame. */
-static void csi_dma_channel_config(struct video_esp32_csi_data *data)
+static void csi_dma_channel_config(const struct device *dev)
 {
-	dw_gdma_dev_t *dev = DW_GDMA_LL_GET_HW(0);
+	const struct video_esp32_csi_config *cfg = dev->config;
+	dw_gdma_dev_t *dma = DW_GDMA_LL_GET_HW(0);
+	uint8_t ch = cfg->dma_channel;
 
 	/* Peripheral (CSI bridge) -> memory, flow controlled by the source. */
-	dw_gdma_ll_channel_set_trans_flow(dev, CSI_DMA_CHANNEL, DW_GDMA_ROLE_PERIPH_CSI,
-					  DW_GDMA_ROLE_MEM, DW_GDMA_FLOW_CTRL_SRC);
-	dw_gdma_ll_channel_set_src_multi_block_type(dev, CSI_DMA_CHANNEL,
-						    DW_GDMA_BLOCK_TRANSFER_CONTIGUOUS);
-	dw_gdma_ll_channel_set_dst_multi_block_type(dev, CSI_DMA_CHANNEL,
-						    DW_GDMA_BLOCK_TRANSFER_CONTIGUOUS);
-	dw_gdma_ll_channel_set_src_handshake_interface(dev, CSI_DMA_CHANNEL, DW_GDMA_HANDSHAKE_HW);
-	dw_gdma_ll_channel_set_dst_handshake_interface(dev, CSI_DMA_CHANNEL, DW_GDMA_HANDSHAKE_HW);
+	dw_gdma_ll_channel_set_trans_flow(dma, ch, DW_GDMA_ROLE_PERIPH_CSI, DW_GDMA_ROLE_MEM,
+					  DW_GDMA_FLOW_CTRL_SRC);
+	dw_gdma_ll_channel_set_src_multi_block_type(dma, ch, DW_GDMA_BLOCK_TRANSFER_CONTIGUOUS);
+	dw_gdma_ll_channel_set_dst_multi_block_type(dma, ch, DW_GDMA_BLOCK_TRANSFER_CONTIGUOUS);
+	dw_gdma_ll_channel_set_src_handshake_interface(dma, ch, DW_GDMA_HANDSHAKE_HW);
+	dw_gdma_ll_channel_set_dst_handshake_interface(dma, ch, DW_GDMA_HANDSHAKE_HW);
 	/* Only the peripheral side has a handshake; the LL aborts on ROLE_MEM. */
-	dw_gdma_ll_channel_set_src_handshake_periph(dev, CSI_DMA_CHANNEL, DW_GDMA_ROLE_PERIPH_CSI);
-	dw_gdma_ll_channel_set_priority(dev, CSI_DMA_CHANNEL, 1);
-	dw_gdma_ll_channel_set_src_outstanding_limit(dev, CSI_DMA_CHANNEL, 5);
-	dw_gdma_ll_channel_set_dst_outstanding_limit(dev, CSI_DMA_CHANNEL, 5);
+	dw_gdma_ll_channel_set_src_handshake_periph(dma, ch, DW_GDMA_ROLE_PERIPH_CSI);
+	dw_gdma_ll_channel_set_priority(dma, ch, 1);
+	dw_gdma_ll_channel_set_src_outstanding_limit(dma, ch, 5);
+	dw_gdma_ll_channel_set_dst_outstanding_limit(dma, ch, 5);
 
 	/* Transfer shape: read a fixed FIFO window, write linearly to PSRAM. */
-	dw_gdma_ll_channel_set_src_trans_width(dev, CSI_DMA_CHANNEL, DW_GDMA_TRANS_WIDTH_64);
-	dw_gdma_ll_channel_set_dst_trans_width(dev, CSI_DMA_CHANNEL, DW_GDMA_TRANS_WIDTH_64);
-	dw_gdma_ll_channel_set_src_burst_items(dev, CSI_DMA_CHANNEL, DW_GDMA_BURST_ITEMS_512);
-	dw_gdma_ll_channel_set_dst_burst_items(dev, CSI_DMA_CHANNEL, DW_GDMA_BURST_ITEMS_512);
-	dw_gdma_ll_channel_set_src_burst_mode(dev, CSI_DMA_CHANNEL, DW_GDMA_BURST_MODE_FIXED);
-	dw_gdma_ll_channel_set_dst_burst_mode(dev, CSI_DMA_CHANNEL, DW_GDMA_BURST_MODE_INCREMENT);
-	dw_gdma_ll_channel_set_src_burst_len(dev, CSI_DMA_CHANNEL, 16);
-	dw_gdma_ll_channel_set_dst_burst_len(dev, CSI_DMA_CHANNEL, 16);
-	dw_gdma_ll_channel_enable_src_periph_status_write_back(dev, CSI_DMA_CHANNEL, false);
-	dw_gdma_ll_channel_enable_dst_periph_status_write_back(dev, CSI_DMA_CHANNEL, false);
+	dw_gdma_ll_channel_set_src_trans_width(dma, ch, DW_GDMA_TRANS_WIDTH_64);
+	dw_gdma_ll_channel_set_dst_trans_width(dma, ch, DW_GDMA_TRANS_WIDTH_64);
+	dw_gdma_ll_channel_set_src_burst_items(dma, ch, DW_GDMA_BURST_ITEMS_512);
+	dw_gdma_ll_channel_set_dst_burst_items(dma, ch, DW_GDMA_BURST_ITEMS_512);
+	dw_gdma_ll_channel_set_src_burst_mode(dma, ch, DW_GDMA_BURST_MODE_FIXED);
+	dw_gdma_ll_channel_set_dst_burst_mode(dma, ch, DW_GDMA_BURST_MODE_INCREMENT);
+	dw_gdma_ll_channel_set_src_burst_len(dma, ch, 16);
+	dw_gdma_ll_channel_set_dst_burst_len(dma, ch, 16);
+	dw_gdma_ll_channel_enable_src_periph_status_write_back(dma, ch, false);
+	dw_gdma_ll_channel_enable_dst_periph_status_write_back(dma, ch, false);
 
-	dw_gdma_ll_channel_enable_intr_generation(dev, CSI_DMA_CHANNEL, UINT32_MAX, true);
-	dw_gdma_ll_channel_enable_intr_propagation(dev, CSI_DMA_CHANNEL,
-						   DW_GDMA_LL_CHANNEL_EVENT_DMA_TFR_DONE, true);
+	dw_gdma_ll_channel_enable_intr_generation(dma, ch, UINT32_MAX, true);
+	dw_gdma_ll_channel_enable_intr_propagation(dma, ch, DW_GDMA_LL_CHANNEL_EVENT_DMA_TFR_DONE,
+						   true);
 }
 
 /* Bring up CSI clocks, D-PHY/host/bridge and the RAW data-type filter. */
@@ -362,26 +381,26 @@ static int csi_hw_start(const struct device *dev)
 	struct video_esp32_csi_data *data = dev->data;
 	mipi_csi_hal_config_t hal_cfg;
 	uint8_t bpp;
-	uint16_t data_type;
+	uint8_t data_type;
 	int64_t link_freq;
 	int ret;
 	unsigned int key;
 
 	ret = csi_pixfmt_info(data->fmt.pixelformat, &bpp, &data_type);
 	if (ret < 0) {
-		LOG_ERR("Unsupported pixel format 0x%08x", data->fmt.pixelformat);
+		LOG_ERR("Unsupported pixel format %s", VIDEO_FOURCC_TO_STR(data->fmt.pixelformat));
 		return ret;
 	}
 
 	link_freq = video_get_csi_link_freq(cfg->source_dev, bpp, cfg->lane_nb);
 	if (link_freq <= 0) {
-		LOG_ERR("Cannot get sensor link frequency (%lld)", link_freq);
+		LOG_ERR("Cannot get sensor link frequency (%d)", (int)link_freq);
 		/*
 		 * Not "return (int)link_freq": zero is a failure here (the source
 		 * advertised neither LINK_FREQ nor a usable PIXEL_RATE) but would
-		 * be returned to the caller as success. csi_hw_start() would then
-		 * be skipped without mipi_csi_hal_init() ever running, and the
-		 * first bridge access below faults on a NULL hal.bridge_dev.
+		 * be returned to the caller as success, leaving mipi_csi_hal_init()
+		 * never run and the first bridge access faulting on a NULL
+		 * hal.bridge_dev.
 		 */
 		return link_freq < 0 ? (int)link_freq : -EINVAL;
 	}
@@ -389,10 +408,10 @@ static int csi_hw_start(const struct device *dev)
 	/* CSI-2 D-PHY is DDR, so the per-lane bit rate is twice the link freq. */
 	hal_cfg = (mipi_csi_hal_config_t){
 		.lanes_num = cfg->lane_nb,
-		/* NOTE: mipi_csi_hal_init maps frame_height -> horizontal pixel
-		 * count and frame_width -> vertical row count (inverted names).
-		 */
 		/*
+		 * mipi_csi_hal_init() maps frame_height to the horizontal count
+		 * and frame_width to the vertical row count (inverted names).
+		 *
 		 * The bridge counts BYTES per line, not pixels. Passing the pixel
 		 * width works only while bits-per-pixel is 8; for packed RAW10 a
 		 * 1920-pixel line is 2400 bytes, the bridge runs past the count it
@@ -409,12 +428,13 @@ static int csi_hw_start(const struct device *dev)
 		.lane_bit_rate_mbps = (int)(2 * link_freq / 1000000),
 	};
 
-	/* Enable the CSI bridge + host + D-PHY config clocks before touching any
-	 * CSI register. (Equivalent to esp_hw_support's mipi_csi_brg_claim, which
-	 * we cannot use because it depends on FreeRTOS. We are the sole CSI user,
-	 * so no bridge ref-counting is needed.)
-	 */
-	/* Ungate the D-PHY reference clock before selecting it. On the P4
+	/*
+	 * Enable the CSI bridge, host and D-PHY config clocks before touching
+	 * any CSI register. This is what esp_hw_support's mipi_csi_brg_claim()
+	 * does, which cannot be used here because it depends on FreeRTOS. This
+	 * driver is the sole CSI user, so no bridge ref-counting is needed.
+	 *
+	 * Ungate the D-PHY reference clock before selecting it. On the P4
 	 * MIPI_CSI_PHY_CLK_SRC_DEFAULT is PLL_F20M, which is gated at boot.
 	 *
 	 * Do NOT reach for esp_clk_tree_enable_src() here: on the P4 its derived-
@@ -433,14 +453,16 @@ static int csi_hw_start(const struct device *dev)
 	_clk_gate_ll_ref_20m_clk_en(true);
 	mipi_csi_ll_enable_brg_module_clock(0, true);
 	mipi_csi_ll_reset_brg_module_clock(0);
-	/* Pulse the host bus clock off then on before resetting, as
+	/*
+	 * Pulse the host bus clock off then on before resetting, as
 	 * esp_cam_ctlr_csi's s_csi_claim_controller() does.
 	 */
 	mipi_csi_ll_enable_host_bus_clock(0, false);
 	mipi_csi_ll_enable_host_bus_clock(0, true);
 	mipi_csi_ll_reset_host_clock(0);
 	mipi_csi_ll_set_phy_clock_source(0, MIPI_CSI_PHY_CLK_SRC_DEFAULT);
-	/* Pulse the PHY config clock rather than just enabling it, as
+	/*
+	 * Pulse the PHY config clock rather than just enabling it, as
 	 * esp_cam_ctlr_csi does. mipi_csi_hal_init() programs hs_freq_sel through
 	 * the PHY test interface, which is clocked by this clock; if it was left
 	 * running in a stale state the write may not latch and the PHY PLL never
@@ -453,7 +475,8 @@ static int csi_hw_start(const struct device *dev)
 
 	mipi_csi_hal_init(&data->hal, &hal_cfg);
 
-	/* Unmask every host error source. On this IP INT_ST_* only latches an event
+	/*
+	 * Unmask every host error source. On this IP INT_ST_* only latches an event
 	 * whose INT_MSK_* bit is set, and both the HAL and reset leave the masks at
 	 * 0 -- so an all-zero error dump means "nothing was being recorded", not
 	 * "nothing went wrong". Without this a receiver failing to sync to the
@@ -469,14 +492,16 @@ static int csi_hw_start(const struct device *dev)
 	data->hal.host_dev->int_msk_data_id.val = UINT32_MAX;
 	data->hal.host_dev->int_msk_ecc_corrected.val = UINT32_MAX;
 
-	/* RAW passthrough: filter to the sensor's data type only, no colour
+	/*
+	 * RAW passthrough: filter to the sensor's data type only, no colour
 	 * conversion (bridge reset default), 512 x 64-bit DMA bursts.
 	 */
 	mipi_csi_brg_ll_set_burst_len(data->hal.bridge_dev, 512);
 	mipi_csi_brg_ll_set_data_type_min(data->hal.bridge_dev, data_type);
 	mipi_csi_brg_ll_set_data_type_max(data->hal.bridge_dev, data_type);
 
-	/* Arm the bridge's row-count check. It is off by default, which means the
+	/*
+	 * Arm the bridge's row-count check. It is off by default, which means the
 	 * vadr_num_gt/lt interrupts never fire and a bridge receiving the wrong
 	 * number of rows looks identical to one receiving none at all.
 	 */
@@ -492,7 +517,7 @@ static int video_esp32_csi_set_stream(const struct device *dev, bool enable,
 {
 	const struct video_esp32_csi_config *cfg = dev->config;
 	struct video_esp32_csi_data *data = dev->data;
-	dw_gdma_dev_t *gdma = DW_GDMA_LL_GET_HW(0);
+	dw_gdma_dev_t *dma = DW_GDMA_LL_GET_HW(0);
 	struct video_buffer *first;
 	uint32_t frame_bytes;
 	int ret;
@@ -505,11 +530,12 @@ static int video_esp32_csi_set_stream(const struct device *dev, bool enable,
 			return -EIO;
 		}
 		mipi_csi_brg_ll_enable(data->hal.bridge_dev, false);
-		dw_gdma_ll_channel_enable(gdma, CSI_DMA_CHANNEL, false);
+		dw_gdma_ll_channel_enable(dma, cfg->dma_channel, false);
 		/* Close the ISP's MIPI gate again; csi_hw_start() reopens it. */
 		csi_isp_stop();
 		data->streaming = false;
-		/* Leave active_vbuf alone: video_stream_stop() calls flush(cancel)
+		/*
+		 * Leave active_vbuf alone: video_stream_stop() calls flush(cancel)
 		 * straight after this, and that is what hands the armed buffer back
 		 * through fifo_out. Clearing it here dropped the buffer on the floor --
 		 * with a two-buffer pool, one aborted stream permanently halved it and
@@ -543,14 +569,15 @@ static int video_esp32_csi_set_stream(const struct device *dev, bool enable,
 		return ret;
 	}
 
-	csi_dma_channel_config(data);
-	csi_dma_arm(data, first);
+	csi_dma_channel_config(dev);
+	csi_dma_arm(dev, first);
 	mipi_csi_brg_ll_enable(data->hal.bridge_dev, true);
 
 	if (video_stream_start(cfg->source_dev, type)) {
 		mipi_csi_brg_ll_enable(data->hal.bridge_dev, false);
-		dw_gdma_ll_channel_enable(gdma, CSI_DMA_CHANNEL, false);
-		/* csi_dma_arm() checked the buffer out into active_vbuf. streaming
+		dw_gdma_ll_channel_enable(dma, cfg->dma_channel, false);
+		/*
+		 * csi_dma_arm() checked the buffer out into active_vbuf. streaming
 		 * stays false here, so the teardown path that normally returns it via
 		 * flush(cancel) never runs and the next set_stream would overwrite the
 		 * pointer. Hand it back explicitly.
@@ -623,7 +650,19 @@ static int video_esp32_csi_set_fmt(const struct device *dev, struct video_format
 {
 	const struct video_esp32_csi_config *cfg = dev->config;
 	struct video_esp32_csi_data *data = dev->data;
+	uint8_t bpp;
+	uint8_t data_type;
 	int ret;
+
+	if (data->streaming) {
+		return -EBUSY;
+	}
+
+	ret = csi_pixfmt_info(fmt->pixelformat, &bpp, &data_type);
+	if (ret < 0) {
+		LOG_ERR("Unsupported pixel format %s", VIDEO_FOURCC_TO_STR(fmt->pixelformat));
+		return ret;
+	}
 
 	ret = video_set_format(cfg->source_dev, fmt);
 	if (ret < 0) {
@@ -703,6 +742,13 @@ static int video_esp32_csi_get_frmival(const struct device *dev, struct video_fr
 	return video_get_frmival(cfg->source_dev, frmival);
 }
 
+static int video_esp32_csi_enum_frmival(const struct device *dev, struct video_frmival_enum *fie)
+{
+	const struct video_esp32_csi_config *cfg = dev->config;
+
+	return video_enum_frmival(cfg->source_dev, fie);
+}
+
 #ifdef CONFIG_POLL
 static int video_esp32_csi_set_signal(const struct device *dev, struct k_poll_signal *sig)
 {
@@ -724,13 +770,26 @@ static int video_esp32_csi_init(const struct device *dev)
 		return -ENODEV;
 	}
 
-	data->dev = dev;
 	k_fifo_init(&data->fifo_in);
 	k_fifo_init(&data->fifo_out);
 
-	csi_dma_controller_init();
+	ret = csi_dma_controller_init();
+	if (ret < 0) {
+		return ret;
+	}
 
-	ret = esp_intr_alloc(cfg->irq_source, 0, video_esp32_csi_isr, data, &data->intr_handle);
+	/*
+	 * The DW-GDMA raises one interrupt for all of its channels, which the
+	 * MIPI DSI display driver also listens on, so share it and only take
+	 * the calls for this channel.
+	 */
+	ret = esp_intr_alloc_intrstatus(
+		cfg->irq_source,
+		ESP_INTR_FLAG_SHARED | ESP_PRIO_TO_FLAGS(cfg->irq_priority) |
+			ESP_INT_FLAGS_CHECK(cfg->irq_flags),
+		(uint32_t)dw_gdma_ll_get_intr_status_reg(DW_GDMA_LL_GET_HW(0)),
+		DW_GDMA_LL_CHANNEL_EVENT_MASK(cfg->dma_channel), video_esp32_csi_isr, (void *)dev,
+		&data->intr_handle);
 	if (ret != 0) {
 		LOG_ERR("Failed to allocate DW-GDMA interrupt (%d)", ret);
 		return -EIO;
@@ -749,18 +808,25 @@ static DEVICE_API(video, video_esp32_csi_api) = {
 	.flush = video_esp32_csi_flush,
 	.set_frmival = video_esp32_csi_set_frmival,
 	.get_frmival = video_esp32_csi_get_frmival,
+	.enum_frmival = video_esp32_csi_enum_frmival,
 #ifdef CONFIG_POLL
 	.set_signal = video_esp32_csi_set_signal,
 #endif
 };
 
 #define SOURCE_DEV(n) DEVICE_DT_GET(DT_NODE_REMOTE_DEVICE(DT_INST_ENDPOINT_BY_ID(n, 0, 0)))
+#define LANE_NB(n)    DT_PROP_LEN(DT_INST_ENDPOINT_BY_ID(n, 0, 0), data_lanes)
 
 #define VIDEO_ESP32_CSI_INIT(n)                                                                    \
+	BUILD_ASSERT(LANE_NB(n) >= 1 && LANE_NB(n) <= CSI_MAX_DATA_LANES,                          \
+		     "ESP32-P4 MIPI CSI supports 1 or 2 data lanes");                              \
 	static const struct video_esp32_csi_config video_esp32_csi_config_##n = {                  \
 		.source_dev = SOURCE_DEV(n),                                                       \
-		.lane_nb = DT_PROP_LEN(DT_INST_ENDPOINT_BY_ID(n, 0, 0), data_lanes),               \
-		.irq_source = DT_INST_IRQN(n),                                                     \
+		.lane_nb = LANE_NB(n),                                                             \
+		.dma_channel = DT_INST_PROP(n, dma_channel),                                       \
+		.irq_source = DT_INST_IRQ_BY_IDX(n, 0, irq),                                       \
+		.irq_priority = DT_INST_IRQ_BY_IDX(n, 0, priority),                                \
+		.irq_flags = DT_INST_IRQ_BY_IDX(n, 0, flags),                                      \
 	};                                                                                         \
 	static struct video_esp32_csi_data video_esp32_csi_data_##n;                               \
 	DEVICE_DT_INST_DEFINE(n, video_esp32_csi_init, NULL, &video_esp32_csi_data_##n,            \
