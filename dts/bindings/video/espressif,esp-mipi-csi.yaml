@@ -1,0 +1,67 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Espressif ESP32 MIPI CSI-2 camera receiver.
+
+  Drives the CSI-2 D-PHY, host and bridge, and a DW-GDMA channel that captures
+  frames from a downstream CSI-2 image sensor into memory. The single video
+  port describes the CSI-2 link to that sensor.
+
+  Frame completion is signalled by the DW-GDMA channel that drains the bridge,
+  so the interrupt is the DW-GDMA's, shared with any other DW-GDMA user such
+  as the MIPI DSI display controller.
+
+  Example:
+
+      &mipi_csi {
+          status = "okay";
+
+          port {
+              csi_ep_in: endpoint {
+                  remote-endpoint-label = "imx219_ep_out";
+                  bus-type = <VIDEO_BUS_TYPE_CSI2_DPHY>;
+                  data-lanes = <1 2>;
+              };
+          };
+      };
+
+compatible: "espressif,esp-mipi-csi"
+
+include: [base.yaml]
+
+properties:
+  reg:
+    required: true
+
+  reg-names:
+    required: true
+    description: Must list "host" and "bridge".
+
+  interrupts:
+    required: true
+
+  dma-channel:
+    type: int
+    required: true
+    min: 0
+    max: 3
+    description: |
+      DW-GDMA channel that drains the CSI bridge into memory. It must not be
+      the channel used by another DW-GDMA user, such as the dma-channel of an
+      enabled espressif,esp-dsi-display node.
+
+child-binding:
+  description: The CSI-2 input port.
+  child-binding:
+    description: The endpoint connected to the image sensor.
+    include: video-interfaces.yaml
+    properties:
+      bus-type:
+        required: true
+
+      data-lanes:
+        required: true
+        description: |
+          CSI-2 data lanes in use. The ESP32-P4 D-PHY has two, so this is
+          <1> or <1 2>.

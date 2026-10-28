@@ -30,10 +30,4 @@ zephyr_library_sources(
   ${esp_hal}/esp_hal_cam/${CONFIG_SOC_SERIES}/mipi_csi_periph.c
 )
 
-# mipi_csi_hal.c uses MHZ(x) but, outside ESP-IDF's build, nothing pulls in the
-# header that provides the function-macro form. Define it just for that file.
-# (COMPILE_DEFINITIONS drops function-like macros, so pass a raw -D option.)
-set_source_files_properties(${esp_hal}/esp_hal_cam/mipi_csi_hal.c
-  PROPERTIES COMPILE_OPTIONS "-DMHZ(x)=((x)*1000000)")
-
 endif() # CONFIG_VIDEO_ESP32_CSI
