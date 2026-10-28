@@ -1,0 +1,16 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&i2c0 {
+	status = "okay";
+
+	ina3221: ina3221@40 {
+		compatible = "ti,ina3221";
+		reg = <0x40>;
+		/* Channel 3 off, so the decoder has a disabled rail to refuse */
+		enable-channel = <1 1 0>;
+		shunt-resistors = <10 20 100>;
+	};
+};
