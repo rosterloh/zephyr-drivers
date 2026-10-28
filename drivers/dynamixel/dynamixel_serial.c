@@ -82,7 +82,18 @@ static int rx_frame(struct dxl_context *ctx)
 	/* CRC index */
 	crc_idx = cfg->uart_buf_ctr - sizeof(uint16_t);
 
-	memcpy(ctx->rx_frame.data, data_ptr, ctx->rx_frame.length);
+	/* The length field comes off the wire and is not covered by anything
+	 * checked yet, so it must agree with what actually arrived before it
+	 * sizes a copy. Length counts instruction, error, parameters and CRC;
+	 * rx_frame.data takes the error byte and parameters.
+	 */
+	if (ctx->rx_frame.length + 7U != cfg->uart_buf_ctr) {
+		LOG_WRN("Length field %u disagrees with %u bytes received", ctx->rx_frame.length,
+			cfg->uart_buf_ctr);
+		return -EMSGSIZE;
+	}
+
+	memcpy(ctx->rx_frame.data, data_ptr, ctx->rx_frame.length - 3U);
 
 	ctx->rx_frame.crc = sys_get_le16(&cfg->uart_buf[crc_idx]);
 	/* Calculate CRC */

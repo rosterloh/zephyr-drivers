@@ -24,6 +24,7 @@ struct fake_servo {
 	/* Behaviour knobs */
 	bool drop_response;
 	bool corrupt_crc;
+	bool corrupt_length; /* claim a 0xFFFF length field, CRC left as computed */
 	uint8_t error_byte;
 	bool answer_any_id; /* if true, reply regardless of addressed id (with own id) */
 
