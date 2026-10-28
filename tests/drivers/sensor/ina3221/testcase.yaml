@@ -1,0 +1,13 @@
+common:
+  tags:
+    - drivers
+    - sensor
+  platform_allow:
+    - qemu_cortex_m3
+    - native_sim
+
+tests:
+  drivers.sensor.ina3221: {}
+  drivers.sensor.ina3221.sync_only:
+    extra_configs:
+      - CONFIG_SENSOR_ASYNC_API=n

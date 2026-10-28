@@ -1,0 +1,18 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+config INA3221_OOT
+	bool "TI INA3221 (out-of-tree fork with read/decode support)"
+	depends on DT_HAS_TI_INA3221_ENABLED
+	depends on !INA3221
+	select I2C
+	help
+	  Use this repository's fork of Zephyr's drivers/sensor/ti/ina3221,
+	  which adds the read/decode (RTIO) sensor API when
+	  CONFIG_SENSOR_ASYNC_API is enabled: one sensor_read() measures all
+	  three channels, and the decoder reports each rail by chan_idx (0-2)
+	  for SENSOR_CHAN_VOLTAGE, SENSOR_CHAN_CURRENT and SENSOR_CHAN_POWER.
+
+	  Both bind the "ti,ina3221" compatible, so set CONFIG_INA3221=n to
+	  enable this. The fetch/get API and SENSOR_ATTR_INA3221_SELECTED_CHANNEL
+	  behave as in-tree.
