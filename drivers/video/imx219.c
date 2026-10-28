@@ -70,6 +70,8 @@ LOG_MODULE_REGISTER(imx219, CONFIG_VIDEO_LOG_LEVEL);
 #define IMX219_REG_CSI_DATA_FORMAT_A1   0x018d
 #define IMX219_CCI_BINNING_MODE_H       IMX219_REG8(0x0174)
 #define IMX219_CCI_BINNING_MODE_V       IMX219_REG8(0x0175)
+#define IMX219_BINNING_NONE             0x00
+#define IMX219_BINNING_X2_ANALOG        0x03
 #define IMX219_CCI_ORIENTATION          IMX219_REG8(0x0172)
 #define IMX219_CCI_FRM_LENGTH_A         IMX219_REG16(0x0160)
 #define IMX219_CCI_X_ADD_STA_A          IMX219_REG16(0x0164)
@@ -82,6 +84,38 @@ LOG_MODULE_REGISTER(imx219, CONFIG_VIDEO_LOG_LEVEL);
 #define IMX219_CCI_Y_ODD_INC_A          IMX219_REG8(0x0171)
 #define IMX219_CCI_DT_PEDESTAL          IMX219_REG16(0xD1EA)
 #define IMX219_DT_PEDESTAL_DEFAULT      40
+
+/*
+ * OOT FIX: line and frame length follow Raspberry Pi's kernel driver. The
+ * in-tree driver wrote LINE_LENGTH_A = 3448 once and FRM_LENGTH_A = height + 20
+ * on every format change, so the frame rate was whatever that happened to give
+ * (about 48 fps at 1080p) and set_frmival() changed nothing at all. RPi keeps
+ * the line length at 3448 (3560 under analog binning, which needs the longer
+ * line) and derives the frame length from the requested rate, never closer
+ * than 32 lines to the output height.
+ */
+#define IMX219_LINE_LENGTH_DEFAULT       3448
+#define IMX219_LINE_LENGTH_ANALOG_BINNED 3560
+#define IMX219_VBLANK_MIN                32
+#define IMX219_FRM_LENGTH_MAX            0xffff
+
+/*
+ * Pixel rate out of the VT PLL in imx219_fps_*_regs[]: INCK / PREPLLCK_VT_DIV *
+ * PLL_VT_MPY / VTPXCK_DIV, times two for the sensor's two pixel pipelines.
+ * 182.4 MHz from a 24 MHz INCK, matching IMX219_PIXEL_RATE in the RPi driver.
+ */
+#define IMX219_PIXEL_RATE(inck_hz) ((uint64_t)(inck_hz) / 3 * 57 / 5 * 2)
+
+/*
+ * OOT FIX: the format the sensor boots in. The in-tree driver used the caps
+ * minimums (4x4), so anything that streamed without calling video_set_format()
+ * first negotiated a 4x4 frame. 1640x1232 is the 2x2-binned full field of view
+ * that the RPi driver and the PLL tables are built around. RAW10 rather than
+ * RAW8, because RAW8 does not yet capture on the ESP32-P4 (zephyr-drivers#37).
+ */
+#define IMX219_DEFAULT_WIDTH       1640
+#define IMX219_DEFAULT_HEIGHT      1232
+#define IMX219_DEFAULT_PIXELFORMAT VIDEO_PIX_FMT_SBGGR10P
 
 #define IMX219_2DL_LINK_FREQ 456000000
 static const int64_t imx219_2dl_link_frequency[] = {
@@ -100,6 +134,7 @@ struct imx219_ctrls {
 struct imx219_data {
 	struct imx219_ctrls ctrls;
 	struct video_format fmt;
+	bool analog_binning;
 	int fps;
 };
 
@@ -139,14 +174,11 @@ static const struct video_reg imx219_init_regs[] = {
 	{IMX219_CCI_CSI_LANE_MODE, 0x01}, /* 2 Lanes */
 	{IMX219_CCI_DPHY_CTRL, 0x00},     /* Timing auto */
 
-	/* Timing and format registers */
-	{IMX219_CCI_LINE_LENGTH_A, 3448},
+	/* Timing and format registers; line length and binning follow the format */
 	{IMX219_CCI_X_ODD_INC_A, 1},
 	{IMX219_CCI_Y_ODD_INC_A, 1},
 
 	/* Custom defaults */
-	{IMX219_CCI_BINNING_MODE_H, 0x00}, /* No binning */
-	{IMX219_CCI_BINNING_MODE_V, 0x00} /* No binning */,
 	{IMX219_CCI_DIGITAL_GAIN, IMX219_DIGITAL_GAIN_DEFAULT},
 	{IMX219_CCI_ANALOG_GAIN, IMX219_ANALOG_GAIN_DEFAULT},
 	{IMX219_CCI_INTEGRATION_TIME, IMX219_INTEGRATION_TIME_DEFAULT},
@@ -242,27 +274,50 @@ static const struct video_format_cap imx219_fmts[] = {
 	{0},
 };
 
+/*
+ * Program LINE_LENGTH_A and FRM_LENGTH_A for the current format and frame rate.
+ * Called from both set_fmt() and set_frmival(), since the frame length depends
+ * on the output height as well as on the rate.
+ */
+static int imx219_write_timing(const struct device *dev)
+{
+	const struct imx219_config *cfg = dev->config;
+	struct imx219_data *drv_data = dev->data;
+	uint32_t line_length = drv_data->analog_binning ? IMX219_LINE_LENGTH_ANALOG_BINNED
+							: IMX219_LINE_LENGTH_DEFAULT;
+	uint32_t fll_min = drv_data->fmt.height + IMX219_VBLANK_MIN;
+	uint64_t fll = fll_min;
+	int ret;
+
+	if (drv_data->fps > 0) {
+		fll = IMX219_PIXEL_RATE(cfg->input_clk_hz) /
+		      ((uint64_t)line_length * drv_data->fps);
+	}
+
+	if (fll < fll_min) {
+		LOG_WRN("%d fps is too fast for %u lines, limited by FRM_LENGTH_A = %u",
+			drv_data->fps, drv_data->fmt.height, fll_min);
+		fll = fll_min;
+	}
+
+	fll = MIN(fll, IMX219_FRM_LENGTH_MAX);
+
+	ret = video_write_cci_reg(&cfg->i2c, IMX219_CCI_LINE_LENGTH_A, line_length);
+	if (ret < 0) {
+		return ret;
+	}
+
+	return video_write_cci_reg(&cfg->i2c, IMX219_CCI_FRM_LENGTH_A, (uint32_t)fll);
+}
+
 static int imx219_set_fmt(const struct device *dev, struct video_format *fmt)
 {
 	const struct imx219_config *cfg = dev->config;
 	struct imx219_data *drv_data = dev->data;
-	struct video_reg crop_regs[] = {
-		/* Image crop size */
-		{IMX219_CCI_X_ADD_STA_A, (IMX219_FULL_WIDTH - fmt->width) / 2},
-		{IMX219_CCI_X_ADD_END_A, (IMX219_FULL_WIDTH + fmt->width) / 2 - 1},
-		{IMX219_CCI_Y_ADD_STA_A, (IMX219_FULL_HEIGHT - fmt->height) / 2},
-		{IMX219_CCI_Y_ADD_END_A, (IMX219_FULL_HEIGHT + fmt->height) / 2 - 1},
-
-		/* Update the output resolution */
-		{IMX219_CCI_X_OUTPUT_SIZE, fmt->width},
-		{IMX219_CCI_Y_OUTPUT_SIZE, fmt->height},
-
-		/* Make sure the mipi line is long enough for the new output size */
-		{IMX219_CCI_FRM_LENGTH_A, fmt->height + 20},
-
-		/* Test pattern size */
-		{IMX219_CCI_TP_WINDOW_WIDTH, fmt->width},
-		{IMX219_CCI_TP_WINDOW_HEIGHT, fmt->height}};
+	uint32_t bin;
+	uint32_t crop_w;
+	uint32_t crop_h;
+	uint8_t bin_mode;
 	size_t idx;
 	int ret;
 
@@ -284,6 +339,39 @@ static int imx219_set_fmt(const struct device *dev, struct video_format *fmt)
 		LOG_ERR("Unsupported height %u requested", fmt->height);
 		return -EINVAL;
 	}
+
+	/*
+	 * OOT FIX: bin 2x2 whenever the output fits in half the array on both
+	 * axes, and crop output x binning around the centre, as the RPi driver
+	 * does. The in-tree driver never enabled binning, so every mode was a
+	 * binning-1 centre crop: its 1640x1232 was the middle quarter of the
+	 * sensor rather than the full field of view. Both axes always use the same
+	 * factor so pixels stay square: 1920x1080 fits twice into the array's
+	 * height but not its width, and binning only the height would squash it.
+	 */
+	bin = MIN(MIN(IMX219_FULL_WIDTH / fmt->width, IMX219_FULL_HEIGHT / fmt->height), 2U);
+	bin_mode = bin == 2 ? IMX219_BINNING_X2_ANALOG : IMX219_BINNING_NONE;
+	crop_w = fmt->width * bin;
+	crop_h = fmt->height * bin;
+
+	struct video_reg crop_regs[] = {
+		/* Image crop size */
+		{IMX219_CCI_X_ADD_STA_A, (IMX219_FULL_WIDTH - crop_w) / 2},
+		{IMX219_CCI_X_ADD_END_A, (IMX219_FULL_WIDTH + crop_w) / 2 - 1},
+		{IMX219_CCI_Y_ADD_STA_A, (IMX219_FULL_HEIGHT - crop_h) / 2},
+		{IMX219_CCI_Y_ADD_END_A, (IMX219_FULL_HEIGHT + crop_h) / 2 - 1},
+
+		/* Binning from the crop down to the output size */
+		{IMX219_CCI_BINNING_MODE_H, bin_mode},
+		{IMX219_CCI_BINNING_MODE_V, bin_mode},
+
+		/* Update the output resolution */
+		{IMX219_CCI_X_OUTPUT_SIZE, fmt->width},
+		{IMX219_CCI_Y_OUTPUT_SIZE, fmt->height},
+
+		/* Test pattern size */
+		{IMX219_CCI_TP_WINDOW_WIDTH, fmt->width},
+		{IMX219_CCI_TP_WINDOW_HEIGHT, fmt->height}};
 
 	/* Select the base resolution and imaging mode */
 	switch (idx) {
@@ -315,9 +403,11 @@ static int imx219_set_fmt(const struct device *dev, struct video_format *fmt)
 		return ret;
 	}
 
+	fmt->pitch = fmt->width * video_bits_per_pixel(fmt->pixelformat) / BITS_PER_BYTE;
 	drv_data->fmt = *fmt;
+	drv_data->analog_binning = bin_mode == IMX219_BINNING_X2_ANALOG;
 
-	return 0;
+	return imx219_write_timing(dev);
 }
 
 static int imx219_get_fmt(const struct device *dev, struct video_format *fmt)
@@ -403,8 +493,15 @@ static int imx219_set_frmival(const struct device *dev, struct video_frmival *fr
 		return ret;
 	}
 
+	drv_data->fps = imx219_framerates[fie.index];
+
+	ret = imx219_write_timing(dev);
+	if (ret < 0) {
+		return ret;
+	}
+
 	frmival->numerator = 1;
-	frmival->denominator = drv_data->fps = imx219_framerates[fie.index];
+	frmival->denominator = drv_data->fps;
 
 	return 0;
 }
@@ -561,9 +658,10 @@ static int imx219_init(const struct device *dev)
 {
 	const struct imx219_config *cfg = dev->config;
 	struct video_format fmt = {
-		.width = imx219_fmts[0].width_min,
-		.height = imx219_fmts[0].height_min,
-		.pixelformat = imx219_fmts[0].pixelformat,
+		.type = VIDEO_BUF_TYPE_OUTPUT,
+		.width = IMX219_DEFAULT_WIDTH,
+		.height = IMX219_DEFAULT_HEIGHT,
+		.pixelformat = IMX219_DEFAULT_PIXELFORMAT,
 	};
 	struct video_frmival frmival = {
 		.numerator = 1,
