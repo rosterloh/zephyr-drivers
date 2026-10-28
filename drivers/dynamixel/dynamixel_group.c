@@ -7,11 +7,14 @@
 #include <errno.h>
 #include <string.h>
 #include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/zassert.h>
 
 #include "dynamixel_internal.h"
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(dynamixel, CONFIG_DYNAMIXEL_LOG_LEVEL);
+
+ZASSERT_MODULE(DYNAMIXEL);
 
 #define DXL_INST_SYNC_READ  0x82
 #define DXL_INST_SYNC_WRITE 0x83
@@ -38,6 +41,7 @@ static inline void pack_le(uint8_t *dst, uint8_t width, uint32_t v)
 		sys_put_le32(v, dst);
 		break;
 	default:
+		ZASSERT(false, "register width %u", width);
 		break;
 	}
 }
@@ -101,6 +105,10 @@ static int sync_write_n(int iface, enum dxl_control item, uint8_t expected_width
 		}
 		p += width;
 	}
+
+	/* The packing loop must land exactly where the length check said it would. */
+	ZASSERT(p == &ctx->tx_frame.data[params_len], "sync write packed %d of %zu bytes",
+		(int)(p - ctx->tx_frame.data), params_len);
 
 	/* SYNC_WRITE is broadcast; no status reply. The TX is IRQ-driven and
 	 * runs to completion asynchronously after we release the mutex; the
@@ -299,6 +307,9 @@ int dxl_bulk_read(int iface, const struct dxl_bulk_read_entry req[], uint32_t va
 		p += 2;
 	}
 
+	ZASSERT(p == &ctx->tx_frame.data[total_params], "bulk read packed %d of %zu bytes",
+		(int)(p - ctx->tx_frame.data), total_params);
+
 	int summary = 0;
 	for (size_t i = 0; i < n; i++) {
 		ctx->expected_id = req[i].id;
@@ -388,6 +399,9 @@ int dxl_bulk_write(int iface, const struct dxl_bulk_write_entry req[], size_t n)
 		pack_le(p, widths[i], req[i].value);
 		p += widths[i];
 	}
+
+	ZASSERT(p == &ctx->tx_frame.data[total_params], "bulk write packed %d of %zu bytes",
+		(int)(p - ctx->tx_frame.data), total_params);
 
 	dxl_serial_tx(ctx);
 	k_mutex_unlock(&ctx->iface_lock);

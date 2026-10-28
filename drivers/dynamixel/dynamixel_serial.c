@@ -2,11 +2,14 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/crc.h>
+#include <zephyr/sys/zassert.h>
 
 #include "dynamixel_internal.h"
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(dynamixel, CONFIG_DYNAMIXEL_LOG_LEVEL);
+
+ZASSERT_MODULE(DYNAMIXEL);
 
 /* http://emanual.robotis.com/docs/en/dxl/protocol2/#status-packet */
 #define DYNAMIXEL_MIN_MSG_SIZE 11
@@ -79,7 +82,18 @@ static int rx_frame(struct dxl_context *ctx)
 	/* CRC index */
 	crc_idx = cfg->uart_buf_ctr - sizeof(uint16_t);
 
-	memcpy(ctx->rx_frame.data, data_ptr, ctx->rx_frame.length);
+	/* The length field comes off the wire and is not covered by anything
+	 * checked yet, so it must agree with what actually arrived before it
+	 * sizes a copy. Length counts instruction, error, parameters and CRC;
+	 * rx_frame.data takes the error byte and parameters.
+	 */
+	if (ctx->rx_frame.length + 7U != cfg->uart_buf_ctr) {
+		LOG_WRN("Length field %u disagrees with %u bytes received", ctx->rx_frame.length,
+			cfg->uart_buf_ctr);
+		return -EMSGSIZE;
+	}
+
+	memcpy(ctx->rx_frame.data, data_ptr, ctx->rx_frame.length - 3U);
 
 	ctx->rx_frame.crc = sys_get_le16(&cfg->uart_buf[crc_idx]);
 	/* Calculate CRC */
@@ -113,6 +127,13 @@ static void tx_frame(struct dxl_context *ctx)
 	tx_bytes = ctx->tx_frame.length + 7;
 	data_ptr = &cfg->uart_buf[8];
 
+	/* Every caller bounds the frame against CONFIG_DYNAMIXEL_BUFFER_SIZE
+	 * before building it; a frame that slips past would overrun uart_buf.
+	 */
+	ZASSERT(ctx->tx_frame.length >= 3 && tx_bytes <= CONFIG_DYNAMIXEL_BUFFER_SIZE,
+		"tx frame length %u does not fit the %u-byte buffer", ctx->tx_frame.length,
+		CONFIG_DYNAMIXEL_BUFFER_SIZE);
+
 	memcpy(data_ptr, ctx->tx_frame.data, ctx->tx_frame.length);
 
 	ctx->tx_frame.crc = crc16(CRC_POLYNOMIAL, CRC_SEED, &cfg->uart_buf[0], tx_bytes - 2);
@@ -145,6 +166,8 @@ static void cb_handler_rx(struct dxl_context *ctx)
 
 	cfg->uart_buf_ptr += n;
 	cfg->uart_buf_ctr += n;
+
+	ZASSERT(cfg->uart_buf_ctr <= CONFIG_DYNAMIXEL_BUFFER_SIZE, "rx overran uart_buf");
 }
 
 static void cb_handler_tx(struct dxl_context *ctx)

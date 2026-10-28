@@ -18,12 +18,15 @@
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/slist.h>
 #include <zephyr/sys/util.h>
+#include <zephyr/sys/zassert.h>
 #include <drivers/bus_servo.h>
 #include <zephyr/actuator/internal/capabilities.h>
 
 #include "../../bus_servo/bus_servo_internal.h"
 
 LOG_MODULE_REGISTER(actuator_bus_servo, CONFIG_ACTUATOR_LOG_LEVEL);
+
+ZASSERT_MODULE(ACTUATOR);
 
 #define BUS_SERVO_CB_POOL                    CONFIG_ACTUATOR_MAX_CALLBACKS_PER_DEVICE
 /* Match drivers/bus_servo/bus_servo.c packet layout for SYNC_WRITE position-ex frames. */
@@ -156,6 +159,8 @@ static int bus_servo_actuator_read_feedback(const struct device *dev, struct act
 	uint8_t block[PRESENT_BLOCK_LEN];
 	int rc;
 
+	ZASSERT(out != NULL);
+
 	rc = bus_servo_read_block(d->iface, cfg->bus_id, BUS_SERVO_REG_PRESENT_POSITION_L,
 				  sizeof(block), block);
 	if (rc != 0) {
@@ -228,6 +233,7 @@ static int bus_servo_group_set_setpoints(const struct device *const *devs, size_
 	if (n > BUS_SERVO_ACTUATOR_SYNC_MAX) {
 		return -EMSGSIZE;
 	}
+	ZASSERT(devs != NULL && values != NULL);
 
 	const struct bus_servo_actuator_data *d0 = devs[0]->data;
 	uint8_t ids[BUS_SERVO_ACTUATOR_SYNC_MAX];

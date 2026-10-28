@@ -190,6 +190,23 @@ ZTEST(dynamixel_protocol, test_crc_error_returns_eio)
 	zassert_equal(rc, -EIO, "corrupted CRC should return -EIO, got %d", rc);
 }
 
+/* A length field that disagrees with the bytes received used to size the copy
+ * into rx_frame.data before the CRC was checked, overrunning it by up to 64 KiB.
+ */
+ZTEST(dynamixel_protocol, test_bad_length_field_returns_emsgsize)
+{
+	uint32_t val = 0;
+	int rc;
+
+	srv.corrupt_length = true;
+	fake_servo_set_u32(&srv, 132 /* PRESENT_POSITION */, 0xFEEDFACE);
+
+	rc = dxl_read_u32(iface, 1, PRESENT_POSITION, &val);
+
+	zassert_equal(rc, -EMSGSIZE, "bad length field should return -EMSGSIZE, got %d", rc);
+	zassert_equal(val, 0, "value must not be written on a bad frame");
+}
+
 ZTEST(dynamixel_protocol, test_write_u16_round_trip)
 {
 	zassert_ok(dxl_write_u16(iface, 1, GOAL_PWM, 0x0BEE), "write failed");

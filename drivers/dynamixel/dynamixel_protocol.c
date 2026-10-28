@@ -1,14 +1,19 @@
 #include <errno.h>
 #include <string.h>
 #include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/zassert.h>
 
 #include "dynamixel_internal.h"
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(dynamixel, CONFIG_DYNAMIXEL_LOG_LEVEL);
 
+ZASSERT_MODULE(DYNAMIXEL);
+
 int dxl_parse_status_payload(const uint8_t *data, uint8_t width, uint32_t *out)
 {
+	ZASSERT(data != NULL && out != NULL);
+
 	uint8_t dev_err = data[0];
 
 	if (dev_err != 0) {

@@ -56,6 +56,9 @@ static void send_status(struct fake_servo *s, uint8_t error, const uint8_t *para
 		crc ^= 0x0001;
 	}
 	sys_put_le16(crc, &buf[total - 2]);
+	if (s->corrupt_length) {
+		sys_put_le16(0xFFFF, &buf[5]);
+	}
 
 	uart_emul_put_rx_data(s->uart, buf, total);
 }
