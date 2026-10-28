@@ -16,6 +16,12 @@ module = ACTUATOR
 module-str = actuator
 source "subsys/logging/Kconfig.template.log_config"
 
+# Per-module ZASSERT() level for the actuator backends. Only active with
+# CONFIG_ASSERT=y; see the DYNAMIXEL module for checking one driver alone.
+module = ACTUATOR
+module-str = actuator
+source "subsys/debug/zassert/Kconfig.template.assert"
+
 config ACTUATOR_MAX_CALLBACKS_PER_DEVICE
 	int "Maximum number of callbacks per actuator device"
 	default 2

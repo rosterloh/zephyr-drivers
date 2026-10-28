@@ -29,4 +29,11 @@ module = DYNAMIXEL
 module-str = dynamixel
 source "subsys/logging/Kconfig.template.log_config"
 
+# Per-module ZASSERT() level for the protocol and framing code. Only active
+# with CONFIG_ASSERT=y; set CONFIG_ASSERT_MODULE_DEFAULT_LEVEL_OFF=y alongside
+# it to check this driver without paying for every kernel assertion.
+module = DYNAMIXEL
+module-str = dynamixel
+source "subsys/debug/zassert/Kconfig.template.assert"
+
 endif # DYNAMIXEL

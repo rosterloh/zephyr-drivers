@@ -14,10 +14,13 @@
 #include <zephyr/device.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/slist.h>
+#include <zephyr/sys/zassert.h>
 #include <zephyr/actuator/actuator.h>
 #include <drivers/dynamixel.h>
 
 LOG_MODULE_REGISTER(actuator_dxl, CONFIG_ACTUATOR_LOG_LEVEL);
+
+ZASSERT_MODULE(ACTUATOR);
 
 #define DXL_CB_POOL CONFIG_ACTUATOR_MAX_CALLBACKS_PER_DEVICE
 
@@ -25,6 +28,14 @@ LOG_MODULE_REGISTER(actuator_dxl, CONFIG_ACTUATOR_LOG_LEVEL);
 #define DXL_VEL_TICKS_PER_RAD_S (1.0f / 0.02398f)
 /* X-series goal current: 1 tick = 2.69 mA. */
 #define DXL_CURRENT_MA_PER_TICK (2.69f)
+
+/*
+ * Most members one SYNC_WRITE of 4-byte goals can carry: 7 header bytes,
+ * instruction, 4 bytes of address/length, CRC, then id + value per member.
+ * The group paths size their stack arrays by member count, so a group larger
+ * than this both fails on the bus and costs stack it was never budgeted for.
+ */
+#define DXL_GROUP_MAX_MEMBERS ((CONFIG_DYNAMIXEL_BUFFER_SIZE - 7 - 1 - 4 - 2) / (1 + 4))
 
 struct dxl_data {
 	struct actuator_common_data common;
@@ -232,6 +243,10 @@ static int dxl_group_set_setpoints(const struct device *const *devs, size_t n,
 	if (n == 0) {
 		return 0;
 	}
+	ZASSERT(devs != NULL && values != NULL);
+	ZASSERT(n <= DXL_GROUP_MAX_MEMBERS, "group of %zu exceeds %d members", n,
+		DXL_GROUP_MAX_MEMBERS);
+
 	const struct dxl_data *d0 = devs[0]->data;
 	uint8_t ids[n];
 	for (size_t i = 0; i < n; i++) {
@@ -278,6 +293,10 @@ static int dxl_group_read_feedback(const struct device *const *devs, size_t n,
 	if (n == 0) {
 		return 0;
 	}
+	ZASSERT(devs != NULL && out != NULL);
+	ZASSERT(n <= DXL_GROUP_MAX_MEMBERS, "group of %zu exceeds %d members", n,
+		DXL_GROUP_MAX_MEMBERS);
+
 	const struct dxl_data *d0 = devs[0]->data;
 	uint8_t ids[n];
 	uint32_t positions[n];
@@ -292,6 +311,13 @@ static int dxl_group_read_feedback(const struct device *const *devs, size_t n,
 		ids[i] = ci->bus_id;
 	}
 	int rc = dxl_sync_read_u32(d0->iface, PRESENT_POSITION, ids, positions, errs, n);
+
+	/* -EIO means per-slot results are in errs[]. Anything else failed before
+	 * a frame went out, and errs[] and positions[] were never written.
+	 */
+	if (rc != 0 && rc != -EIO) {
+		return rc;
+	}
 	for (size_t i = 0; i < n; i++) {
 		if (errs[i] != 0) {
 			out[i] = (struct actuator_feedback){.valid_mask = 0};
@@ -370,6 +396,11 @@ static int dxl_actuator_init(const struct device *dev)
 								      : ACTUATOR_MODE_POSITION))
 
 #define DXL_ACTUATOR_DEFINE(inst)                                                                  \
+	BUILD_ASSERT(DT_INST_PROP(inst, gear_ratio_num) != 0, "gear-ratio-num must be non-zero");  \
+	BUILD_ASSERT(DT_INST_PROP(inst, gear_ratio_den) != 0, "gear-ratio-den must be non-zero");  \
+	BUILD_ASSERT(DT_INST_PROP(inst, ticks_per_rev) > 0, "ticks-per-rev must be non-zero");     \
+	BUILD_ASSERT(DT_INST_PROP(inst, rad_zero_tick) < DT_INST_PROP(inst, ticks_per_rev),        \
+		     "rad-zero-tick must be less than ticks-per-rev");                             \
 	static struct dxl_data dxl_data_##inst;                                                    \
 	static const struct dxl_config dxl_config_##inst = {                                       \
 		.cb_offsets =                                                                      \
