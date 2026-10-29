@@ -17,6 +17,8 @@
 
 #include <zephyr/drivers/ethercat/lan9252.h>
 
+#include "lan9252_emul.h"
+
 #define LAN9252_SPI_READ          0x03
 #define LAN9252_SPI_WRITE         0x02
 #define LAN9252_SPI_ADDR_AUTO_INC BIT(14)
@@ -28,6 +30,7 @@
 struct lan9252_emul_data {
 	uint32_t regs[LAN9252_EMUL_REG_COUNT];
 	uint8_t esc[LAN9252_EMUL_ESC_SIZE];
+	bool csr_stuck_busy;
 };
 
 static uint32_t *lan9252_emul_reg(struct lan9252_emul_data *data, uint16_t addr)
@@ -74,6 +77,11 @@ static void lan9252_emul_complete_csr_command(struct lan9252_emul_data *data, ui
 
 	if (!busy || csr_data == NULL || csr_cmd == NULL || size == 0 || size > sizeof(uint32_t) ||
 	    addr + size > sizeof(data->esc)) {
+		return;
+	}
+
+	if (data->csr_stuck_busy) {
+		/* Leave BUSY set, as a wedged ESC would. */
 		return;
 	}
 
@@ -191,6 +199,17 @@ static int lan9252_emul_init(const struct emul *target, const struct device *par
 	*lan9252_emul_reg(data, LAN9252_REG_HW_CFG) = LAN9252_HW_CFG_READY;
 
 	return 0;
+}
+
+void lan9252_emul_set_csr_stuck_busy(const struct emul *target, bool stuck)
+{
+	struct lan9252_emul_data *data = target->data;
+	uint32_t *csr_cmd = lan9252_emul_reg(data, LAN9252_REG_ECAT_CSR_CMD);
+
+	data->csr_stuck_busy = stuck;
+	if (!stuck) {
+		*csr_cmd &= ~BIT(31);
+	}
 }
 
 static const struct spi_emul_api lan9252_emul_api = {
