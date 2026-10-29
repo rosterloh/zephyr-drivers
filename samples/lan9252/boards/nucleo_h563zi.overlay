@@ -1,0 +1,28 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	aliases {
+		lan9252-0 = &lan9252;
+	};
+};
+
+/*
+ * LAN9252 on the Nucleo-H563ZI Arduino SPI header.
+ *
+ * SPI1 pins come from the board common DTS:
+ *   SCK  = PA5  (D13)
+ *   MISO = PG9  (D12)
+ *   MOSI = PB5  (D11)
+ *   CS   = PD14 (D10, active-low)
+ */
+&spi1 {
+	lan9252: lan9252@0 {
+		compatible = "microchip,lan9252";
+		reg = <0>;
+		spi-max-frequency = <1000000>;
+		init-timeout-ms = <100>;
+	};
+};

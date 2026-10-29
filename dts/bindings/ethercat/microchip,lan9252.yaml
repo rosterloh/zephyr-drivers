@@ -1,0 +1,36 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+description: Microchip LAN9252 EtherCAT SubDevice controller on SPI
+
+compatible: "microchip,lan9252"
+
+include: spi-device.yaml
+
+properties:
+  int-gpios:
+    type: phandle-array
+    description: |
+      Optional LAN9252 IRQ pin. The pin polarity should describe the board
+      wiring; the LAN9252 IRQ output is typically active low.
+
+  reset-gpios:
+    type: phandle-array
+    description: |
+      Optional LAN9252 reset pin. The pin polarity should describe the board
+      wiring; the LAN9252 RST# input is active low.
+
+  reset-assert-us:
+    type: int
+    default: 1000
+    description: Reset assertion time in microseconds when reset-gpios is present.
+
+  reset-deassert-us:
+    type: int
+    default: 1000
+    description: Delay after reset deassertion before polling the SPI interface.
+
+  init-timeout-ms:
+    type: int
+    default: 100
+    description: Timeout for BYTE_TEST and READY polling during device init.

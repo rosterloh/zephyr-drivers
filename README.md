@@ -13,6 +13,7 @@ This repository provides a shared drivers module for all my other projects
 - [SingleTact](http://www.singletact.com/) capacitive force sensor
 - ESP32-P4 MIPI CSI-2 camera receiver (`espressif,esp-mipi-csi`) — RAW8/RAW10/RAW12 capture through the ISP passthrough
 - Camera sensors: OmniVision OV5647, Arducam Pivariety (incl. ToF), and a fork of Zephyr's Sony IMX219
+- [Microchip LAN9252](https://www.microchip.com/en-us/product/lan9252) EtherCAT SubDevice controller (SPI) — System CSR and indirect EtherCAT core CSR access
 
 ## Subsystems & libraries
 
