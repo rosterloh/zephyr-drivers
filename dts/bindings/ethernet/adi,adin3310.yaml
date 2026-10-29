@@ -1,0 +1,37 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+description: Analog Devices ADIN3310 Ethernet switch management interface on SPI
+
+compatible: "adi,adin3310"
+
+include: spi-device.yaml
+
+properties:
+  int-gpios:
+    type: phandle-array
+    description: |
+      Optional ADIN3310 interrupt pin. The pin polarity should describe
+      the board wiring.
+
+  reset-gpios:
+    type: phandle-array
+    description: |
+      Optional ADIN3310 reset pin. The pin polarity should describe the
+      board wiring.
+
+  reset-assert-us:
+    type: int
+    default: 1000
+    description: Reset assertion time in microseconds when reset-gpios is present.
+
+  reset-deassert-us:
+    type: int
+    default: 1000
+    description: Delay after reset deassertion before using the SPI interface.
+
+  port-count:
+    type: int
+    const: 3
+    default: 3
+    description: Number of external switch ports on the ADIN3310.

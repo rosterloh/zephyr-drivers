@@ -1,0 +1,21 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	aliases {
+		adin3310-0 = &adin3310;
+	};
+};
+
+&spi0 {
+	adin3310: adin3310@0 {
+		compatible = "adi,adin3310";
+		reg = <0>;
+		spi-max-frequency = <1000000>;
+		port-count = <3>;
+		reset-assert-us = <1>;
+		reset-deassert-us = <1>;
+	};
+};
