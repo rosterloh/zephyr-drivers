@@ -1,5 +1,4 @@
 if SENSOR
-rsource "as7341/Kconfig"
 rsource "icm20948/Kconfig"
 rsource "ina3221/Kconfig"
 rsource "singletact/Kconfig"
