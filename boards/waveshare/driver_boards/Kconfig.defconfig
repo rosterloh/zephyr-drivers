@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_ROS_DRIVER_ESP32_PROCPU
+
+# The on-board ICM-20948 is on I2C; Zephyr's in-tree driver is SPI-only.
+# Typed so this still parses on Zephyr versions without that driver.
+config ICM20948
+	bool
+	default n
+
+endif # BOARD_ROS_DRIVER_ESP32_PROCPU

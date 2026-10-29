@@ -9,10 +9,11 @@ This repository provides a shared drivers module for all my other projects
 - [Robotis Dynamixel](https://www.dynamixel.com/) serial servo (single + sync/bulk group transactions)
 - [Waveshare bus servo](https://www.waveshare.com/wiki/ST3235_Servo) (serial bus servo)
 - ESP32 PCNT quadrature encoder (one sensor device per counting unit)
-- [AMS AS7341](https://ams.com/en/as7341) 11-channel multi-spectral sensor
 - [SingleTact](http://www.singletact.com/) capacitive force sensor
 - ESP32-P4 MIPI CSI-2 camera receiver (`espressif,esp-mipi-csi`) — RAW8/RAW10/RAW12 capture through the ISP passthrough
 - Camera sensors: OmniVision OV5647, Arducam Pivariety (incl. ToF), and a fork of Zephyr's Sony IMX219
+- [Microchip LAN9252](https://www.microchip.com/en-us/product/lan9252) EtherCAT SubDevice controller (SPI) — System CSR and indirect EtherCAT core CSR access
+- [Analog Devices ADIN3310](https://www.analog.com/en/products/adin3310.html) 3-port TSN Ethernet switch — SPI management transport and reset for ADI's host driver
 
 ## Subsystems & libraries
 

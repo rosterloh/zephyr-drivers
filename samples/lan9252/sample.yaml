@@ -1,0 +1,18 @@
+sample:
+  name: LAN9252 EtherCAT SubDevice controller
+  description: Basic Microchip LAN9252 SPI driver bring-up sample
+common:
+  tags:
+    - drivers
+    - ethercat
+    - spi
+tests:
+  sample.drivers.ethercat.lan9252:
+    build_only: true
+    # Skipped in workspaces (such as this repo's CI) that do not carry hal_stm32.
+    modules:
+      - hal_stm32
+    platform_allow:
+      - nucleo_h563zi
+    integration_platforms:
+      - nucleo_h563zi

@@ -1,0 +1,19 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+config LAN9252
+	bool "Microchip LAN9252 EtherCAT SubDevice controller"
+	default y
+	depends on DT_HAS_MICROCHIP_LAN9252_ENABLED
+	depends on SPI
+	select GPIO if ($(dt_compat_any_has_prop,$(DT_COMPAT_MICROCHIP_LAN9252),reset-gpios) || \
+			$(dt_compat_any_has_prop,$(DT_COMPAT_MICROCHIP_LAN9252),int-gpios))
+	help
+	  Enable the SPI host driver for the Microchip LAN9252 EtherCAT
+	  SubDevice controller. The driver exposes direct System CSR access and
+	  indirect EtherCAT Core CSR access; it does not register an Ethernet
+	  network interface.
+
+module = LAN9252
+module-str = lan9252
+source "subsys/logging/Kconfig.template.log_config"

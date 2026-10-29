@@ -1,0 +1,9 @@
+tests:
+  drivers.ethercat.lan9252:
+    tags:
+      - drivers
+      - ethercat
+      - spi
+    platform_allow:
+      - native_sim
+      - qemu_cortex_m3

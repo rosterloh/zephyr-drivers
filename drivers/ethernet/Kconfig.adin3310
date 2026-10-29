@@ -1,0 +1,20 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+config ADIN3310
+	bool "Analog Devices ADIN3310 Ethernet switch management"
+	default y
+	depends on DT_HAS_ADI_ADIN3310_ENABLED
+	depends on SPI
+	select GPIO if ($(dt_compat_any_has_prop,$(DT_COMPAT_ADI_ADIN3310),reset-gpios) || \
+			$(dt_compat_any_has_prop,$(DT_COMPAT_ADI_ADIN3310),int-gpios))
+	help
+	  Enable the SPI host management driver for the Analog Devices
+	  ADIN3310 3-port Industrial Ethernet TSN switch. The driver exposes
+	  reset handling and a raw SPI management transfer API for the ADI
+	  ADINx310 host/SES porting layer; it does not register an Ethernet
+	  network interface or DSA switch ports.
+
+module = ADIN3310
+module-str = adin3310
+source "subsys/logging/Kconfig.template.log_config"
