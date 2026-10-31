@@ -1,0 +1,22 @@
+common:
+  tags:
+    - drivers
+    - video
+tests:
+  drivers.video.esp32_i2s_cam.jpeg:
+    platform_allow:
+      - qemu_cortex_m3
+      - native_sim
+      - native_sim/native/64
+    integration_platforms:
+      - native_sim
+      - native_sim/native/64
+  drivers.video.esp32_i2s_cam.build:
+    build_only: true
+    # The driver uses hal_espressif headers; skipped where that module is absent.
+    modules:
+      - hal_espressif
+    platform_allow:
+      - ai_thinker_esp32_cam/esp32/procpu
+    extra_configs:
+      - CONFIG_VIDEO=y
