@@ -1,0 +1,139 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+/dts-v1/;
+
+#include <espressif/esp32/esp32.dtsi>
+#include "ai_thinker_esp32_cam-pinctrl.dtsi"
+#include <espressif/partitions_0x1000_default_4M.dtsi>
+
+/ {
+	model = "AI-Thinker ESP32-CAM PROCPU";
+	compatible = "espressif,esp32";
+
+	aliases {
+		uart-0 = &uart0;
+		i2c-0 = &i2c0;
+		led0 = &status_led;
+		watchdog0 = &wdt0;
+	};
+
+	chosen {
+		zephyr,sram = &sram1;
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+		zephyr,camera = &camera;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		status_led: led_0 {
+			gpios = <&gpio1 1 GPIO_ACTIVE_LOW>; /* GPIO33, red */
+			label = "Status LED";
+		};
+	};
+
+	pwmleds {
+		compatible = "pwm-leds";
+
+		flash_led: flash_led {
+			pwms = <&ledc0 1 PWM_HZ(2000) PWM_POLARITY_NORMAL>;
+			label = "Flash LED";
+		};
+	};
+
+	camera: camera {
+		compatible = "espressif,esp32-i2s-cam";
+		i2s = <&i2s0>;
+		pinctrl-0 = <&i2s0_cam_default>;
+		pinctrl-names = "default";
+		vsync-gpios = <&gpio0 25 GPIO_ACTIVE_HIGH>;
+		pwms = <&ledc0 0 PWM_NSEC(50) PWM_POLARITY_NORMAL>;
+		pwm-names = "xclk";
+		source = <&ov2640>;
+
+		port {
+			cam_ep_in: endpoint {
+				remote-endpoint-label = "ov2640_ep_out";
+			};
+		};
+	};
+};
+
+&flash0 {
+	reg = <0x0 DT_SIZE_M(4)>;
+};
+
+&psram0 {
+	size = <DT_SIZE_M(4)>;
+};
+
+&uart0 {
+	current-speed = <115200>;
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&ledc0 {
+	pinctrl-0 = <&ledc0_default>;
+	pinctrl-names = "default";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	channel0@0 {
+		reg = <0x0>;
+		timer = <0>;
+	};
+
+	channel1@1 {
+		reg = <0x1>;
+		timer = <1>;
+	};
+};
+
+&i2c0 {
+	clock-frequency = <I2C_BITRATE_STANDARD>;
+	sda-gpios = <&gpio0 26 GPIO_OPEN_DRAIN>;
+	scl-gpios = <&gpio0 27 GPIO_OPEN_DRAIN>;
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	ov2640: ov2640@30 {
+		compatible = "ovti,ov2640";
+		reg = <0x30>;
+		pwdn-gpios = <&gpio1 0 GPIO_ACTIVE_HIGH>; /* GPIO32 */
+
+		port {
+			ov2640_ep_out: endpoint {
+				remote-endpoint-label = "cam_ep_in";
+			};
+		};
+	};
+};
+
+&trng0 {
+	status = "okay";
+};
+
+&wdt0 {
+	status = "okay";
+};
+
+&wifi {
+	status = "okay";
+};

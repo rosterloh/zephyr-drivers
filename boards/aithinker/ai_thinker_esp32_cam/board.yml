@@ -1,0 +1,6 @@
+board:
+  name: ai_thinker_esp32_cam
+  full_name: AI-Thinker ESP32-CAM
+  vendor: aithinker
+  socs:
+    - name: esp32

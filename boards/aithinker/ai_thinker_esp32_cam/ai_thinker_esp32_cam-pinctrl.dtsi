@@ -1,0 +1,58 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/pinctrl/esp32-pinctrl.h>
+
+&pinctrl {
+	uart0_default: uart0_default {
+		group1 {
+			pinmux = <UART0_TX_GPIO1>;
+			output-high;
+		};
+
+		group2 {
+			pinmux = <UART0_RX_GPIO3>;
+			bias-pull-up;
+		};
+	};
+
+	/* OV2640 SCCB */
+	i2c0_default: i2c0_default {
+		group1 {
+			pinmux = <I2C0_SDA_GPIO26>,
+				 <I2C0_SCL_GPIO27>;
+			bias-pull-up;
+			drive-open-drain;
+			output-high;
+		};
+	};
+
+	/* Channel 0: OV2640 XCLK on GPIO0. Channel 1: flash LED on GPIO4. */
+	ledc0_default: ledc0_default {
+		group1 {
+			pinmux = <LEDC_CH0_GPIO0>,
+				 <LEDC_CH1_GPIO4>;
+			output-enable;
+		};
+	};
+
+	/* OV2640 8-bit DVP into I2S0 camera mode: Y2..Y9 = D0..D7 */
+	i2s0_cam_default: i2s0_cam_default {
+		group1 {
+			pinmux = <ESP32_PINMUX(5, ESP_I2S0I_DATA_IN0, ESP_NOSIG)>,
+				 <ESP32_PINMUX(18, ESP_I2S0I_DATA_IN1, ESP_NOSIG)>,
+				 <ESP32_PINMUX(19, ESP_I2S0I_DATA_IN2, ESP_NOSIG)>,
+				 <ESP32_PINMUX(21, ESP_I2S0I_DATA_IN3, ESP_NOSIG)>,
+				 <ESP32_PINMUX(36, ESP_I2S0I_DATA_IN4, ESP_NOSIG)>,
+				 <ESP32_PINMUX(39, ESP_I2S0I_DATA_IN5, ESP_NOSIG)>,
+				 <ESP32_PINMUX(34, ESP_I2S0I_DATA_IN6, ESP_NOSIG)>,
+				 <ESP32_PINMUX(35, ESP_I2S0I_DATA_IN7, ESP_NOSIG)>,
+				 <ESP32_PINMUX(25, ESP_I2S0I_V_SYNC, ESP_NOSIG)>,
+				 <ESP32_PINMUX(23, ESP_I2S0I_H_SYNC, ESP_NOSIG)>,
+				 <ESP32_PINMUX(22, ESP_I2S0I_WS_IN, ESP_NOSIG)>;
+			input-enable;
+		};
+	};
+};

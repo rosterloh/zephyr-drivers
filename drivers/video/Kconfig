@@ -32,6 +32,7 @@ config VIDEO_OV5647
 	  not deliver complete frames (see the comment in ov5647.c).
 
 rsource "Kconfig.esp32_csi"
+rsource "Kconfig.esp32_i2s_cam"
 
 config VIDEO_ARDUCAM_PIVARIETY
 	bool "Arducam Pivariety camera"

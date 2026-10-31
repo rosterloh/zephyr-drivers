@@ -1,0 +1,44 @@
+# Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config VIDEO_ESP32_I2S_CAM
+	bool "ESP32 I2S camera-mode DVP receiver"
+	default y
+	depends on DT_HAS_ESPRESSIF_ESP32_I2S_CAM_ENABLED
+	depends on SOC_SERIES_ESP32
+	select PINCTRL
+	select PWM
+	select GPIO
+	help
+	  Capture JPEG frames from an 8-bit DVP sensor (e.g. OV2640) through the
+	  original ESP32's I2S0 camera mode. DMA lands in an internal-RAM ring
+	  that a driver thread copies into the application's video buffers, so
+	  those buffers may live in PSRAM.
+
+if VIDEO_ESP32_I2S_CAM
+
+config VIDEO_ESP32_I2S_CAM_DMA_RING_SIZE
+	int "DMA ring size in bytes"
+	default 32768
+	help
+	  Internal-RAM DMA ring. Each JPEG byte occupies four bytes in the
+	  ring, which is split into 4 KiB halves; the copy thread must drain a
+	  half before the DMA laps it. Must be a multiple of 4096.
+
+config VIDEO_ESP32_I2S_CAM_THREAD_PRIORITY
+	int "Copy thread priority"
+	default 2
+
+config VIDEO_ESP32_I2S_CAM_THREAD_STACK_SIZE
+	int "Copy thread stack size"
+	default 1024
+
+config VIDEO_ESP32_I2S_CAM_XCLK_INIT_PRIORITY
+	int "XCLK start priority"
+	default 55
+	help
+	  POST_KERNEL priority at which the sensor master clock starts. It
+	  must come after PWM and before VIDEO_INIT_PRIORITY, because the
+	  sensor needs XCLK to answer on SCCB during its own init.
+
+endif

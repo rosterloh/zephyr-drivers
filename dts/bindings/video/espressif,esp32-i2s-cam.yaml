@@ -1,0 +1,60 @@
+# Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  ESP32 I2S0 in camera mode: an 8-bit parallel (DVP) camera interface.
+
+  The original ESP32 has no LCD_CAM block, so a DVP sensor is captured through
+  I2S0's camera mode. Only JPEG output is supported, which is what an OV2640
+  produces natively. The sensor master clock is generated on a PWM (LEDC)
+  channel named "xclk".
+
+    camera {
+      compatible = "espressif,esp32-i2s-cam";
+      i2s = <&i2s0>;
+      pinctrl-0 = <&i2s0_cam_default>;
+      pinctrl-names = "default";
+      vsync-gpios = <&gpio0 25 GPIO_ACTIVE_HIGH>;
+      pwms = <&ledc0 0 PWM_NSEC(50) PWM_POLARITY_NORMAL>;
+      pwm-names = "xclk";
+      source = <&ov2640>;
+    };
+
+  The pinctrl state must route D0..D7 to I2S0I_DATA_IN0..7, VSYNC to
+  I2S0I_V_SYNC, HREF to I2S0I_H_SYNC and PCLK to I2S0I_WS_IN. Leave the
+  i2s0 node disabled: this driver owns the peripheral.
+
+compatible: "espressif,esp32-i2s-cam"
+
+include: [base.yaml, pinctrl-device.yaml]
+
+properties:
+  i2s:
+    type: phandle
+    required: true
+    description: The I2S0 node. Only I2S0 supports camera mode.
+
+  source:
+    type: phandle
+    required: true
+    description: Connected source device, i.e. the camera sensor.
+
+  vsync-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      The VSYNC pin, also routed to I2S0I_V_SYNC by pinctrl. Its edge
+      interrupt marks frame boundaries.
+
+  pwms:
+    type: phandle-array
+    required: true
+    description: PWM channel that generates the sensor XCLK.
+
+  pwm-names:
+    type: string-array
+    required: true
+    description: Must be "xclk".
+
+  pinctrl-0:
+    required: true

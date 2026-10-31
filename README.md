@@ -11,6 +11,7 @@ This repository provides a shared drivers module for all my other projects
 - ESP32 PCNT quadrature encoder (one sensor device per counting unit)
 - [SingleTact](http://www.singletact.com/) capacitive force sensor
 - ESP32-P4 MIPI CSI-2 camera receiver (`espressif,esp-mipi-csi`) — RAW8/RAW10/RAW12 capture through the ISP passthrough
+- ESP32 I2S0 camera-mode DVP receiver (`espressif,esp32-i2s-cam`) — JPEG capture from an OV2640 on the original ESP32
 - Camera sensors: OmniVision OV5647, Arducam Pivariety (incl. ToF), and a fork of Zephyr's Sony IMX219
 - [Microchip LAN9252](https://www.microchip.com/en-us/product/lan9252) EtherCAT SubDevice controller (SPI) — System CSR and indirect EtherCAT core CSR access
 - [Analog Devices ADIN3310](https://www.analog.com/en/products/adin3310.html) 3-port TSN Ethernet switch — SPI management transport and reset for ADI's host driver
@@ -26,6 +27,7 @@ This repository provides a shared drivers module for all my other projects
 - `waveshare/esp32p4_nano` — ESP32-P4 board (`hpcore` + `lpcore`); Ethernet, SD, I2C, UART console
 - `m5stack/unit_poe_p4` — M5Stack Unit PoE-P4, ESP32-P4 (`hpcore`) with 16 MB flash and PoE Ethernet
 - `adafruit/qt_py_esp32c3` — Adafruit QT Py ESP32-C3 with a Seeed XIAO connector
+- `aithinker/ai_thinker_esp32_cam` — AI-Thinker ESP32-CAM (`procpu`): OV2640 camera, 4 MB PSRAM, flash LED
 
 ### Shields
 

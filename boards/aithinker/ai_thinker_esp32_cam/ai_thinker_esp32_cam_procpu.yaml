@@ -1,0 +1,17 @@
+identifier: ai_thinker_esp32_cam/esp32/procpu
+name: AI-Thinker ESP32-CAM PROCPU
+type: mcu
+arch: xtensa
+toolchain:
+  - zephyr
+ram: 8192
+supported:
+  - gpio
+  - i2c
+  - pwm
+  - uart
+  - video
+  - watchdog
+  - entropy
+  - netif:wifi
+vendor: aithinker
