@@ -116,23 +116,24 @@ expansion board that drives them will disturb that function:
 Flash layout
 ============
 
-The board carries 32 MB of NOR flash but uses the **16 MB** default partition
-table (``partitions_0x2000_default_16M.dtsi``), giving 7936 KB MCUboot slots.
+The board carries 32 MB of NOR flash but gives each MCUboot image slot only
+2 MB (``esp32p4_wifi6_poe_eth-partitions.dtsi``, the 16 MB default table's
+layout with smaller slots).
 
-The 32 MB table's 16128 KB slots make MCUboot size its per-slot
-``boot_sector_t`` arrays at 4032 entries each
-(:kconfig:option:`CONFIG_BOOT_MAX_IMG_SECTORS_AUTO`), which pushes roughly
-64 KB into ``.bss`` and the bootloader stops linking::
+MCUboot sizes its sector table from the slot size
+(:kconfig:option:`CONFIG_BOOT_MAX_IMG_SECTORS_AUTO`). With the 32 MB table's
+16128 KB slots that pushes roughly 64 KB into ``.bss`` and the bootloader
+stops linking::
 
    section `.bss' will not fit in region `dram_seg'
    region `dram_seg' overflowed by 31468 bytes
 
-That reproduces byte-for-byte on the in-tree ``esp32p4_wifi6``, which pairs the
-same 32 MB table with a ``Kconfig.sysbuild`` defaulting to MCUboot - it is an
-upstream combination that has never been built, not a property of this board.
+The 16 MB table's 7936 KB slots still take ~31 KB, which overflows by a few
+hundred bytes as soon as MCUboot logs to the console. At 2 MB the
+table is 8 KB.
 
-The upper 16 MB of flash is left unpartitioned. Add a board-local partition for
-it if an application wants bulk storage.
+Everything past ``0x461000`` is left unpartitioned. Add a board-local partition
+for it if an application wants bulk storage.
 
 Supported Features
 ==================

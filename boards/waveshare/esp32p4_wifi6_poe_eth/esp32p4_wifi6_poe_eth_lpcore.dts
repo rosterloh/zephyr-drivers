@@ -6,8 +6,8 @@
 /dts-v1/;
 
 #include <espressif/esp32p4/esp32p4_lpcore.dtsi>
-/* Must match the HP core's table; see the comment there for why it is 16M. */
-#include <espressif/partitions_0x2000_default_16M.dtsi>
+/* Must match the HP core's table. */
+#include "esp32p4_wifi6_poe_eth-partitions.dtsi"
 
 / {
 	model = "Waveshare ESP32-P4-WIFI6-POE-ETH LP Core";
