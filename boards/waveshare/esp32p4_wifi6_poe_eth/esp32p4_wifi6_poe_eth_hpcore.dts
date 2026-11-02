@@ -11,27 +11,11 @@
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/dt-bindings/video/video-interfaces.h>
 /*
- * 16M partition table on a 32M flash, deliberately.
- *
- * partitions_0x2000_default_32M.dtsi gives each MCUboot slot 16128 KB = 4032
- * 4 KB sectors. MCUboot sizes its per-slot boot_sector_t arrays from the slot
- * size (CONFIG_BOOT_MAX_IMG_SECTORS_AUTO), so those two arrays alone are ~64 KB
- * of .bss and the bootloader image no longer links:
- *
- *   section `.bss' will not fit in region `dram_seg'
- *   region `dram_seg' overflowed by 31468 bytes
- *
- * This reproduces byte-for-byte on the in-tree waveshare esp32p4_wifi6, which
- * pairs the same 32M table with a Kconfig.sysbuild defaulting to MCUboot - so
- * it is an upstream combination that has never been built, not a property of
- * this board or of v1.3 silicon.
- *
- * The 16M table's 7936 KB slots halve the sector count and are what the
- * esp32p4_nano boots MCUboot with today. Nothing here needs 8 MB of image, let
- * alone 16 MB. The upper 16 MB of flash is simply left unpartitioned; add a
- * board-local partition for it if an application ever wants bulk storage.
+ * Board-local table, not partitions_0x2000_default_32M.dtsi: its 16128 KB
+ * slots make MCUboot's sector table overflow the bootloader's dram_seg by
+ * ~31 KB. See the partitions dtsi.
  */
-#include <espressif/partitions_0x2000_default_16M.dtsi>
+#include "esp32p4_wifi6_poe_eth-partitions.dtsi"
 
 /*
  * Not modelled, all verified against the board schematic:
