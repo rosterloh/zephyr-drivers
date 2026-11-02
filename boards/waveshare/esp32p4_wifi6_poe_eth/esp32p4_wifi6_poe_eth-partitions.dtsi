@@ -2,16 +2,15 @@
  * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * partitions_0x2000_default_16M.dtsi with 2 MB image slots, shared by the HP
- * and LP core so their offsets agree.
+ * The 16M default table's layout with 4 MB image slots, and the rest of the
+ * 32 MB flash as a data partition. Shared by the HP and LP core so their
+ * offsets agree.
  *
  * MCUboot sizes its sector table from the slot size
- * (CONFIG_BOOT_MAX_IMG_SECTORS_AUTO). The 16M table's 7936 KB slots make that
- * ~31 KB of .bss, which leaves too little of the bootloader's dram_seg: with
- * logging on, MCUboot overflows it by 812 bytes. 2 MB slots cut the table to
- * 8 KB. Capping BOOT_MAX_IMG_SECTORS instead fails at boot, not build.
- *
- * Everything past 0x461000 (~27.6 MB of the 32 MB flash) is unallocated.
+ * (CONFIG_BOOT_MAX_IMG_SECTORS_AUTO), one entry per 4 KB sector. The default
+ * tables' 7936 KB (16M) and 16128 KB (32M) slots make that ~31 KB and ~64 KB of
+ * .bss, which overflows the bootloader's dram_seg. 4 MB slots cost 16 KB.
+ * Capping BOOT_MAX_IMG_SECTORS instead fails at boot, not build.
  */
 
 &flash0 {
@@ -35,37 +34,44 @@
 		slot0_partition: partition@20000 {
 			compatible = "zephyr,mapped-partition";
 			label = "image-0";
-			reg = <0x20000 DT_SIZE_M(2)>;
+			reg = <0x20000 DT_SIZE_M(4)>;
 		};
 
-		slot1_partition: partition@220000 {
+		slot1_partition: partition@420000 {
 			compatible = "zephyr,mapped-partition";
 			label = "image-1";
-			reg = <0x220000 DT_SIZE_M(2)>;
+			reg = <0x420000 DT_SIZE_M(4)>;
 		};
 
-		slot0_lpcore_partition: partition@420000 {
+		slot0_lpcore_partition: partition@820000 {
 			compatible = "zephyr,mapped-partition";
 			label = "image-0-lpcore";
-			reg = <0x420000 DT_SIZE_K(32)>;
+			reg = <0x820000 DT_SIZE_K(32)>;
 		};
 
-		slot1_lpcore_partition: partition@428000 {
+		slot1_lpcore_partition: partition@828000 {
 			compatible = "zephyr,mapped-partition";
 			label = "image-1-lpcore";
-			reg = <0x428000 DT_SIZE_K(32)>;
+			reg = <0x828000 DT_SIZE_K(32)>;
 		};
 
-		storage_partition: partition@430000 {
+		storage_partition: partition@830000 {
 			compatible = "zephyr,mapped-partition";
 			label = "storage";
-			reg = <0x430000 DT_SIZE_K(192)>;
+			reg = <0x830000 DT_SIZE_K(192)>;
 		};
 
-		coredump_partition: partition@460000 {
+		coredump_partition: partition@860000 {
 			compatible = "zephyr,mapped-partition";
 			label = "coredump";
-			reg = <0x460000 DT_SIZE_K(4)>;
+			reg = <0x860000 DT_SIZE_K(4)>;
+		};
+
+		/* The rest of the 32 MB flash, for an application file system. */
+		data_partition: partition@861000 {
+			compatible = "zephyr,mapped-partition";
+			label = "data";
+			reg = <0x861000 DT_SIZE_K(24188)>;
 		};
 	};
 };

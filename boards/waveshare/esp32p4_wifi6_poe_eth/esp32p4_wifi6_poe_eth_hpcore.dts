@@ -11,13 +11,9 @@
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/dt-bindings/video/video-interfaces.h>
 /*
- * 2 MB MCUboot slots on a 32M flash, deliberately.
- *
- * The default tables size slots to the flash (32M: 16128 KB, 16M: 7936 KB),
- * and MCUboot sizes its sector table from them
- * (CONFIG_BOOT_MAX_IMG_SECTORS_AUTO). At 32M that alone overflows the
- * bootloader's dram_seg by ~31 KB; at 16M it fits only with logging off.
- * See the partitions dtsi.
+ * Board-local table, not partitions_0x2000_default_32M.dtsi: its 16128 KB
+ * slots make MCUboot's sector table overflow the bootloader's dram_seg by
+ * ~31 KB. See the partitions dtsi.
  */
 #include "esp32p4_wifi6_poe_eth-partitions.dtsi"
 
