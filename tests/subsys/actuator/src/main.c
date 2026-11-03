@@ -32,6 +32,7 @@ static void before_each(void *data)
 
 	for (size_t i = 0; i < ARRAY_SIZE(devs); i++) {
 		(void)actuator_clear_stop(devs[i]);
+		(void)actuator_set_limits(devs[i], &(struct actuator_limits)ACTUATOR_LIMITS_NONE);
 		actuator_disable(devs[i]);
 	}
 	fake_set_reference_rc(FAKE_REF, 0);
@@ -333,4 +334,57 @@ ZTEST(actuator_subsys, test_stop_during_reference_wins)
 	actuator_report_referenced(FAKE_REF);
 	zassert_equal(actuator_get_state(FAKE_REF), ACTUATOR_STATE_STOPPED);
 	zassert_false(actuator_is_referenced(FAKE_REF));
+}
+
+ZTEST(actuator_subsys, test_no_limits_by_default)
+{
+	zassert_ok(actuator_enable(FAKE0));
+	zassert_ok(actuator_set_position(FAKE0, 100.0f));
+}
+
+ZTEST(actuator_subsys, test_limits_enforced_without_backend_op)
+{
+	struct actuator_limits lim = ACTUATOR_LIMITS_NONE;
+
+	lim.min_position = -1.0f;
+	lim.max_position = 1.0f;
+	zassert_ok(actuator_set_limits(FAKE0, &lim));
+	zassert_ok(actuator_enable(FAKE0));
+	zassert_equal(actuator_set_position(FAKE0, 2.0f), -ERANGE);
+	zassert_equal(actuator_set_position(FAKE0, -1.5f), -ERANGE);
+	zassert_ok(actuator_set_position(FAKE0, 0.5f));
+}
+
+ZTEST(actuator_subsys, test_velocity_limit_enforced)
+{
+	struct actuator_limits lim = ACTUATOR_LIMITS_NONE;
+
+	lim.max_velocity = 1.0f;
+	zassert_ok(actuator_set_limits(FAKE0, &lim));
+	zassert_ok(actuator_enable(FAKE0));
+	zassert_equal(actuator_set_velocity(FAKE0, -2.0f), -ERANGE);
+	zassert_ok(actuator_set_velocity(FAKE0, 0.5f));
+}
+
+ZTEST(actuator_subsys, test_limits_none_clears)
+{
+	struct actuator_limits lim = ACTUATOR_LIMITS_NONE;
+
+	lim.max_position = 1.0f;
+	zassert_ok(actuator_set_limits(FAKE0, &lim));
+	zassert_ok(actuator_set_limits(FAKE0, &(struct actuator_limits)ACTUATOR_LIMITS_NONE));
+	zassert_ok(actuator_enable(FAKE0));
+	zassert_ok(actuator_set_position(FAKE0, 5.0f));
+}
+
+ZTEST(actuator_subsys, test_accel_limit_unsupported_without_op)
+{
+	struct actuator_limits lim = ACTUATOR_LIMITS_NONE;
+
+	lim.max_position = 1.0f;
+	lim.max_accel = 10.0f;
+	zassert_equal(actuator_set_limits(FAKE0, &lim), -ENOTSUP);
+	/* Nothing stored: the position bound did not take either. */
+	zassert_ok(actuator_enable(FAKE0));
+	zassert_ok(actuator_set_position(FAKE0, 5.0f));
 }

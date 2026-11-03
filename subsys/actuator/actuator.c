@@ -340,11 +340,34 @@ int z_impl_actuator_set_limits(const struct device *dev, const struct actuator_l
 	if (api(dev)->set_limits != NULL) {
 		return api(dev)->set_limits(dev, limits);
 	}
+	/* Without a backend op only what this layer can check is accepted:
+	 * ramps need the backend's trajectory. */
+	if (!isnan(limits->max_accel) || !isnan(limits->max_decel)) {
+		return -ENOTSUP;
+	}
+	bool any = !isnan(limits->min_position) || !isnan(limits->max_position) ||
+		   !isnan(limits->max_velocity) || !isnan(limits->max_effort);
 	struct actuator_common_data *cd = common(dev);
 	k_spinlock_key_t key = k_spin_lock(&cd->lock);
 	cd->limits = *limits;
+	cd->limits_set = any;
 	k_spin_unlock(&cd->lock, key);
 	return 0;
+}
+
+/* NaN bounds are unset, and every comparison with NaN is false. */
+static bool outside_limits(const struct actuator_limits *l, enum actuator_mode mode, float value)
+{
+	switch (mode) {
+	case ACTUATOR_MODE_POSITION:
+		return value < l->min_position || value > l->max_position;
+	case ACTUATOR_MODE_VELOCITY:
+		return fabsf(value) > l->max_velocity;
+	case ACTUATOR_MODE_EFFORT:
+		return fabsf(value) > l->max_effort;
+	default:
+		return false;
+	}
 }
 
 int z_impl_actuator_set_drive_mode(const struct device *dev, enum actuator_drive_mode mode)
@@ -381,13 +404,17 @@ static int set_setpoint_typed(const struct device *dev, enum actuator_mode mode,
 	if (err != 0) {
 		return err;
 	}
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	int rc;
+
 	if (mode == ACTUATOR_MODE_POSITION && (cd->caps & ACTUATOR_CAP_NEEDS_REFERENCE) &&
 	    !cd->referenced) {
-		return -EACCES;
+		rc = -EACCES;
+	} else if (cd->limits_set && outside_limits(&cd->limits, mode, value)) {
+		rc = -ERANGE;
+	} else {
+		rc = sm_step_locked(dev, ACTUATOR_SM_EVT_SETPOINT, 0);
 	}
-
-	k_spinlock_key_t key = k_spin_lock(&cd->lock);
-	int rc = sm_step_locked(dev, ACTUATOR_SM_EVT_SETPOINT, 0);
 	if (rc >= 0) {
 		cd->current_mode = mode;
 	}

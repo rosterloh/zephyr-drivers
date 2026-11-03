@@ -6,6 +6,7 @@
 #ifndef ZEPHYR_INCLUDE_ACTUATOR_TYPES_H_
 #define ZEPHYR_INCLUDE_ACTUATOR_TYPES_H_
 
+#include <math.h>
 #include <stdint.h>
 #include <zephyr/sys/util.h>
 
@@ -84,7 +85,20 @@ struct actuator_limits {
 	float max_position; /**< rad   */
 	float max_velocity; /**< rad/s */
 	float max_effort;   /**< N*m   */
+	float max_accel;    /**< rad/s^2 */
+	float max_decel;    /**< rad/s^2 */
 };
+
+/** Every limit unset; start from this rather than {0}, which means zero. */
+#define ACTUATOR_LIMITS_NONE                                                                       \
+	{                                                                                          \
+		.min_position = NAN,                                                               \
+		.max_position = NAN,                                                               \
+		.max_velocity = NAN,                                                               \
+		.max_effort = NAN,                                                                 \
+		.max_accel = NAN,                                                                  \
+		.max_decel = NAN,                                                                  \
+	}
 
 #ifdef __cplusplus
 }
