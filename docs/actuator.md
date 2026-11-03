@@ -54,7 +54,7 @@ the subsystem decides the transition.
 | reference | -EPERM | ALIGNING | -EBUSY | ALIGNING | -EPERM | -EPERM |
 
 ¹ `ALIGNING` for a backend with `ACTUATOR_CAP_NEEDS_ALIGN`.
-² `FAULT` if a fault was reported while stopped.
+² `FAULT` if a fault was outstanding when stopped or reported while stopped.
 
 **Enabling is explicit.** A setpoint never enables an actuator: call
 `actuator_enable()` first. (Before STOPPED existed a setpoint walked a DISABLED
@@ -66,7 +66,7 @@ actuator up to ACTIVE, which made "disabled" no guarantee that nothing moves.)
 then runs the backend's own controlled stop (`disable` for a backend without
 one). From the latch on, every enable and setpoint is refused, and a fault or a
 disable does not release it: only `actuator_clear_stop()` does. A fault
-reported while stopped is kept and surfaces as `FAULT` on the clear, so
+outstanding when stopped, or reported while stopped, is kept and surfaces as `FAULT` on the clear, so
 `actuator_clear_fault()` still resets the drive. `actuator_stop_latch()` takes
 the latch with no I/O, for latching several actuators before any of their
 blocking stops, or holding one between paced retries of a failing stop; the

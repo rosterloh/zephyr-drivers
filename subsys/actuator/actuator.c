@@ -48,6 +48,12 @@ static int sm_step_locked(const struct device *dev, enum actuator_sm_event evt,
 	if (evt == ACTUATOR_SM_EVT_FAULT && next == ACTUATOR_STATE_STOPPED) {
 		cd->stopped_faults |= fault_flags;
 	}
+	/* A fault the stop lands on is outstanding too. The cached flags may have
+	 * been overwritten by a later sample, so fall back to a generic bit. */
+	if (evt == ACTUATOR_SM_EVT_STOP && cd->state == ACTUATOR_STATE_FAULT) {
+		cd->stopped_faults |= cd->cached_fb.fault_flags != 0U ? cd->cached_fb.fault_flags
+								      : ACTUATOR_FAULT_DRIVER(0);
+	}
 	if (next == cd->state) {
 		return 0;
 	}

@@ -52,8 +52,8 @@ __syscall int actuator_stop(const struct device *dev);
 __syscall int actuator_stop_latch(const struct device *dev);
 
 /**
- * Release a stop: STOPPED -> DISABLED, or FAULT if a fault was reported while
- * stopped (clear that with actuator_clear_fault()). No backend I/O.
+ * Release a stop: STOPPED -> DISABLED, or FAULT if a fault was outstanding when
+ * stopped or reported since (clear that with actuator_clear_fault()). No I/O.
  *
  * @retval -EINVAL  Not stopped.
  */

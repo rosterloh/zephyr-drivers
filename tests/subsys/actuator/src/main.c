@@ -388,3 +388,19 @@ ZTEST(actuator_subsys, test_accel_limit_unsupported_without_op)
 	zassert_ok(actuator_enable(FAKE0));
 	zassert_ok(actuator_set_position(FAKE0, 5.0f));
 }
+
+ZTEST(actuator_subsys, test_fault_then_stop_then_clear_stop_is_fault)
+{
+	/* A drive that faulted and was then stopped must come back as FAULT, or
+	 * clear_fault (which resets the drive's alarm) is skipped and every enable
+	 * after it is refused by the still-alarmed drive. */
+	zassert_ok(actuator_enable(FAKE0));
+	fake_force_fault(FAKE0);
+	zassert_ok(actuator_stop(FAKE0));
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_STOPPED);
+	zassert_ok(actuator_clear_stop(FAKE0));
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_FAULT);
+	/* FAKE0 is not fault-latching: a disable is what leaves FAULT. */
+	zassert_ok(actuator_disable(FAKE0));
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_DISABLED);
+}
