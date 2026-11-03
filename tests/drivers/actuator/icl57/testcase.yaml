@@ -1,0 +1,6 @@
+common:
+  tags: [actuator, icl57]
+tests:
+  drivers.actuator.icl57.profile:
+    platform_allow: [native_sim]
+    integration_platforms: [native_sim]
