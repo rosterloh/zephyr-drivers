@@ -8,4 +8,7 @@ supported:
   - uart
   - entropy
   - watchdog
+# twister runs `ninja run`, which resolves to run_espressif_qemu.
+simulation:
+  - name: custom
 vendor: waveshare
