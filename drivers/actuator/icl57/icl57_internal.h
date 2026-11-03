@@ -592,6 +592,13 @@ struct icl57_config {
 /* First initialised interface, for the provisioning shell (single bus). */
 extern int icl57_shell_iface;
 
+/* Bring up the Modbus client on `iface` once, however many motors share it. */
+int icl57_client_init_once(int iface, const struct icl57_config *cfg);
+
+#if defined(CONFIG_ACTUATOR_ICL57_BUS_STATS)
+void icl57_mb_stats_write_gap(uint32_t gap_ms);
+#endif
+
 /* Every instance, for the by-slave-id lookup and the `all` form of the tuning
  * shell commands (and the settings loader, which keys on slave id). */
 extern const struct device *const icl57_devs[];
@@ -653,6 +660,10 @@ int icl57_pr0_move(const struct device *dev, int32_t pulses, uint16_t rpm);
  * readback is skipped for registers that latch an action. `sh` may be NULL. */
 int icl57_write_verified(const struct shell *sh, uint8_t id, uint16_t addr, uint16_t val,
 			 const char *what);
+
+/* icl57_provision.c, behind `icl57 setup` and `icl57 save`. `sh` may be NULL. */
+int icl57_provision(const struct shell *sh, uint8_t id);
+int icl57_save(const struct shell *sh, uint8_t id);
 
 /* icl57_homing.c, shared with icl57 setup / home / unjam. `sh` may be NULL. */
 uint16_t icl57_di2_func(const struct icl57_config *cfg);
