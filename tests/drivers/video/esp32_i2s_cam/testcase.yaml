@@ -8,6 +8,8 @@ tests:
       - qemu_cortex_m3
       - native_sim
       - native_sim/native/64
+      - waveshare_esp32_s3_eth/esp32s3/procpu/qemu
+      - adafruit_qt_py_esp32c3/esp32c3/qemu
     integration_platforms:
       - native_sim
       - native_sim/native/64

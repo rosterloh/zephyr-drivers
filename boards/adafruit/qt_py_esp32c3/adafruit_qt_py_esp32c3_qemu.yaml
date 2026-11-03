@@ -1,0 +1,14 @@
+identifier: adafruit_qt_py_esp32c3/esp32c3/qemu
+name: Adafruit QT Py ESP32C3 (Espressif QEMU)
+type: mcu
+arch: riscv
+toolchain:
+  - zephyr
+supported:
+  - uart
+  - entropy
+  - watchdog
+# twister runs `ninja run`, which resolves to run_espressif_qemu.
+simulation:
+  - name: custom
+vendor: adafruit
