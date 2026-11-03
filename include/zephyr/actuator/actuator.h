@@ -126,7 +126,7 @@ __syscall int actuator_set_duty(const struct device *dev, float duty);
  *
  * @retval 0         Mode applied.
  * @retval -ENOTSUP  Backend does not advertise ACTUATOR_CAP_DRIVE_MODE.
- * @retval -EPERM    Actuator is in DISABLED or FAULT state.
+ * @retval -EPERM    Actuator is DISABLED, STOPPED or in FAULT.
  */
 __syscall int actuator_set_drive_mode(const struct device *dev, enum actuator_drive_mode mode);
 

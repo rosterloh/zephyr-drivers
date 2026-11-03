@@ -391,7 +391,10 @@ int z_impl_actuator_set_drive_mode(const struct device *dev, enum actuator_drive
 	enum actuator_state s = cd->state;
 	k_spin_unlock(&cd->lock, key);
 
-	if (s == ACTUATOR_STATE_DISABLED || s == ACTUATOR_STATE_FAULT) {
+	/* STOPPED too: NORMAL re-energises a coasted stage, which would undo a stop
+	 * (and on a drive with a queued target, resume it). */
+	if (s == ACTUATOR_STATE_DISABLED || s == ACTUATOR_STATE_FAULT ||
+	    s == ACTUATOR_STATE_STOPPED) {
 		return -EPERM;
 	}
 

@@ -404,3 +404,12 @@ ZTEST(actuator_subsys, test_fault_then_stop_then_clear_stop_is_fault)
 	zassert_ok(actuator_disable(FAKE0));
 	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_DISABLED);
 }
+
+ZTEST(actuator_subsys, test_set_drive_mode_rejected_when_stopped)
+{
+	/* NORMAL re-energises a coasted stage: a stop must not be undone by it. */
+	zassert_ok(actuator_enable(FAKE0));
+	zassert_ok(actuator_stop(FAKE0));
+	zassert_equal(actuator_set_drive_mode(FAKE0, ACTUATOR_DRIVE_MODE_NORMAL), -EPERM);
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_STOPPED);
+}
