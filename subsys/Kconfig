@@ -1,2 +1,3 @@
 rsource "actuator/Kconfig"
 rsource "net/wifi_connectivity/Kconfig"
+rsource "net/lib/esphome_api/Kconfig"
