@@ -1,0 +1,386 @@
+description: |
+  StepperOnline/Leadshine iCL-RS series integrated closed-loop stepper motor,
+  controlled over RS485 Modbus RTU. Each instance is a child of a
+  zephyr,modbus-serial bus node; the driver discovers the parent Modbus
+  interface by name at compile time and streams absolute position setpoints
+  using the PR0 immediate-trigger block (registers 0x6200-0x6207).
+
+compatible: "rosterloh,actuator-icl57"
+
+include: [actuator-common.yaml]
+
+properties:
+  reg:
+    type: int
+    required: true
+    description: Modbus slave ID (1..31). Set on the drive via DIP SW1-SW5.
+
+  counts-per-rev:
+    type: int
+    default: 10000
+    description: |
+      Command pulses per revolution, matching the drive's Pr0.00 (0x0001)
+      "pulse/revolution" (default 10000). Used for the rad -> pulse conversion
+      on position setpoints.
+
+  profile-velocity-rpm:
+    type: int
+    default: 300
+    description: |
+      Velocity CEILING (rpm) for a PR0 immediate-trigger move, and the BOOT
+      DEFAULT for the runtime-tunable value (`icl57 speed`, persisted in the
+      settings backend — a stored value overrides this at boot). The velocity
+      actually written is sized from the distance still to travel and
+      command-period-ms so the move fills one command period; this caps it. It is
+      also the rate used for a delta the driver cannot size — the first setpoint
+      after boot, before any position has been polled — so choose a value that is
+      safe for an unbounded move, not just for a streaming step.
+
+      Judge this in LINEAR terms, not rpm, AND per axis: axes with different
+      feed rates share no rpm. For example 180 rpm is 12 mm/s on a 4 mm/rev
+      lead screw but 210 mm/s on a 70 mm/rev belt. Symptom of it being too
+      low: feedback trails the commanded position persistently instead of
+      settling within a period. Symptom of it being too high for the load: the
+      drive raises the shaft-locking alarm (0x2203 = 0x80) — but only if
+      locked-shaft detection is armed in Pr4.22 (0x016D), which is DISABLED by
+      the drive's factory default of 0.
+
+  profile-velocity-max-rpm:
+    type: int
+    default: 1000
+    description: |
+      Hard upper bound on the runtime-tunable ceiling. `icl57 speed` rejects
+      anything above this, and a persisted value above it is discarded at boot.
+
+      This exists because the runtime value PERSISTS and the ceiling doubles as
+      the speed of the unsizable first setpoint after boot: without a bound, one
+      careless bench setting would silently become the speed of a blind,
+      possibly full-travel move on the next power-up. Aim for roughly 1.67x the
+      axis's design speed — headroom to tune against, not a rate to run at.
+
+      SET IT PER NODE from the axis's feed rate: the default of 1000 rpm is
+      83 mm/s on a 5 mm/rev lead, 67 mm/s on a 4 mm/rev screw and 1167 mm/s on
+      a 70 mm/rev belt, so it is right for almost nothing.
+
+      This is a policy bound, not a hardware one: the drive itself accepts far
+      more (Pr6.00 JOG velocity ranges to 5000 rpm), and a stepper's torque
+      falls off with speed well before that.
+
+  command-period-ms:
+    type: int
+    default: 100
+    description: |
+      Nominal period between streamed position setpoints, used to size the PR0
+      profile velocity (distance remaining / period, where the distance is
+      measured from the polled position). Should match the host's command rate
+      (10 Hz -> 100). Deliberately nominal rather than measured: a late command
+      measured against wall time would compute a HIGHER velocity, which is the
+      wrong direction for a moving load. Understating it makes moves slower and lag
+      the stream; overstating it restores the dash-and-dwell this avoids.
+
+  accel:
+    type: int
+    default: 50
+    description: |
+      PR0 acceleration (Pr9.04), unit ms per 1000 rpm, and the boot default for
+      the runtime-tunable value (`icl57 ramp`, persisted like the ceiling).
+
+      This is a TIME to slew 1000 rpm, so a LARGER value is a SLOWER ramp. At
+      the factory 50, a move to 600 rpm ramps in 30 ms and spends ~1.3 mm of
+      travel doing it — which looks like no ramp at all. Around 500
+      gives 0.3 s and a visibly trapezoidal move. Max 10000 (Pr6.03's range).
+
+  decel:
+    type: int
+    default: 50
+    description: PR0 deceleration (Pr9.05), unit ms per 1000 rpm. See `accel`.
+
+  invert-position:
+    type: boolean
+    description: |
+      Negate commanded and reported position. Use for the mirrored motor of a
+      dual-drive pair so both motors of an axis take the same joint target.
+
+      This is the BOOT DEFAULT for a value `icl57 invert` can flip on a stopped
+      axis, to find the right sign on the bench. Unlike the velocity ceiling and
+      the ramp, that runtime value is NOT persisted: direction is a wiring fact,
+      and a stored inversion would silently reverse an axis on the next
+      power-up. Record the answer here and reflash.
+
+  position-min-rad-milli:
+    type: int
+    description: |
+      Lower position limit in milli-radians. Setpoints are clamped (before the
+      invert-position sign is applied, so a mirrored dual-drive pair takes the same
+      value). An over-range command is truncated, and the driver logs once on
+      entering the clamp and once on leaving it rather than on every setpoint.
+
+  position-max-rad-milli:
+    type: int
+    description: |
+      Upper position limit in milli-radians, clamped as above.
+
+      PER AXIS: axes with different feed rates turn the same carriage travel
+      into a different motor angle. Convert from travel with the axis's lead,
+      e.g. 0.5 m on a 0.004 m/rev screw is 125 rev = 785.398 rad, and on a
+      0.070 m/rev belt 1.35 m is 19.286 rev = 121.176 rad. Do NOT copy a value
+      between axes: a wrong lead leaves the clamp, the only guard against a
+      runaway, not bounding the axis at all.
+
+      With a limit-switch home the range is one-sided, [0, stroke] from the
+      switch: measure the stroke to the far stop rather than trusting the
+      catalogue figure.
+
+  rx-timeout-us:
+    type: int
+    default: 100000
+    description: |
+      Modbus client response timeout in microseconds. Shared per bus (the first
+      instance to initialise sets it for the interface).
+
+  homing-limit-clearance-rad-milli:
+    type: int
+    default: 628
+    description: |
+      How far to step back off the limit at the end of a limit-switch home, in
+      milli-radians of motor rotation. Only used with `home-input-is-limit`.
+
+      The clearance is an ordinary PR0 move of this distance at
+      `homing-approach-rpm`, issued to every motor in the set at once and
+      repeated, up to three rounds, while Pr4.28 (0x0179) bit1 still reports
+      DI2 asserted. So the value is a STEP, not the final clearance: an axis
+      buried deep by a fast first-segment approach takes more rounds, a clean
+      stop takes one. Size it to the switch's release travel with margin
+      (measured releases ranged from 0.175 mm to 1.32 mm), and above the
+      drive's ~360-pulse PR0 deadband, below which a step does not move the
+      axis at all.
+
+      Undersizing fails loudly: after three rounds with DI2 still asserted,
+      `icl57 home` names the motor, its Pr8.29 value and this property.
+
+      It is a PR0 move, not a JOG, because a JOG does not advance the drive's
+      command frame: the PR0 re-pin that would follow it hauls the axis back
+      onto the switch.
+
+      The default of 628 (7 mm at 0.070 m/rev) is a safe step for an unknown
+      switch. Lower it once the release travel is known.
+
+  home-input-is-limit:
+    type: boolean
+    description: |
+      Set when the axis homes against a LIMIT switch at the end of travel rather
+      than a home switch somewhere in mid-travel. Two effects: `icl57 setup`
+      provisions DI2 as PL or NL (normally-closed) instead of ORG, choosing the
+      end from home-direction-negative, and Pr8.10 bit2 is cleared to select the
+      manual's limit-switch homing method.
+
+      The distinction is mechanical, not cosmetic. Home-switch homing assumes the
+      drive can run PAST the switch and reverse back off it to find the release
+      edge; the manual is explicit that a wrong-direction search recovers only
+      "after it touches the limit switch". A switch mounted at the mechanical end
+      has no room for that overtravel, and the bench symptom is the drive
+      reaching the switch, failing to back off far enough to release it, and
+      ending up beyond it against the hard stop -- observed on a belt axis.
+
+      Prefer a mid-travel ORG switch where the mechanics allow it: it keeps the
+      end of travel free as a genuine safety limit rather than doubling as the
+      datum. Use this when the switch really is at the end.
+
+  home-switch-normally-open:
+    type: boolean
+    description: |
+      Set when the home (or limit) switch on DI2 is normally open. By default
+      `icl57 setup` provisions DI2 for normally-closed sensing, which is the
+      fail-safe choice: a broken wire then reads as "at the switch" rather than
+      as "nowhere near it".
+
+  enable-input-normally-open:
+    type: boolean
+    description: |
+      Set to have `icl57 setup` provision DI1 (SRV-ON) as normally open
+      (Pr4.02 = 0x0008) instead of the factory normally-closed 0x0088. With
+      DI1 unwired, normally closed holds the IO enable permanently asserted:
+      the drive is energised from power-on and Pr0.07 can only add enable, so
+      `actuator disable` and coast leave the shaft locked. Normally open hands
+      the enable to Pr0.07 alone.
+
+      The drive then powers up DE-ENERGISED and holds nothing until
+      `actuator enable`. Only set this on an axis that is safe unpowered, e.g.
+      a self-locking screw or an axis with no gravity load. Leave it unset on
+      one that can back-drive under load.
+
+  home-search-clockwise:
+    type: boolean
+    description: |
+      Set when CLOCKWISE rotation moves this axis toward home, i.e. in the
+      direction `home-direction-negative` describes. Drives Pr8.10 bit0
+      directly. The manual gives that bit's polarity both ways (section 5.2.1
+      says 0 = CCW, Appendix A says 0 = CW), so measure it as described below
+      rather than trusting either page.
+
+      This is a SEPARATE mechanical fact from home-direction-negative, not a
+      restatement of it. That property says which END of travel home is at, in
+      the drive's position frame; this one says which rotation sense travels
+      that way, which depends on the coupling, the mounting and the drive's own
+      direction parameter. Deriving bit0 from home-direction-negative assumes
+      CW is always the negative direction, and it is not: measured on two
+      axes, CW ran negative on a screw axis and POSITIVE on a belt axis, so one
+      mapping cannot serve both and the search sets off away from its switch.
+
+      Determine it per axis: with the axis stopped and clear, write the mode
+      with bit0 set, trigger a search (`icl57 wr <id> 0x6002 0x20`), sample
+      `0x1014/15` a few times, then quick-stop (`0x40`). If position increased,
+      CW is the POSITIVE direction on that axis.
+
+      Getting it wrong is not silent: the search sets off away from home and
+      `icl57 home` aborts it with "search is running the WRONG WAY" within a
+      quarter of the pre-move distance.
+
+  home-direction-negative:
+    type: boolean
+    description: |
+      The drive searches toward DECREASING drive-frame position to find its home
+      switch. `icl57 home` takes the pre-move and wrong-way-check sign from it,
+      and with `home-input-is-limit` it chooses which limit function (NL or PL)
+      `icl57 setup` provisions on DI2. It does NOT set Pr8.10 bit0:
+      the rotation sense of the search comes from `home-search-clockwise`
+      (above), because which way the motor must turn to move negative depends
+      on the coupling and mounting and was measured to differ between axes.
+
+      Symptom of it being wrong: the axis searches away from the switch, the
+      search runs to its bound, and Pr8.29 (0x601D) reads 0x102.
+
+  homing-velocity-rpm:
+    type: int
+    default: 100
+    description: |
+      First-segment homing search velocity (Pr8.15, 0x600F). At a 5 mm/rev
+      lead 100 rpm is 8.3 mm/s — deliberately well
+      under the streaming ceiling, because this velocity runs a blind traverse
+      toward a hard end of travel.
+
+      Also the velocity of the pre-move off home, and therefore the basis of the
+      minimum-elapsed-time check that catches a dead sensor. Symptom of it being
+      too low: homing takes minutes and looks hung.
+
+  homing-approach-rpm:
+    type: int
+    default: 10
+    description: |
+      Second-segment re-approach velocity (Pr8.16, 0x6010). 10 rpm is 0.83 mm/s
+      at a 5 mm/rev lead.
+
+      This value sets the DATUM REPEATABILITY, so it is not a throughput knob.
+      The switches are inductive proximity sensors that assert over a region with
+      hysteresis rather than at a point, so the axis must creep onto them from a
+      consistent direction. Symptom of it being too high: the measured datum
+      shifts when the approach velocity changes.
+
+  homing-travel-limit-rad-milli:
+    type: int
+    default: 12566
+    description: |
+      Maximum distance a homing search may travel before it is abandoned, in
+      milli-radians. 12566 is 2 revolutions, 10 mm at a 5 mm/rev lead.
+
+      Used two ways. It is written to Pr8.21 (0x6015), whose documented
+      behaviour is "the motor stops when it reaches this set distance even if
+      homing is not completed" — but Pr8.21 is a single 16-bit PR register whose
+      UNIT the manual never states, so that write is a belt-and-braces guard and
+      is clamped to 32767. The authoritative bound is the host-side deadline
+      derived from this value, after which the driver issues a quick stop.
+
+      The default is deliberately too small to reach home from an arbitrary
+      position: it is a bring-up value that makes a direction or wiring error
+      cost 10 mm of travel instead of a full traverse. Raise it in the board
+      overlay once the direction is confirmed and the real distance from the far
+      end of travel to the switch is known — but raise it only to just beyond
+      that measured worst-case distance, NOT to the full travel. This value is
+      the search's own blind-move budget: enlarging it past what a real search
+      needs also enlarges what a broken sensor, a wrong COMI rail, or a wrong
+      direction can do before anything stops the axis, bounded only by the
+      host-side deadline and the quick stop it issues.
+
+  homing-preroll-rad-milli:
+    type: int
+    default: 6283
+    description: |
+      Distance to move AWAY from home before triggering a search, in
+      milli-radians. 6283 is one revolution, 5 mm at a 5 mm/rev lead.
+
+      Mandatory, not an optimisation, and it does two jobs. It guarantees the
+      final approach is always from the same direction at the same velocity,
+      which is what makes an inductive proximity switch repeatable. And it makes
+      a dead sensor detectable: with normally-closed switches an
+      unpowered sensor, a broken wire, or a DI left at the normally-open function
+      code all read as "at home", and the drive then reports homing COMPLETE at
+      whatever arbitrary position the axis was sitting at. Having provably moved
+      off home first turns that silent wrong datum into an error.
+
+      Must exceed the distance over which the sensor stays asserted, or the
+      pre-move does not actually leave the switch. The sensor's nominal sensing
+      range is 2.5 mm (unconfirmed), so 5 mm is the starting value. Must also be
+      comfortably less than homing-travel-limit-rad-milli, or the search cannot
+      cover the distance back.
+
+  homing-group:
+    type: int
+    default: 0
+    description: |
+      Motors that MUST be homed together, identified by a shared non-zero value.
+      0 (the default) means the motor homes independently.
+
+      This exists because a dual-drive axis moves one rigid load: homing one of
+      its motors while the other holds position racks it. `icl57 home <id>`
+      on any member homes the whole group, and any failure during a grouped
+      home aborts and stops every motor in the group rather than letting the
+      survivors keep moving.
+
+      A group also shares its motion tuning: `icl57 speed` and `icl57 ramp`
+      on any member set every member, and a group stored unequal is reconciled
+      at boot to its gentlest values (lowest speed, slowest ramp).
+
+      For example, the two motors lifting one vertical beam share group 1,
+      while an independent carriage leaves this at 0.
+
+  quick-stop-ms:
+    type: int
+    description: |
+      Deceleration time of the drive's quick stop (Pr8.23, 0x6017), in ms. The
+      e-stop path (`icl57_estop()`, `icl57 estop`) triggers that stop, so this
+      is the stopping ramp of the safety path.
+
+      When set, `icl57 setup` writes and verifies it. When absent, `setup` reads
+      the value the drive holds and prints it so the run card can record it,
+      and changes nothing. No board sets it yet: the drives have been e-stopped
+      on the bench with their stored value, and changing a safety ramp blind is
+      worse than recording it first. Set it here once the stored value has been
+      read and a shorter or longer ramp has been judged on the axis.
+
+  limit-stop-ms:
+    type: int
+    description: |
+      Deceleration time after a limit input asserts (Pr8.22, 0x6016), in ms.
+      Same handling and same caution as `quick-stop-ms`.
+
+  max-following-error-pulses:
+    type: int
+    description: |
+      Pr0.05 (0x000B): the position following error, in command pulses, at
+      which the drive raises the following-error fault that `icl57 setup` arms
+      in Pr4.22 bit2. Same handling as `quick-stop-ms`: written and verified by
+      `setup` when set, read and printed otherwise.
+
+      LEAVE IT UNSET ON THIS DRIVE FAMILY. Measured: an ordinary move at
+      50 rpm drives `0x1010` to 145552 raw (569 encoder
+      counts), while Pr0.05's entire range tops out at 65535 — so NO threshold
+      exists that tolerates normal motion, whatever scaling the drive applies
+      to the comparison. Arming bit2 against it is what stopped every long
+      homing search short of its switch. `icl57 setup` therefore CLEARS bit2
+      while this is unset, and shaft-lock detection (Pr4.22 bit4) remains the
+      stall protection.
+
+      Set it only if a firmware revision widens Pr0.05 or changes the scaling,
+      and re-measure `0x1010` during a full-speed move before trusting it.
+      Reference figures: ~55 counts at rest, 380-569 counts moving at 50 rpm
+      on a belt axis.

@@ -1,0 +1,47 @@
+config ACTUATOR_ICL57
+	bool "iCL-RS integrated closed-loop stepper actuator (Modbus RTU)"
+	depends on ACTUATOR
+	depends on DT_HAS_ROSTERLOH_ACTUATOR_ICL57_ENABLED
+	select MODBUS
+	select UART_INTERRUPT_DRIVEN
+	default y
+	help
+	  StepperOnline/Leadshine iCL-RS series integrated closed-loop stepper
+	  motors over RS485 Modbus RTU. Each instance is a child of a
+	  zephyr,modbus-serial bus node; the driver binds to the parent Modbus
+	  interface by name and streams absolute position setpoints via the PR0
+	  immediate-trigger block.
+
+config ACTUATOR_ICL57_MAPPED_POLL
+	bool "Poll feedback through the drive's register-mapping block"
+	depends on ACTUATOR_ICL57
+	default y
+	help
+	  Program the iCL-RS register-mapping area (manual section 4.5) at every
+	  enable so one FC03 returns motion state, feedback position, feedback
+	  velocity and the digital inputs, instead of three transactions per
+	  poll plus one DI read per setpoint. Roughly a 4x cut in bus traffic on
+	  a three-motor bus, which is the documented cause of mispaired reads.
+
+	  On iCL57-RS13 drives the values read back at 0x0F00 (the manual's
+	  worked example; its prose says 0x0F10, which reads back the TARGET
+	  addresses). The driver probes both addresses and
+	  trusts the block only once its mapped Pr0.00 word reads back as
+	  counts-per-rev; if neither passes it logs a warning and keeps the
+	  direct reads, so enabling this cannot silently change what feeds the
+	  setpoint path.
+
+	  On by default: homing and position-mode moves across ~50 low-word wraps
+	  of the mapped 32-bit position showed no tearing, and bus load on a
+	  three-drive bus fell from ~75 to 28-32 transactions a second.
+
+config ACTUATOR_ICL57_BUS_STATS
+	bool "Log a per-second summary of Modbus traffic"
+	depends on ACTUATOR_ICL57
+	help
+	  One INF line a second: transactions, failures, how many took over
+	  30 ms, the slowest, and the longest gap between two setpoint writes to
+	  any drive, plus one line per failed or slow transaction: the way to
+	  tell a motion stall from a bus timeout. Separate from debug logging on
+	  purpose: debug logging floods the log, which drops lines under load,
+	  and a summary covers its whole second even when other lines are lost.

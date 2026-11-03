@@ -4,6 +4,7 @@ if ACTUATOR
 rsource "bus_servo/Kconfig"
 rsource "dxl/Kconfig"
 rsource "hbridge/Kconfig"
+rsource "icl57/Kconfig"
 rsource "fake/Kconfig"
 
 endif # ACTUATOR

@@ -95,8 +95,9 @@ The responsibilities are split so each piece is small and testable:
   hardware I/O; the subsystem owns state, limits, locking, and callbacks.
 
 Current backends: H-bridge DC motor (e.g. TB6612, with optional encoder and
-current sense), Dynamixel, Waveshare bus servo, and a fake backend used by the
-tests.
+current sense), Dynamixel, Waveshare bus servo, StepperOnline/Leadshine iCL-RS
+integrated closed-loop steppers over Modbus RTU (`icl57`, with drive-side
+homing and an `icl57` shell), and a fake backend used by the tests.
 
 ## Adding a backend
 
