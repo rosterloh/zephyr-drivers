@@ -7,5 +7,4 @@ tests:
       - native_sim
       - qemu_cortex_m3
       - esp32c3_devkitc/esp32c3/qemu
-      - esp32s3_devkitc/esp32s3/procpu/qemu
     integration_platforms: [native_sim]

@@ -1,6 +1,7 @@
-config ESPHOME_API
+menuconfig ESPHOME_API
 	bool "ESPHome native API server"
-	depends on NETWORKING
+	depends on NET_SOCKETS
+	depends on NET_TCP
 	select NANOPB
 	help
 	  Server side of the ESPHome native API (TCP, protobuf messages,
@@ -8,3 +9,56 @@ config ESPHOME_API
 	  discover the device and read and control its entities. Only the
 	  networking protocol is implemented, not ESPHome's YAML/codegen.
 
+if ESPHOME_API
+
+config ESPHOME_API_PORT
+	int "TCP port"
+	default 6053
+
+config ESPHOME_API_MAX_CLIENTS
+	int "Maximum concurrent clients"
+	default 2
+	range 1 8
+
+config ESPHOME_API_IDLE_TIMEOUT
+	int "Idle timeout in seconds"
+	default 90
+	help
+	  Close a client that has sent nothing for this long. Home Assistant
+	  pings every 20 s and gives up on an unanswered ping after 90 s.
+
+config ESPHOME_API_RX_BUF_SIZE
+	int "Receive buffer per client"
+	default 256
+	help
+	  Largest request frame accepted. The client requests this server
+	  handles are all well under 128 bytes.
+
+config ESPHOME_API_DEVICE_NAME
+	string "Device name"
+	default "zephyr"
+	help
+	  Hostname-style name (at most 31 characters) Home Assistant uses to
+	  identify the device. Keep it stable.
+
+config ESPHOME_API_FRIENDLY_NAME
+	string "Friendly name"
+	default ""
+
+config ESPHOME_API_MANUFACTURER
+	string "Manufacturer shown in Home Assistant"
+	default "Zephyr"
+
+config ESPHOME_API_STACK_SIZE
+	int "Server thread stack size"
+	default 2048
+
+config ESPHOME_API_THREAD_PRIORITY
+	int "Server thread priority"
+	default 7
+
+module = ESPHOME_API
+module-str = esphome_api
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # ESPHOME_API

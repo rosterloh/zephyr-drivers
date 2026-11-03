@@ -68,3 +68,8 @@ ListEntitiesButtonResponse.name max_size:121
 ListEntitiesButtonResponse.icon max_size:64
 ListEntitiesButtonResponse.device_class max_size:48
 ButtonCommandRequest skip_message:false msgid:62
+
+# Home Assistant asks for capabilities on API >= 1.15; none are supported.
+DeviceCapabilitiesRequest skip_message:false msgid:149
+DeviceCapabilitiesResponse skip_message:false msgid:150
+DeviceCapabilitiesResponse.* type:FT_IGNORE

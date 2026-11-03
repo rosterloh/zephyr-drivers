@@ -20,7 +20,7 @@ This repository provides a shared drivers module for all my other projects
 
 - [Actuator subsystem](docs/actuator.md) — generic actuator API with typed SI setpoints, capabilities, a state machine, group operations, and pluggable backends (H-bridge DC motor, Dynamixel, Waveshare bus servo, fake)
 - Kinematics joint descriptors (`rosterloh,joint`) — URDF-style joint metadata exposed over a transport-agnostic CBOR wire format
-- ESPHome native API server (`CONFIG_ESPHOME_API`, work in progress, #60): protobuf messages generated with nanopb from a pinned `api.proto`; requires the `nanopb` module and `protoc` (`pip install grpcio-tools`)
+- ESPHome native API server (`CONFIG_ESPHOME_API`, work in progress, #60): plaintext TCP server with sensor, binary sensor, switch and button entities declared via `ESPHOME_*_DEFINE` (`include/zephyr/net/esphome_api.h`); protobuf messages generated with nanopb from a pinned `api.proto`; requires the `nanopb` module and `protoc` (`pip install grpcio-tools`)
 
 ## Boards
 
