@@ -1,0 +1,7 @@
+common:
+  tags: [esphome_api]
+  modules: [nanopb]
+tests:
+  net.esphome_api.proto:
+    platform_allow: [native_sim, qemu_cortex_m3]
+    integration_platforms: [native_sim]

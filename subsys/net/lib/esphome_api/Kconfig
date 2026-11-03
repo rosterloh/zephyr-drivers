@@ -1,0 +1,10 @@
+config ESPHOME_API
+	bool "ESPHome native API server"
+	depends on NETWORKING
+	select NANOPB
+	help
+	  Server side of the ESPHome native API (TCP, protobuf messages,
+	  optional Noise encryption, mDNS discovery) so Home Assistant can
+	  discover the device and read and control its entities. Only the
+	  networking protocol is implemented, not ESPHome's YAML/codegen.
+

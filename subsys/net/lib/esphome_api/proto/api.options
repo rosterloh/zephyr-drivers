@@ -1,0 +1,70 @@
+# nanopb options for the pinned ESPHome api.proto (see README.md).
+# Everything is skipped except the messages the server needs; add a
+# "skip_message:false" line to pull in another one.
+# String max_size = ESPHome's (max_data_length) + 1 for the NUL.
+
+* skip_message:true
+
+HelloRequest skip_message:false msgid:1
+HelloRequest.client_info max_size:65
+HelloResponse skip_message:false msgid:2
+HelloResponse.server_info max_size:33
+HelloResponse.name max_size:32
+
+DisconnectRequest skip_message:false msgid:5
+DisconnectResponse skip_message:false msgid:6
+PingRequest skip_message:false msgid:7
+PingResponse skip_message:false msgid:8
+
+DeviceInfoRequest skip_message:false msgid:9
+DeviceInfoResponse skip_message:false msgid:10
+DeviceInfoResponse.name max_size:32
+DeviceInfoResponse.mac_address max_size:18
+DeviceInfoResponse.esphome_version max_size:33
+DeviceInfoResponse.compilation_time max_size:26
+DeviceInfoResponse.model max_size:128
+DeviceInfoResponse.project_name max_size:128
+DeviceInfoResponse.project_version max_size:128
+DeviceInfoResponse.manufacturer max_size:21
+DeviceInfoResponse.friendly_name max_size:121
+DeviceInfoResponse.suggested_area max_size:121
+DeviceInfoResponse.bluetooth_mac_address max_size:18
+# Sub-devices, areas and serial proxies are not supported.
+DeviceInfoResponse.devices type:FT_IGNORE
+DeviceInfoResponse.areas type:FT_IGNORE
+DeviceInfoResponse.area type:FT_IGNORE
+DeviceInfoResponse.serial_proxies type:FT_IGNORE
+
+ListEntitiesRequest skip_message:false msgid:11
+ListEntitiesDoneResponse skip_message:false msgid:19
+SubscribeStatesRequest skip_message:false msgid:20
+
+ListEntitiesSensorResponse skip_message:false msgid:16
+ListEntitiesSensorResponse.object_id max_size:121
+ListEntitiesSensorResponse.name max_size:121
+ListEntitiesSensorResponse.icon max_size:64
+ListEntitiesSensorResponse.unit_of_measurement max_size:64
+ListEntitiesSensorResponse.device_class max_size:48
+SensorStateResponse skip_message:false msgid:25
+
+ListEntitiesBinarySensorResponse skip_message:false msgid:12
+ListEntitiesBinarySensorResponse.object_id max_size:121
+ListEntitiesBinarySensorResponse.name max_size:121
+ListEntitiesBinarySensorResponse.icon max_size:64
+ListEntitiesBinarySensorResponse.device_class max_size:48
+BinarySensorStateResponse skip_message:false msgid:21
+
+ListEntitiesSwitchResponse skip_message:false msgid:17
+ListEntitiesSwitchResponse.object_id max_size:121
+ListEntitiesSwitchResponse.name max_size:121
+ListEntitiesSwitchResponse.icon max_size:64
+ListEntitiesSwitchResponse.device_class max_size:48
+SwitchStateResponse skip_message:false msgid:26
+SwitchCommandRequest skip_message:false msgid:33
+
+ListEntitiesButtonResponse skip_message:false msgid:61
+ListEntitiesButtonResponse.object_id max_size:121
+ListEntitiesButtonResponse.name max_size:121
+ListEntitiesButtonResponse.icon max_size:64
+ListEntitiesButtonResponse.device_class max_size:48
+ButtonCommandRequest skip_message:false msgid:62
