@@ -19,6 +19,7 @@ struct fake_data {
 	float last_setpoint;
 	enum actuator_mode last_mode;
 	enum actuator_drive_mode last_drive_mode;
+	int stop_calls;
 };
 
 struct fake_config {
@@ -35,6 +36,14 @@ static int fake_enable(const struct device *dev)
 static int fake_disable(const struct device *dev)
 {
 	ARG_UNUSED(dev);
+	return 0;
+}
+
+static int fake_stop(const struct device *dev)
+{
+	struct fake_data *d = dev->data;
+
+	d->stop_calls++;
 	return 0;
 }
 
@@ -78,6 +87,7 @@ static DEVICE_API(actuator, fake_api) = {
 	.enable = fake_enable,
 	.disable = fake_disable,
 	.clear_fault = fake_clear_fault,
+	.stop = fake_stop,
 	.set_setpoint = fake_set_setpoint,
 	.read_feedback = fake_read_feedback,
 	.set_drive_mode = fake_set_drive_mode,
@@ -121,4 +131,11 @@ enum actuator_drive_mode fake_get_drive_mode(const struct device *dev)
 	const struct fake_data *d = dev->data;
 
 	return d->last_drive_mode;
+}
+
+int fake_stop_calls(const struct device *dev)
+{
+	const struct fake_data *d = dev->data;
+
+	return d->stop_calls;
 }

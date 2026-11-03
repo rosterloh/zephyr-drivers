@@ -15,6 +15,8 @@ LOG_MODULE_REGISTER(actuator, CONFIG_ACTUATOR_LOG_LEVEL);
 
 /* Implemented in actuator_callbacks.c. */
 void actuator_callbacks_fire_state(const struct device *dev, enum actuator_state new_state);
+/* Implemented in actuator_group.c. */
+void actuator_group_on_member_fault(const struct device *dev);
 
 static struct actuator_common_data *common(const struct device *dev)
 {
@@ -43,6 +45,9 @@ static int sm_step_locked(const struct device *dev, enum actuator_sm_event evt,
 	if (err != 0) {
 		return err;
 	}
+	if (evt == ACTUATOR_SM_EVT_FAULT && next == ACTUATOR_STATE_STOPPED) {
+		cd->stopped_faults |= fault_flags;
+	}
 	if (next == cd->state) {
 		return 0;
 	}
@@ -68,7 +73,6 @@ void actuator_report_state(const struct device *dev, enum actuator_sm_event even
 		actuator_callbacks_fire_state(dev, new_state);
 	}
 	if (new_state == ACTUATOR_STATE_FAULT) {
-		extern void actuator_group_on_member_fault(const struct device *dev);
 		actuator_group_on_member_fault(dev);
 	}
 }
@@ -159,6 +163,58 @@ int z_impl_actuator_clear_fault(const struct device *dev)
 		actuator_callbacks_fire_state(dev, new_state);
 	}
 	return err;
+}
+
+int z_impl_actuator_stop_latch(const struct device *dev)
+{
+	struct actuator_common_data *cd = common(dev);
+
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	int rc = sm_step_locked(dev, ACTUATOR_SM_EVT_STOP, 0);
+	k_spin_unlock(&cd->lock, key);
+
+	if (rc == 1) {
+		actuator_callbacks_fire_state(dev, ACTUATOR_STATE_STOPPED);
+		/* A stopped member is lost to its group as surely as a faulted one. */
+		actuator_group_on_member_fault(dev);
+	}
+	return rc < 0 ? rc : 0;
+}
+
+int z_impl_actuator_stop(const struct device *dev)
+{
+	int rc = z_impl_actuator_stop_latch(dev);
+
+	if (rc != 0) {
+		return rc;
+	}
+	return api(dev)->stop != NULL ? api(dev)->stop(dev) : api(dev)->disable(dev);
+}
+
+int z_impl_actuator_clear_stop(const struct device *dev)
+{
+	struct actuator_common_data *cd = common(dev);
+
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	uint32_t faults = cd->stopped_faults;
+	int rc = sm_step_locked(dev, ACTUATOR_SM_EVT_CLEAR_STOP, 0);
+
+	if (rc >= 0) {
+		cd->stopped_faults = 0;
+		if (faults != 0U) {
+			/* The stop masked these; surface them so clear_fault resets
+			 * the drive rather than an enable discovering them. */
+			(void)sm_step_locked(dev, ACTUATOR_SM_EVT_FAULT, faults);
+		}
+	}
+	enum actuator_state new_state = cd->state;
+	k_spin_unlock(&cd->lock, key);
+
+	if (rc < 0) {
+		return rc;
+	}
+	actuator_callbacks_fire_state(dev, new_state);
+	return 0;
 }
 
 enum actuator_state z_impl_actuator_get_state(const struct device *dev)

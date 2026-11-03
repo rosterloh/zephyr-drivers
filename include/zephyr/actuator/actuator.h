@@ -26,18 +26,44 @@ __syscall int actuator_enable(const struct device *dev);
 __syscall int actuator_disable(const struct device *dev);
 __syscall int actuator_clear_fault(const struct device *dev);
 
+/**
+ * Stop the actuator and latch it in ACTUATOR_STATE_STOPPED.
+ *
+ * The latch is taken before any I/O, so from the moment this is called every
+ * enable and setpoint is refused (-EPERM), whatever else the actuator reports.
+ * Then the backend's own controlled stop runs (or disable, for a backend
+ * without one). Idempotent: calling it again retries that stop.
+ *
+ * @return The backend stop's result. The latch holds either way.
+ */
+__syscall int actuator_stop(const struct device *dev);
+
+/**
+ * Latch ACTUATOR_STATE_STOPPED with NO I/O. The hardware is not stopped: the
+ * caller owes an actuator_stop(). For latching several actuators before any of
+ * their blocking stops, or keeping one latched between paced stop retries.
+ */
+__syscall int actuator_stop_latch(const struct device *dev);
+
+/**
+ * Release a stop: STOPPED -> DISABLED, or FAULT if a fault was reported while
+ * stopped (clear that with actuator_clear_fault()). No backend I/O.
+ *
+ * @retval -EINVAL  Not stopped.
+ */
+__syscall int actuator_clear_stop(const struct device *dev);
+
 __syscall enum actuator_state actuator_get_state(const struct device *dev);
 __syscall uint32_t actuator_get_capabilities(const struct device *dev);
 
 /**
- * Command a position setpoint (radians).
- * Implicitly transitions the actuator from DISABLED through READY into
- * ACTIVE if needed.
+ * Command a position setpoint (radians). The actuator must be enabled: a
+ * setpoint never enables it.
  *
  * @retval 0         Setpoint accepted.
  * @retval -ENOTSUP  Backend does not support position mode.
  * @retval -EAGAIN   Actuator is in ALIGNING state; retry later.
- * @retval -EPERM    Actuator is in FAULT state; clear fault first.
+ * @retval -EPERM    Actuator is DISABLED, STOPPED or in FAULT.
  */
 __syscall int actuator_set_position(const struct device *dev, float rad);
 __syscall int actuator_set_velocity(const struct device *dev, float rad_s);
@@ -106,6 +132,9 @@ __subsystem struct actuator_driver_api {
 	int (*enable)(const struct device *dev);
 	int (*disable)(const struct device *dev);
 	int (*clear_fault)(const struct device *dev);
+	/* Optional: a controlled stop that ends de-energised, ordered after any
+	 * setpoint transaction already in progress. NULL = disable. */
+	int (*stop)(const struct device *dev);
 
 	int (*set_setpoint)(const struct device *dev, enum actuator_mode mode, float value);
 
@@ -137,6 +166,9 @@ struct actuator_common_data {
 	enum actuator_mode current_mode;
 	struct actuator_feedback cached_fb;
 	struct actuator_limits limits;
+	/* Faults reported while STOPPED; actuator_clear_stop() lands in FAULT
+	 * when non-zero. Separate from cached_fb, which each sample overwrites. */
+	uint32_t stopped_faults;
 	struct k_spinlock lock;
 };
 

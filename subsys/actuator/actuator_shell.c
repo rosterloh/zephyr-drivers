@@ -128,6 +128,28 @@ static int cmd_disable(const struct shell *sh, size_t argc, char **argv)
 	return err;
 }
 
+static int cmd_stop(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	const struct device *dev = resolve(sh, argv[1]);
+	if (!dev) {
+		return -ENODEV;
+	}
+	int err = actuator_stop(dev);
+	shell_print(sh, "stop: %d (latched either way)", err);
+	return err;
+}
+
+static int cmd_clear_stop(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	const struct device *dev = resolve(sh, argv[1]);
+	if (!dev) {
+		return -ENODEV;
+	}
+	return actuator_clear_stop(dev);
+}
+
 static int cmd_clear_fault(const struct shell *sh, size_t argc, char **argv)
 {
 	ARG_UNUSED(argc);
@@ -269,6 +291,14 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		      cmd_enable, 2, 0),
 	SHELL_CMD_ARG(disable, NULL, "De-energize an actuator.\nUsage: actuator disable <name>",
 		      cmd_disable, 2, 0),
+	SHELL_CMD_ARG(stop, NULL,
+		      "Stop and latch STOPPED; enable and setpoints are refused until\n"
+		      "clear_stop. Usage: actuator stop <name>",
+		      cmd_stop, 2, 0),
+	SHELL_CMD_ARG(clear_stop, NULL,
+		      "Release a stop: to DISABLED, or FAULT if one was reported while\n"
+		      "stopped. Usage: actuator clear_stop <name>",
+		      cmd_clear_stop, 2, 0),
 	SHELL_CMD_ARG(clear_fault, NULL,
 		      "Clear a latched fault and return to READY.\n"
 		      "Usage: actuator clear_fault <name>",
