@@ -3,8 +3,6 @@ common:
   platform_allow:
     - qemu_cortex_m3
     - native_sim
-    - waveshare_esp32_s3_eth/esp32s3/procpu/qemu
-    - adafruit_qt_py_esp32c3/esp32c3/qemu
 
 tests:
   drivers.video.arducam_pivariety: {}
