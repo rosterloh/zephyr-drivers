@@ -741,6 +741,13 @@ static int icl57_home_start(const struct shell *sh, struct icl57_home_ctx *c)
 		return -EBUSY;
 	}
 
+	int begin_rc = actuator_report_reference_begin(dev);
+
+	if (begin_rc < 0) {
+		ICL57_ERROR(sh, "motor %u: cannot start referencing (state %d)", cfg->slave_id,
+			    (int)actuator_get_state(dev));
+		return begin_rc;
+	}
 	icl57_homing_begin(d);
 	c->claimed = true;
 
@@ -1529,6 +1536,11 @@ static void icl57_home_abort(const struct shell *sh, struct icl57_home_ctx *ctx,
 
 		icl57_homing_end(ctx[i].dev);
 		ctx[i].claimed = false;
+		/* Never left ALIGNING. A stop has already latched STOPPED. */
+		if (actuator_get_state(ctx[i].dev) == ACTUATOR_STATE_ALIGNING) {
+			actuator_report_state(ctx[i].dev, ACTUATOR_SM_EVT_FAULT,
+					      ACTUATOR_FAULT_REFERENCE);
+		}
 	}
 }
 
@@ -1572,21 +1584,17 @@ static int icl57_home_fail(const struct shell *sh, struct icl57_home_ctx *ctx, s
  * refuses a motor with a homing-group sibling for the same reason
  * (icl57_home_select); only `all` can home a grouped pair.
  */
-int icl57_home_run(const struct shell *sh, const struct device *dev)
+static int icl57_home_set(const struct shell *sh, const struct device *const *devs, size_t n)
 {
 	if (icl57_shell_iface < 0) {
 		ICL57_ERROR(sh, "modbus bus not initialised");
 		return -ENODEV;
 	}
-
-	const struct device *devs[ICL57_MOTOR_COUNT];
-	struct icl57_home_ctx ctx[ICL57_MOTOR_COUNT];
-	size_t n = icl57_home_select(sh, dev, devs, ICL57_MOTOR_COUNT);
-
 	if (n == 0) {
 		return -ENODEV;
 	}
 
+	struct icl57_home_ctx ctx[ICL57_MOTOR_COUNT];
 	bool failed = false;
 
 	/* Phase 1: claim every drive and start every pre-move. */
@@ -1755,7 +1763,40 @@ int icl57_home_run(const struct shell *sh, const struct device *dev)
 	return result;
 }
 
+int icl57_home_run(const struct shell *sh, const struct device *dev)
+{
+	const struct device *devs[ICL57_MOTOR_COUNT];
+	size_t n = icl57_home_select(sh, dev, devs, ICL57_MOTOR_COUNT);
+
+	return icl57_home_set(sh, devs, n);
+}
+
+int icl57_reference_op(const struct device *const *devs, size_t n)
+{
+	size_t count = icl57_dev_count();
+	int32_t groups[ICL57_MOTOR_COUNT];
+	bool named[ICL57_MOTOR_COUNT] = {false};
+	bool sel[ICL57_MOTOR_COUNT];
+	const struct device *set[ICL57_MOTOR_COUNT];
+	size_t m = 0;
+
+	for (size_t i = 0; i < count; i++) {
+		groups[i] = ((const struct icl57_config *)icl57_devs[i]->config)->homing_group;
+		for (size_t j = 0; j < n; j++) {
+			named[i] |= devs[j] == icl57_devs[i];
+		}
+	}
+	(void)icl57_home_expand(groups, named, sel, count);
+	for (size_t i = 0; i < count; i++) {
+		if (sel[i]) {
+			set[m++] = icl57_devs[i];
+		}
+	}
+	return icl57_home_set(NULL, set, m);
+}
+
 int icl57_home(const struct device *dev)
 {
-	return icl57_home_run(NULL, dev);
+	return dev != NULL ? actuator_reference(dev)
+			   : icl57_reference_op(icl57_devs, icl57_dev_count());
 }

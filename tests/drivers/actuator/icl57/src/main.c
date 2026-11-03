@@ -466,6 +466,21 @@ static void icl57_profile_checks(void)
 	/* Not energised outranks unreferenced: the stop is the cause to report. */
 	CHECK(icl57_group_may_write(one_down, one_unref, 2) == -EPERM);
 	CHECK(icl57_group_may_write(live2, ref2, 0) == 0);
+
+	/* Referencing a motor homes its whole homing group (one rigid load). x0 is
+	 * independent (group 0); z0 and z1 share group 1. */
+	const int32_t groups[] = {0, 1, 1};
+	bool sel[3];
+
+	CHECK(icl57_home_expand(groups, (const bool[]){false, true, false}, sel, 3) == 2);
+	CHECK(!sel[0] && sel[1] && sel[2]);
+	CHECK(icl57_home_expand(groups, (const bool[]){true, false, false}, sel, 3) == 1);
+	CHECK(sel[0] && !sel[1] && !sel[2]);
+	CHECK(icl57_home_expand(groups, (const bool[]){true, false, true}, sel, 3) == 3);
+	CHECK(icl57_home_expand(groups, (const bool[]){false, false, false}, sel, 3) == 0);
+	/* Group 0 means "independent", not "one big group": two of them stay apart. */
+	CHECK(icl57_home_expand((const int32_t[]){0, 0}, (const bool[]){true, false}, sel, 2) == 1);
+	CHECK(sel[0] && !sel[1]);
 }
 
 #ifdef CONFIG_ZTEST

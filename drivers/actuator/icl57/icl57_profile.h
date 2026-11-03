@@ -528,4 +528,25 @@ static inline int icl57_group_may_write(const bool *live, const bool *referenced
 	return rc;
 }
 
+/*
+ * Which motors a reference request homes: every named motor, plus every motor
+ * sharing a non-zero homing group with one (they move one rigid load, so homing
+ * one alone racks it). Group 0 is "independent". Fills out[] for the n
+ * instances and returns how many are selected.
+ */
+static inline size_t icl57_home_expand(const int32_t *groups, const bool *named, bool *out,
+				       size_t n)
+{
+	size_t count = 0;
+
+	for (size_t i = 0; i < n; i++) {
+		out[i] = named[i];
+		for (size_t j = 0; j < n && !out[i] && groups[i] != 0; j++) {
+			out[i] = named[j] && groups[j] == groups[i];
+		}
+		count += out[i];
+	}
+	return count;
+}
+
 #endif /* ICL57_PROFILE_H_ */

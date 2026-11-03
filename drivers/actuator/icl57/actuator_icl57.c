@@ -115,11 +115,9 @@ int icl57_read_motion_state(const struct device *dev, uint16_t *state)
  */
 void icl57_homing_begin(struct icl57_data *d)
 {
+	/* The reference itself is dropped by actuator_report_reference_begin(),
+	 * called just before this, up front rather than on failure. */
 	d->homing = true;
-	/* Dropped up front, not on failure: a run that aborts halfway leaves the
-	 * axis somewhere the previous datum no longer describes, so the datum must
-	 * not survive the attempt merely because the attempt did not finish. */
-	d->homed = false;
 	d->retriggers_left = 0;
 	k_work_cancel_delayable(&d->feedback_work);
 }
@@ -128,15 +126,13 @@ void icl57_homing_succeeded(const struct device *dev)
 {
 	struct icl57_data *d = dev->data;
 
-	d->homed = true;
 	d->repin_pending = false;
+	actuator_report_referenced(dev);
 }
 
 bool icl57_is_homed(const struct device *dev)
 {
-	struct icl57_data *d = dev->data;
-
-	return d->homed;
+	return actuator_is_referenced(dev);
 }
 
 int32_t icl57_homing_group(const struct device *dev)
@@ -162,9 +158,7 @@ uint16_t icl57_max_rpm(const struct device *dev)
 
 void icl57_datum_void(const struct device *dev)
 {
-	struct icl57_data *d = dev->data;
-
-	d->homed = false;
+	actuator_invalidate_reference(dev);
 }
 
 bool icl57_is_answering(const struct device *dev)
@@ -518,7 +512,7 @@ int icl57_estop(const struct device *dev)
 	k_work_cancel_delayable(&d->feedback_work);
 	icl57_bus_unlock();
 
-	/* `homed` is deliberately NOT cleared: the operator's chosen recovery is a
+	/* The reference is deliberately NOT dropped: the operator's chosen recovery is a
 	 * reset that keeps the datum. The drive's position register does not follow
 	 * an unpowered axis, so that trusts nobody moved the carriage -- the reset
 	 * path says so out loud. */
@@ -532,10 +526,10 @@ int icl57_estop(const struct device *dev)
  * drive with its own current loop does not expose. An enabled iCL57 already
  * holds position, so the useful distinction here is only energised vs not.
  *
- * COAST clears the homed flag, which is the whole point of having it. The usual
+ * COAST drops the reference, which is the whole point of having it. The usual
  * reason to drop torque is so a human can move the axis by hand, and once they
  * have, the datum is a fiction -- the drive's own position register
- * does not follow an unpowered axis. Leaving `homed` set would let the next host
+ * does not follow an unpowered axis. Keeping the reference would let the next host
  * setpoint command an absolute move against a stale reference, at profile
  * velocity, from an unknown place. The axis must be re-homed, so say so here
  * rather than discovering it as a fast move in the wrong direction.
@@ -578,7 +572,7 @@ static int icl57_set_drive_mode(const struct device *dev, enum actuator_drive_mo
 	d->coasting = want_coast;
 
 	if (want_coast) {
-		d->homed = false;
+		actuator_invalidate_reference(dev);
 		LOG_WRN("motor %u: coasting; the datum is void until the axis is re-homed",
 			cfg->slave_id);
 	}
@@ -887,7 +881,7 @@ int icl57_read_feedback(const struct device *dev, struct actuator_feedback *out)
 	uint32_t now_ms = k_uptime_get_32();
 	bool suspect = false;
 
-	if (d->homed && d->have_fb) {
+	if (actuator_is_referenced(dev) && d->have_fb) {
 		switch (icl57_frame_check(&d->frame_watch, d->fb_pulses, d->last_pulses,
 					  d->have_last, pos, (uint32_t)cfg->counts_per_rev)) {
 		case ICL57_FRAME_SUSPECT:
@@ -939,7 +933,7 @@ int icl57_read_feedback(const struct device *dev, struct actuator_feedback *out)
 
 	if (frame_lost) {
 		out->fault_flags |= ICL57_FAULT_FRAME_LOST;
-		d->homed = false;
+		actuator_invalidate_reference(dev);
 	}
 
 	if (have_state && (state & ICL57_MOTION_FAULT)) {
@@ -975,7 +969,7 @@ int icl57_read_feedback(const struct device *dev, struct actuator_feedback *out)
 		 * the carriage stopped while the commanded profile ran on, so the
 		 * position frame no longer describes where the axis physically is. Home
 		 * again before trusting an absolute setpoint. */
-		d->homed = false;
+		actuator_invalidate_reference(dev);
 	}
 	return 0;
 }
@@ -989,6 +983,7 @@ static DEVICE_API(actuator, icl57_api) = {
 	.set_setpoint = icl57_set_setpoint,
 	.read_feedback = icl57_read_feedback,
 	.group_set_setpoints = icl57_group_set_setpoints,
+	.reference = icl57_reference_op,
 };
 
 /*

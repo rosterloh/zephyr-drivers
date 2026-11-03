@@ -455,7 +455,7 @@ struct shell;
  */
 #define ICL57_CAPS                                                                                 \
 	(ACTUATOR_CAP_POSITION | ACTUATOR_CAP_FAULT_LATCHING | ACTUATOR_CAP_DRIVE_MODE |           \
-	 ACTUATOR_CAP_GROUP_NATIVE)
+	 ACTUATOR_CAP_GROUP_NATIVE | ACTUATOR_CAP_NEEDS_REFERENCE)
 
 struct icl57_data {
 	struct actuator_common_data common;
@@ -502,18 +502,9 @@ struct icl57_data {
 	 * the 100 ms feedback poller would consume ICL57_MOTION_HOMED before the wait
 	 * loop could see it. */
 	bool homing;
-	/*
-	 * True only between a fully successful `icl57 home` and anything that
-	 * invalidates the datum. Boots false: the drives come up with position 0
-	 * wherever the carriage happens to sit, so an un-homed axis's absolute
-	 * setpoints mean something different every power-up. An application should
-	 * refuse absolute setpoints until this is set: see icl57_is_homed().
-	 *
-	 * Cleared on a new homing attempt (a failed one must not leave the previous
-	 * datum looking valid) and on a fault, since a stall means the carriage may
-	 * have moved without the encoder frame following it.
-	 */
-	bool homed;
+	/* The datum is the subsystem's reference (actuator_is_referenced()): it
+	 * boots unset, because the drives come up at 0 wherever the carriage sits,
+	 * and is dropped on a new homing attempt, a fault, a lost frame or coast. */
 	/* Set by an e-stop after any accepted setpoint, or a failed abort re-pin; blocks
 	 * re-enable until re-pinned or successfully homed. */
 	bool repin_pending;
@@ -671,6 +662,8 @@ int icl57_save(const struct shell *sh, uint8_t id);
 uint16_t icl57_di2_func(const struct icl57_config *cfg);
 int icl57_write_homing_mode(const struct shell *sh, const struct device *dev, uint8_t id);
 int icl57_home_run(const struct shell *sh, const struct device *dev);
+/* The actuator reference op: homes devs plus their homing-group siblings. */
+int icl57_reference_op(const struct device *const *devs, size_t n);
 int icl57_unjam(const struct shell *sh, const struct device *dev);
 
 #endif /* ICL57_INTERNAL_H_ */
