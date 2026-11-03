@@ -22,6 +22,12 @@ extern "C" {
  * @{
  */
 
+/**
+ * Energise an actuator. Never resumes a target set before the last disable,
+ * stop or fault: a backend that cannot guarantee that refuses the enable.
+ *
+ * @retval -EPERM  In FAULT (clear it first) or STOPPED (actuator_clear_stop()).
+ */
 __syscall int actuator_enable(const struct device *dev);
 __syscall int actuator_disable(const struct device *dev);
 __syscall int actuator_clear_fault(const struct device *dev);
@@ -130,6 +136,13 @@ __syscall int actuator_read_feedback(const struct device *dev, struct actuator_f
 /** Cached read: returns last sample populated by the driver-internal worker. */
 __syscall int actuator_get_feedback(const struct device *dev, struct actuator_feedback *out);
 
+/**
+ * Apply limits; start from ACTUATOR_LIMITS_NONE. With a backend set_limits op
+ * the backend applies them. Without one, position/velocity/effort limits are
+ * enforced here (setpoints outside get -ERANGE) and all-NaN clears them.
+ *
+ * @retval -ENOTSUP  A limit nobody here can enforce (e.g. accel without an op).
+ */
 __syscall int actuator_set_limits(const struct device *dev, const struct actuator_limits *limits);
 
 typedef void (*actuator_state_cb_t)(const struct device *dev, enum actuator_state new_state,
