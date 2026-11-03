@@ -453,6 +453,19 @@ static void icl57_profile_checks(void)
 	CHECK(!icl57_needs_retrigger(false, 59540, 59550, 200, PERIOD));
 	CHECK(icl57_needs_retrigger(false, 59539, 59550, 200, PERIOD));
 	CHECK(icl57_needs_retrigger(false, INT32_MIN, INT32_MAX, 200, PERIOD));
+
+	/* A group write goes ahead only while every member is energised and
+	 * referenced, re-checked before each write: a member stopped after the
+	 * first write keeps the second from being sent. */
+	const bool live2[] = {true, true}, ref2[] = {true, true};
+	const bool one_down[] = {true, false}, one_unref[] = {true, false};
+
+	CHECK(icl57_group_may_write(live2, ref2, 2) == 0);
+	CHECK(icl57_group_may_write(one_down, ref2, 2) == -EPERM);
+	CHECK(icl57_group_may_write(live2, one_unref, 2) == -EACCES);
+	/* Not energised outranks unreferenced: the stop is the cause to report. */
+	CHECK(icl57_group_may_write(one_down, one_unref, 2) == -EPERM);
+	CHECK(icl57_group_may_write(live2, ref2, 0) == 0);
 }
 
 #ifdef CONFIG_ZTEST

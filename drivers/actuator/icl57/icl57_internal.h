@@ -453,7 +453,9 @@ struct shell;
  * refused with -EPERM forever). iCL-RS faults latch in the strongest sense:
  * most alarm classes need a drive power-cycle.
  */
-#define ICL57_CAPS (ACTUATOR_CAP_POSITION | ACTUATOR_CAP_FAULT_LATCHING | ACTUATOR_CAP_DRIVE_MODE)
+#define ICL57_CAPS                                                                                 \
+	(ACTUATOR_CAP_POSITION | ACTUATOR_CAP_FAULT_LATCHING | ACTUATOR_CAP_DRIVE_MODE |           \
+	 ACTUATOR_CAP_GROUP_NATIVE)
 
 struct icl57_data {
 	struct actuator_common_data common;

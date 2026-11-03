@@ -9,6 +9,7 @@
 #ifndef ICL57_PROFILE_H_
 #define ICL57_PROFILE_H_
 
+#include <errno.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -502,6 +503,29 @@ static inline bool icl57_needs_retrigger(bool running, int32_t cmd_pulses, int32
 static inline bool icl57_abort_may_repin(bool stopped, bool state_read, bool enabled)
 {
 	return !stopped || (state_read && !enabled);
+}
+
+/*
+ * May a group setpoint write go to the next member? Asked before EACH write of
+ * a group, with a fresh snapshot: live[i] is "READY or ACTIVE" and
+ * referenced[i] the member's reference. A member stopped after the first write
+ * must keep the rest from being sent, or a pair moves one motor of two.
+ * -EPERM (a member is not energised and tracking) outranks -EACCES (one is
+ * unreferenced): the stop is the cause to report.
+ */
+static inline int icl57_group_may_write(const bool *live, const bool *referenced, size_t n)
+{
+	int rc = 0;
+
+	for (size_t i = 0; i < n; i++) {
+		if (!live[i]) {
+			return -EPERM;
+		}
+		if (!referenced[i]) {
+			rc = -EACCES;
+		}
+	}
+	return rc;
 }
 
 #endif /* ICL57_PROFILE_H_ */

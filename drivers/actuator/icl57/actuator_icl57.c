@@ -760,6 +760,59 @@ static int icl57_set_setpoint_locked(const struct device *dev, enum actuator_mod
 
 /* Under the bus lock (recursive, so a caller already holding it is fine) so the
  * poller's re-trigger can never send an older target after this one. */
+/*
+ * Modbus RTU has no atomic multi-slave write. What this adds over the
+ * subsystem's per-motor loop: the bus held across every write, so a feedback
+ * poll cannot land between them (it once put a Z pair's writes ~130 ms apart),
+ * and a fresh look at EVERY member before each write, so a member stopped
+ * after the first write keeps the rest from being sent.
+ */
+static int icl57_group_set_setpoints(const struct device *const *devs, size_t n,
+				     enum actuator_mode mode, const float *values)
+{
+	enum actuator_state seen[ICL57_MOTOR_COUNT];
+	bool live[ICL57_MOTOR_COUNT];
+	bool referenced[ICL57_MOTOR_COUNT];
+	const struct device *failed = NULL;
+	int rc = 0;
+
+	if (n > ICL57_MOTOR_COUNT) {
+		return -EINVAL;
+	}
+	icl57_bus_lock();
+	for (size_t i = 0; i < n && rc == 0; i++) {
+		for (size_t k = 0; k < n; k++) {
+			struct actuator_common_data *cd = devs[k]->data;
+			k_spinlock_key_t key = k_spin_lock(&cd->lock);
+
+			seen[k] = cd->state;
+			referenced[k] =
+				cd->referenced || !(cd->caps & ACTUATOR_CAP_NEEDS_REFERENCE);
+			k_spin_unlock(&cd->lock, key);
+			live[k] =
+				seen[k] == ACTUATOR_STATE_READY || seen[k] == ACTUATOR_STATE_ACTIVE;
+		}
+		rc = icl57_group_may_write(live, referenced, n);
+		if (rc != 0) {
+			break;
+		}
+		rc = icl57_set_setpoint_locked(devs[i], mode, values[i]);
+		if (rc != 0) {
+			failed = devs[i];
+			break;
+		}
+		rc = actuator_report_setpoint_if_state(devs[i], mode, seen[i]);
+	}
+	icl57_bus_unlock();
+
+	/* As the single-motor path does, but after the bus is released: the fault
+	 * fires state callbacks, and an app's stop in one takes the bus. */
+	if (failed != NULL) {
+		actuator_report_state(failed, ACTUATOR_SM_EVT_FAULT, ACTUATOR_FAULT_DRIVER(0));
+	}
+	return rc;
+}
+
 static int icl57_set_setpoint(const struct device *dev, enum actuator_mode mode, float value)
 {
 	icl57_bus_lock();
@@ -935,8 +988,7 @@ static DEVICE_API(actuator, icl57_api) = {
 	.set_drive_mode = icl57_set_drive_mode,
 	.set_setpoint = icl57_set_setpoint,
 	.read_feedback = icl57_read_feedback,
-	/* No group ops: Modbus RTU has no atomic multi-slave write, so the
-	 * subsystem falls back to sequential per-motor set_position. */
+	.group_set_setpoints = icl57_group_set_setpoints,
 };
 
 /*
