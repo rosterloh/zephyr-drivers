@@ -183,7 +183,9 @@ int icl57_repin(const struct device *dev, bool stopped)
 
 	/* A completed Stop must not land between the FAULT check and the PR0 write. */
 	icl57_bus_lock();
-	stopped |= actuator_get_state(dev) == ACTUATOR_STATE_FAULT;
+	int s = actuator_get_state(dev);
+
+	stopped |= s == ACTUATOR_STATE_FAULT || s == ACTUATOR_STATE_STOPPED;
 	bool state_read = icl57_read_motion_state(dev, &state) == 0;
 
 	if (icl57_abort_may_repin(stopped, state_read, (state & ICL57_MOTION_ENABLED) != 0U)) {
@@ -417,6 +419,15 @@ static int icl57_enable(const struct device *dev)
 {
 	const struct icl57_config *cfg = dev->config;
 	struct icl57_data *d = dev->data;
+
+	/* Enable holds position: an energised drive runs its queued PR0 target,
+	 * so one left by a stop or an aborted home is retired first (icl57_repin). */
+	if (d->repin_pending) {
+		LOG_ERR("motor %u: enable refused: a queued PR0 target would run; retire it "
+			"with icl57_repin() first",
+			cfg->slave_id);
+		return -EAGAIN;
+	}
 
 	if (icl57_mb_write_reg(d->iface, cfg->slave_id, ICL57_REG_FORCE_ENABLE, 1) < 0) {
 		return -EIO;
@@ -920,6 +931,7 @@ static DEVICE_API(actuator, icl57_api) = {
 	.enable = icl57_enable,
 	.disable = icl57_disable,
 	.clear_fault = icl57_clear_fault,
+	.stop = icl57_estop,
 	.set_drive_mode = icl57_set_drive_mode,
 	.set_setpoint = icl57_set_setpoint,
 	.read_feedback = icl57_read_feedback,
@@ -1022,6 +1034,7 @@ static void icl57_retrigger_if_dropped(const struct device *dev)
 
 	if (d->retriggers_left == 0U || !d->have_last || !d->have_fb_state || d->fb_running ||
 	    d->coasting || d->homing || d->common.state == ACTUATOR_STATE_FAULT ||
+	    d->common.state == ACTUATOR_STATE_STOPPED ||
 	    d->common.state == ACTUATOR_STATE_DISABLED) {
 		return;
 	}

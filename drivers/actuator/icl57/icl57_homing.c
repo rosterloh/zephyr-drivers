@@ -269,15 +269,16 @@ struct icl57_home_ctx {
 };
 
 /*
- * A stop has landed on this axis mid-home. Every stop an app issues -- e.g. a
- * remote stop, a physical e-stop, a homing-group skew guard -- must report
- * ACTUATOR_STATE_FAULT before it touches the bus, so FAULT is the one signal
- * the driver can see without knowing about the app's latch. Every homing wait
- * polls it, and no homing motion write is issued once it is set.
+ * A stop or a fault has landed on this axis mid-home. actuator_stop() latches
+ * STOPPED before it touches the bus, and a drive fault reports FAULT, so these
+ * two are the signals the driver can see without knowing about the app. Every
+ * homing wait polls them, and no homing motion write is issued once set.
  */
 static bool icl57_home_cancelled(const struct device *dev)
 {
-	return actuator_get_state(dev) == ACTUATOR_STATE_FAULT;
+	enum actuator_state s = actuator_get_state(dev);
+
+	return s == ACTUATOR_STATE_FAULT || s == ACTUATOR_STATE_STOPPED;
 }
 
 /*
