@@ -37,9 +37,11 @@ config ESPHOME_API_RX_BUF_SIZE
 config ESPHOME_API_DEVICE_NAME
 	string "Device name"
 	default "zephyr"
+	depends on !NET_HOSTNAME_ENABLE
 	help
 	  Hostname-style name (at most 31 characters) Home Assistant uses to
-	  identify the device. Keep it stable.
+	  identify the device. Keep it stable. With NET_HOSTNAME_ENABLE the
+	  hostname is used instead, so the name matches <hostname>.local.
 
 config ESPHOME_API_FRIENDLY_NAME
 	string "Friendly name"
@@ -48,6 +50,16 @@ config ESPHOME_API_FRIENDLY_NAME
 config ESPHOME_API_MANUFACTURER
 	string "Manufacturer shown in Home Assistant"
 	default "Zephyr"
+
+config ESPHOME_API_MDNS
+	bool "Advertise over mDNS"
+	default y
+	depends on MDNS_RESPONDER_DNS_SD
+	help
+	  Register an _esphomelib._tcp DNS-SD service, named after the
+	  hostname, with the TXT keys Home Assistant's discovery reads
+	  (friendly_name, version, mac, board, network). Needs
+	  MDNS_RESPONDER, DNS_SD and NET_HOSTNAME_ENABLE.
 
 config ESPHOME_API_STACK_SIZE
 	int "Server thread stack size"

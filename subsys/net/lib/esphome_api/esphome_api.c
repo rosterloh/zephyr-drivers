@@ -24,8 +24,17 @@
 
 LOG_MODULE_REGISTER(esphome_api, CONFIG_ESPHOME_API_LOG_LEVEL);
 
+#if defined(CONFIG_NET_HOSTNAME_ENABLE)
+#include <zephyr/net/hostname.h>
+/* ESPHome's device name is the hostname; mDNS advertises it as <name>.local. */
+#define DEVICE_NAME net_hostname_get()
+#else
 BUILD_ASSERT(sizeof(CONFIG_ESPHOME_API_DEVICE_NAME) <= sizeof(((HelloResponse *)0)->name),
 	     "CONFIG_ESPHOME_API_DEVICE_NAME is limited to 31 characters");
+#define DEVICE_NAME CONFIG_ESPHOME_API_DEVICE_NAME
+#endif
+
+#define VERSION_STR "Zephyr " KERNEL_VERSION_STRING
 
 #define FRAME_HDR_MAX   (1 + 5 + 5)
 #define IDLE_TIMEOUT_MS (CONFIG_ESPHOME_API_IDLE_TIMEOUT * MSEC_PER_SEC)
@@ -272,22 +281,29 @@ static struct esphome_entity *find_entity(uint32_t key, enum esphome_entity_type
 	return NULL;
 }
 
-static int send_device_info(struct client *c)
+/* MAC of the default interface; zeros when it has none (loopback, offloaded sockets). */
+static void get_mac(uint8_t mac[6])
 {
 	struct net_if *iface = net_if_get_default();
 	struct net_linkaddr *ll = iface != NULL ? net_if_get_link_addr(iface) : NULL;
-	uint8_t mac[6] = {0};
 
-	if (ll != NULL && ll->len == sizeof(mac)) {
-		memcpy(mac, ll->addr, sizeof(mac));
+	memset(mac, 0, 6);
+	if (ll != NULL && ll->len == 6) {
+		memcpy(mac, ll->addr, 6);
 	}
+}
 
+static int send_device_info(struct client *c)
+{
+	uint8_t mac[6];
+
+	get_mac(mac);
 	msg.info = (DeviceInfoResponse){0};
-	SET_STR(msg.info.name, CONFIG_ESPHOME_API_DEVICE_NAME);
+	SET_STR(msg.info.name, DEVICE_NAME);
 	SET_STR(msg.info.friendly_name, CONFIG_ESPHOME_API_FRIENDLY_NAME);
 	SET_STR(msg.info.manufacturer, CONFIG_ESPHOME_API_MANUFACTURER);
 	SET_STR(msg.info.model, CONFIG_BOARD);
-	SET_STR(msg.info.esphome_version, "Zephyr " KERNEL_VERSION_STRING);
+	SET_STR(msg.info.esphome_version, VERSION_STR);
 	snprintk(msg.info.mac_address, sizeof(msg.info.mac_address),
 		 "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
@@ -325,8 +341,8 @@ static int dispatch(struct client *c, uint32_t type, const uint8_t *buf, size_t 
 		c->hello = true;
 		msg.hello = (HelloResponse){.api_version_major = ESPHOME_API_VERSION_MAJOR,
 					    .api_version_minor = ESPHOME_API_VERSION_MINOR};
-		SET_STR(msg.hello.server_info, "Zephyr " KERNEL_VERSION_STRING);
-		SET_STR(msg.hello.name, CONFIG_ESPHOME_API_DEVICE_NAME);
+		SET_STR(msg.hello.server_info, VERSION_STR);
+		SET_STR(msg.hello.name, DEVICE_NAME);
 		return send_msg(c, HelloResponse_msgid, HelloResponse_fields, &msg.hello);
 	case DisconnectRequest_msgid:
 		(void)send_msg(c, DisconnectResponse_msgid, NULL, NULL);
@@ -566,6 +582,82 @@ static void server_thread(void *p1, void *p2, void *p3)
 		k_mutex_unlock(&lock);
 	}
 }
+
+#if defined(CONFIG_ESPHOME_API_MDNS)
+#include <zephyr/init.h>
+#include <zephyr/net/dns_sd.h>
+
+/* TXT keys Home Assistant and ESPHome tools read; "mac" is required for discovery. */
+#define TXT_FRIENDLY "friendly_name=" CONFIG_ESPHOME_API_FRIENDLY_NAME
+#define TXT_VERSION  "version=" VERSION_STR
+#define TXT_MAC      "mac=000000000000"
+#define TXT_BOARD    "board=" CONFIG_BOARD
+#if defined(CONFIG_WIFI)
+#define TXT_NETWORK "network=wifi"
+#elif defined(CONFIG_NET_L2_ETHERNET)
+#define TXT_NETWORK "network=ethernet"
+#endif
+
+/* Each TXT string is a length byte followed by "key=value". */
+#define TXT_LEN(kv) sizeof(kv)
+#define TXT_SIZE                                                                                   \
+	((sizeof(CONFIG_ESPHOME_API_FRIENDLY_NAME) > 1 ? TXT_LEN(TXT_FRIENDLY) : 0) +              \
+	 TXT_LEN(TXT_VERSION) + TXT_LEN(TXT_MAC) + TXT_LEN(TXT_BOARD) +                            \
+	 COND_CODE_1(IS_ENABLED(CONFIG_WIFI), (TXT_LEN("network=wifi")),                           \
+		     (COND_CODE_1(IS_ENABLED(CONFIG_NET_L2_ETHERNET),                              \
+				  (TXT_LEN("network=ethernet")), (0)))))
+
+BUILD_ASSERT(sizeof(TXT_FRIENDLY) <= 256 && sizeof(TXT_BOARD) <= 256, "TXT string too long");
+
+/* Filled at init; the record is skipped while the instance name is still empty. */
+static char mdns_txt[TXT_SIZE + 1];
+static char mdns_instance[sizeof(((HelloResponse *)0)->name)];
+
+DNS_SD_REGISTER_TCP_SERVICE(esphome_api_sd, mdns_instance, "_esphomelib", "local", mdns_txt,
+			    CONFIG_ESPHOME_API_PORT);
+
+static size_t txt_add(size_t pos, const char *kv)
+{
+	size_t len = strlen(kv);
+
+	mdns_txt[pos] = len;
+	memcpy(&mdns_txt[pos + 1], kv, len);
+
+	return pos + 1 + len;
+}
+
+static int mdns_init(void)
+{
+	char mac_kv[sizeof(TXT_MAC)];
+	uint8_t mac[6];
+	size_t pos = 0;
+
+	if (sizeof(CONFIG_ESPHOME_API_FRIENDLY_NAME) > 1) {
+		pos = txt_add(pos, TXT_FRIENDLY);
+	}
+	pos = txt_add(pos, TXT_VERSION);
+	get_mac(mac);
+	/* Lowercase without separators, as ESPHome sends it. */
+	snprintk(mac_kv, sizeof(mac_kv), "mac=%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2],
+		 mac[3], mac[4], mac[5]);
+	pos = txt_add(pos, mac_kv);
+	pos = txt_add(pos, TXT_BOARD);
+#if defined(TXT_NETWORK)
+	pos = txt_add(pos, TXT_NETWORK);
+#endif
+	__ASSERT_NO_MSG(pos == TXT_SIZE);
+
+	if (strlen(DEVICE_NAME) >= sizeof(mdns_instance)) {
+		LOG_WRN("hostname \"%s\" is longer than ESPHome's 31 characters", DEVICE_NAME);
+	}
+	set_str(mdns_instance, sizeof(mdns_instance), DEVICE_NAME);
+
+	return 0;
+}
+
+/* After drivers, so the interface has its MAC. */
+SYS_INIT(mdns_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
+#endif /* CONFIG_ESPHOME_API_MDNS */
 
 K_THREAD_DEFINE(esphome_api_tid, CONFIG_ESPHOME_API_STACK_SIZE, server_thread, NULL, NULL, NULL,
 		CONFIG_ESPHOME_API_THREAD_PRIORITY, 0, 0);
