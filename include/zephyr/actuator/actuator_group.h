@@ -42,6 +42,8 @@ struct actuator_group {
 int actuator_group_enable(const struct actuator_group *grp);
 int actuator_group_disable(const struct actuator_group *grp);
 int actuator_group_clear_fault(const struct actuator_group *grp);
+/** Reference every member; see actuator_reference(). */
+int actuator_group_reference(const struct actuator_group *grp);
 
 int actuator_group_set_position(const struct actuator_group *grp, const float rad[]);
 int actuator_group_set_velocity(const struct actuator_group *grp, const float rad_s[]);

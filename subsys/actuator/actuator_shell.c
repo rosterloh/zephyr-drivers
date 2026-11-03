@@ -150,6 +150,18 @@ static int cmd_clear_stop(const struct shell *sh, size_t argc, char **argv)
 	return actuator_clear_stop(dev);
 }
 
+static int cmd_reference(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	const struct device *dev = resolve(sh, argv[1]);
+	if (!dev) {
+		return -ENODEV;
+	}
+	int err = actuator_reference(dev);
+	shell_print(sh, "reference: %d", err);
+	return err;
+}
+
 static int cmd_clear_fault(const struct shell *sh, size_t argc, char **argv)
 {
 	ARG_UNUSED(argc);
@@ -299,6 +311,10 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		      "Release a stop: to DISABLED, or FAULT if one was reported while\n"
 		      "stopped. Usage: actuator clear_stop <name>",
 		      cmd_clear_stop, 2, 0),
+	SHELL_CMD_ARG(reference, NULL,
+		      "Reference (home) an actuator that needs it; MOVES the axis and\n"
+		      "blocks until done. Usage: actuator reference <name>",
+		      cmd_reference, 2, 0),
 	SHELL_CMD_ARG(clear_fault, NULL,
 		      "Clear a latched fault and return to READY.\n"
 		      "Usage: actuator clear_fault <name>",

@@ -53,6 +53,29 @@ __syscall int actuator_stop_latch(const struct device *dev);
  */
 __syscall int actuator_clear_stop(const struct device *dev);
 
+/**
+ * Reference (home) an actuator that advertises ACTUATOR_CAP_NEEDS_REFERENCE.
+ * Blocks until done. It must be READY or ACTIVE. While referencing it is in
+ * ACTUATOR_STATE_ALIGNING, so setpoints get -EAGAIN. The backend may also
+ * reference actuators mechanically coupled to this one. A failure leaves it in
+ * FAULT with ACTUATOR_FAULT_REFERENCE; a stop during it leaves it STOPPED.
+ *
+ * Until referenced, position setpoints on such an actuator get -EACCES.
+ *
+ * @retval -ENOTSUP  No ACTUATOR_CAP_NEEDS_REFERENCE.
+ * @retval -EPERM    Not READY or ACTIVE.
+ */
+__syscall int actuator_reference(const struct device *dev);
+
+/** Whether the actuator has been referenced since boot or the last invalidation. */
+__syscall bool actuator_is_referenced(const struct device *dev);
+
+/**
+ * Drop the reference for a reason only the caller can see, e.g. a coupled load
+ * found racked. Position setpoints get -EACCES until it is referenced again.
+ */
+__syscall void actuator_invalidate_reference(const struct device *dev);
+
 __syscall enum actuator_state actuator_get_state(const struct device *dev);
 __syscall uint32_t actuator_get_capabilities(const struct device *dev);
 
@@ -135,6 +158,10 @@ __subsystem struct actuator_driver_api {
 	/* Optional: a controlled stop that ends de-energised, ordered after any
 	 * setpoint transaction already in progress. NULL = disable. */
 	int (*stop)(const struct device *dev);
+	/* Optional: reference devs (and any devices mechanically coupled to
+	 * them), blocking. Report each device moved with
+	 * actuator_report_reference_begin() and actuator_report_referenced(). */
+	int (*reference)(const struct device *const *devs, size_t n);
 
 	int (*set_setpoint)(const struct device *dev, enum actuator_mode mode, float value);
 
@@ -169,6 +196,9 @@ struct actuator_common_data {
 	/* Faults reported while STOPPED; actuator_clear_stop() lands in FAULT
 	 * when non-zero. Separate from cached_fb, which each sample overwrites. */
 	uint32_t stopped_faults;
+	bool referenced;
+	/* limits holds caller limits for the subsystem to enforce. */
+	bool limits_set;
 	struct k_spinlock lock;
 };
 
@@ -222,6 +252,16 @@ void actuator_report_state(const struct device *dev, enum actuator_sm_event even
  * a previously observed state. If the state changed since validation, no state
  * change is forced.
  */
+/**
+ * Backend: a device is about to be referenced. Steps it to ALIGNING and drops
+ * its reference. Returns -EPERM (or -EBUSY) if it may not start.
+ */
+int actuator_report_reference_begin(const struct device *dev);
+
+/** Backend: referencing finished. ALIGNING -> READY, referenced. A device
+ *  that left ALIGNING meanwhile (stopped, faulted) stays as it is. */
+void actuator_report_referenced(const struct device *dev);
+
 int actuator_report_setpoint_if_state(const struct device *dev, enum actuator_mode mode,
 				      enum actuator_state expected_state);
 

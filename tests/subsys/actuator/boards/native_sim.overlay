@@ -22,4 +22,12 @@
 		capabilities = <7>; /* POSITION | VELOCITY | EFFORT; NO drive_mode */
 		status = "okay";
 	};
+
+	fake_ref: actuator3 {
+		compatible = "rosterloh,actuator-fake";
+		label = "fake_ref";
+		default-mode = "position";
+		capabilities = <0x121>; /* POSITION | FAULT_LATCHING | NEEDS_REFERENCE */
+		status = "okay";
+	};
 };

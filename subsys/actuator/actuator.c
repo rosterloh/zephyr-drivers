@@ -217,6 +217,114 @@ int z_impl_actuator_clear_stop(const struct device *dev)
 	return 0;
 }
 
+int actuator_report_reference_begin(const struct device *dev)
+{
+	struct actuator_common_data *cd = common(dev);
+
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	int rc = sm_step_locked(dev, ACTUATOR_SM_EVT_REFERENCE, 0);
+
+	if (rc >= 0) {
+		/* Dropped up front: an attempt that does not finish leaves the axis
+		 * somewhere the old reference no longer describes. */
+		cd->referenced = false;
+	}
+	enum actuator_state new_state = cd->state;
+	k_spin_unlock(&cd->lock, key);
+
+	if (rc < 0) {
+		return rc;
+	}
+	if (rc == 1) {
+		actuator_callbacks_fire_state(dev, new_state);
+	}
+	return 0;
+}
+
+void actuator_report_referenced(const struct device *dev)
+{
+	struct actuator_common_data *cd = common(dev);
+
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	int rc = sm_step_locked(dev, ACTUATOR_SM_EVT_ALIGNED, 0);
+
+	if (rc >= 0) {
+		cd->referenced = true;
+	}
+	enum actuator_state new_state = cd->state;
+	k_spin_unlock(&cd->lock, key);
+
+	if (rc == 1) {
+		actuator_callbacks_fire_state(dev, new_state);
+	}
+}
+
+/* Also behind actuator_group_reference(). */
+int actuator_reference_devs(const struct device *const *devs, size_t n)
+{
+	const struct actuator_driver_api *shared = api(devs[0]);
+
+	for (size_t i = 0; i < n; i++) {
+		struct actuator_common_data *cd = common(devs[i]);
+		enum actuator_state next;
+
+		if (!(cd->caps & ACTUATOR_CAP_NEEDS_REFERENCE) || api(devs[i])->reference == NULL) {
+			return -ENOTSUP;
+		}
+		/* Refuse before anything moves, not halfway through a set. */
+		k_spinlock_key_t key = k_spin_lock(&cd->lock);
+		int err = actuator_sm_step(cd->state, ACTUATOR_SM_EVT_REFERENCE, cd->caps, &next);
+		k_spin_unlock(&cd->lock, key);
+		if (err != 0) {
+			return err;
+		}
+		if (api(devs[i]) != shared) {
+			shared = NULL;
+		}
+	}
+
+	int rc = 0;
+
+	if (shared != NULL) {
+		rc = shared->reference(devs, n);
+	} else {
+		for (size_t i = 0; i < n && rc == 0; i++) {
+			rc = api(devs[i])->reference(&devs[i], 1);
+		}
+	}
+
+	/* Safety net: nothing may be left ALIGNING, which refuses setpoints yet
+	 * reads as a run in progress. */
+	for (size_t i = 0; i < n; i++) {
+		struct actuator_common_data *cd = common(devs[i]);
+
+		k_spinlock_key_t key = k_spin_lock(&cd->lock);
+		bool stuck = cd->state == ACTUATOR_STATE_ALIGNING;
+		k_spin_unlock(&cd->lock, key);
+		if (stuck) {
+			actuator_report_state(devs[i], ACTUATOR_SM_EVT_FAULT,
+					      ACTUATOR_FAULT_REFERENCE);
+			rc = rc != 0 ? rc : -EIO;
+		}
+	}
+	return rc;
+}
+
+int z_impl_actuator_reference(const struct device *dev)
+{
+	return actuator_reference_devs(&dev, 1);
+}
+
+bool z_impl_actuator_is_referenced(const struct device *dev)
+{
+	return common(dev)->referenced;
+}
+
+void z_impl_actuator_invalidate_reference(const struct device *dev)
+{
+	common(dev)->referenced = false;
+}
+
 enum actuator_state z_impl_actuator_get_state(const struct device *dev)
 {
 	return common(dev)->state;
@@ -272,6 +380,10 @@ static int set_setpoint_typed(const struct device *dev, enum actuator_mode mode,
 	int err = actuator_cap_check_mode(cd->caps, mode);
 	if (err != 0) {
 		return err;
+	}
+	if (mode == ACTUATOR_MODE_POSITION && (cd->caps & ACTUATOR_CAP_NEEDS_REFERENCE) &&
+	    !cd->referenced) {
+		return -EACCES;
 	}
 
 	k_spinlock_key_t key = k_spin_lock(&cd->lock);

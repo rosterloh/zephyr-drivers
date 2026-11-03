@@ -12,25 +12,30 @@
 #define FAKE0     DEVICE_DT_GET(DT_NODELABEL(fake0))
 #define FAKE1     DEVICE_DT_GET(DT_NODELABEL(fake1))
 #define FAKE_NODM DEVICE_DT_GET(DT_NODELABEL(fake_nodm))
+#define FAKE_REF  DEVICE_DT_GET(DT_NODELABEL(fake_ref))
 
 ACTUATOR_GROUP_DEFINE(arm, FAKE0, FAKE1);
 /* Its own group: an ESTOP policy latches the group for good. */
 ACTUATOR_GROUP_DEFINE(stop_pair, FAKE1, FAKE_NODM);
+ACTUATOR_GROUP_DEFINE(ref_grp, FAKE_REF);
 
 extern void fake_force_fault(const struct device *dev);
 extern int fake_stop_calls(const struct device *dev);
+extern void fake_set_reference_rc(const struct device *dev, int rc);
 
 static void before_each(void *data)
 {
 	ARG_UNUSED(data);
 	/* Ensure each test starts from a known DISABLED state. A stop survives
 	 * a disable, and its clear may reveal a fault, so clear it first. */
-	const struct device *const devs[] = {FAKE0, FAKE1, FAKE_NODM};
+	const struct device *const devs[] = {FAKE0, FAKE1, FAKE_NODM, FAKE_REF};
 
 	for (size_t i = 0; i < ARRAY_SIZE(devs); i++) {
 		(void)actuator_clear_stop(devs[i]);
 		actuator_disable(devs[i]);
 	}
+	fake_set_reference_rc(FAKE_REF, 0);
+	actuator_invalidate_reference(FAKE_REF);
 }
 
 ZTEST_SUITE(actuator_subsys, NULL, NULL, before_each, NULL, NULL);
@@ -252,4 +257,80 @@ ZTEST(actuator_subsys, test_stop_runs_group_policy)
 	zassert_ok(actuator_stop(FAKE1));
 	zassert_equal(actuator_get_state(FAKE_NODM), ACTUATOR_STATE_DISABLED);
 	zassert_equal(actuator_group_set_position(&stop_pair, pos), -EPERM);
+}
+
+ZTEST(actuator_subsys, test_reference_needs_cap)
+{
+	zassert_ok(actuator_enable(FAKE0));
+	zassert_equal(actuator_reference(FAKE0), -ENOTSUP);
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_READY);
+}
+
+ZTEST(actuator_subsys, test_reference_needs_enabled)
+{
+	zassert_equal(actuator_reference(FAKE_REF), -EPERM);
+	zassert_equal(actuator_get_state(FAKE_REF), ACTUATOR_STATE_DISABLED);
+	zassert_false(actuator_is_referenced(FAKE_REF));
+}
+
+ZTEST(actuator_subsys, test_position_refused_until_referenced)
+{
+	zassert_ok(actuator_enable(FAKE_REF));
+	zassert_equal(actuator_set_position(FAKE_REF, 0.2f), -EACCES);
+	zassert_ok(actuator_reference(FAKE_REF));
+	zassert_equal(actuator_get_state(FAKE_REF), ACTUATOR_STATE_READY);
+	zassert_true(actuator_is_referenced(FAKE_REF));
+	zassert_ok(actuator_set_position(FAKE_REF, 0.2f));
+}
+
+ZTEST(actuator_subsys, test_reference_failure_faults)
+{
+	struct actuator_feedback fb;
+
+	zassert_ok(actuator_enable(FAKE_REF));
+	fake_set_reference_rc(FAKE_REF, -EIO);
+	zassert_equal(actuator_reference(FAKE_REF), -EIO);
+	zassert_equal(actuator_get_state(FAKE_REF), ACTUATOR_STATE_FAULT);
+	zassert_ok(actuator_get_feedback(FAKE_REF, &fb));
+	zassert_true(fb.fault_flags & ACTUATOR_FAULT_REFERENCE);
+	zassert_false(actuator_is_referenced(FAKE_REF));
+}
+
+ZTEST(actuator_subsys, test_invalidate_reference_regates)
+{
+	zassert_ok(actuator_enable(FAKE_REF));
+	zassert_ok(actuator_reference(FAKE_REF));
+	actuator_invalidate_reference(FAKE_REF);
+	zassert_false(actuator_is_referenced(FAKE_REF));
+	zassert_equal(actuator_set_position(FAKE_REF, 0.2f), -EACCES);
+}
+
+ZTEST(actuator_subsys, test_reference_op_silent_failure_not_left_aligning)
+{
+	/* The fake begins, then returns success without finishing. */
+	zassert_ok(actuator_enable(FAKE_REF));
+	fake_set_reference_rc(FAKE_REF, 1);
+	zassert_equal(actuator_reference(FAKE_REF), -EIO);
+	zassert_equal(actuator_get_state(FAKE_REF), ACTUATOR_STATE_FAULT);
+}
+
+ZTEST(actuator_subsys, test_group_position_refused_until_referenced)
+{
+	const float pos[] = {0.3f};
+
+	zassert_ok(actuator_group_enable(&ref_grp));
+	zassert_equal(actuator_group_set_position(&ref_grp, pos), -EACCES);
+	zassert_ok(actuator_group_reference(&ref_grp));
+	zassert_true(actuator_is_referenced(FAKE_REF));
+	zassert_ok(actuator_group_set_position(&ref_grp, pos));
+}
+
+ZTEST(actuator_subsys, test_stop_during_reference_wins)
+{
+	zassert_ok(actuator_enable(FAKE_REF));
+	zassert_ok(actuator_report_reference_begin(FAKE_REF));
+	zassert_ok(actuator_stop(FAKE_REF));
+	actuator_report_referenced(FAKE_REF);
+	zassert_equal(actuator_get_state(FAKE_REF), ACTUATOR_STATE_STOPPED);
+	zassert_false(actuator_is_referenced(FAKE_REF));
 }

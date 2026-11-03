@@ -114,6 +114,13 @@ static int dispatch_set(const struct actuator_group *grp, enum actuator_mode mod
 	if (grp->data->latched) {
 		return -EPERM;
 	}
+	/* Before either path: a native group op bypasses the per-device gate. */
+	for (size_t i = 0; mode == ACTUATOR_MODE_POSITION && i < grp->n; i++) {
+		if ((actuator_get_capabilities(grp->devs[i]) & ACTUATOR_CAP_NEEDS_REFERENCE) &&
+		    !actuator_is_referenced(grp->devs[i])) {
+			return -EACCES;
+		}
+	}
 	const struct actuator_driver_api *api;
 	if (all_share_api(grp, &api) && api->group_set_setpoints != NULL) {
 		return api->group_set_setpoints(grp->devs, grp->n, mode, values);
@@ -220,4 +227,16 @@ void actuator_group_on_member_fault(const struct device *dev)
 			break;
 		}
 	}
+}
+
+/* Implemented in actuator.c. */
+int actuator_reference_devs(const struct device *const *devs, size_t n);
+
+int actuator_group_reference(const struct actuator_group *grp)
+{
+	(void)register_group_once(grp);
+	if (grp->data->latched) {
+		return -EPERM;
+	}
+	return actuator_reference_devs(grp->devs, grp->n);
 }

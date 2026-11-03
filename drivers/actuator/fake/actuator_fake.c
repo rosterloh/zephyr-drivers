@@ -20,6 +20,7 @@ struct fake_data {
 	enum actuator_mode last_mode;
 	enum actuator_drive_mode last_drive_mode;
 	int stop_calls;
+	int reference_rc; /* <0 fail after begin; >0 "succeed" without finishing */
 };
 
 struct fake_config {
@@ -44,6 +45,23 @@ static int fake_stop(const struct device *dev)
 	struct fake_data *d = dev->data;
 
 	d->stop_calls++;
+	return 0;
+}
+
+static int fake_reference(const struct device *const *devs, size_t n)
+{
+	for (size_t i = 0; i < n; i++) {
+		const struct fake_data *d = devs[i]->data;
+		int rc = actuator_report_reference_begin(devs[i]);
+
+		if (rc != 0) {
+			return rc;
+		}
+		if (d->reference_rc != 0) {
+			return d->reference_rc < 0 ? d->reference_rc : 0;
+		}
+		actuator_report_referenced(devs[i]);
+	}
 	return 0;
 }
 
@@ -88,6 +106,7 @@ static DEVICE_API(actuator, fake_api) = {
 	.disable = fake_disable,
 	.clear_fault = fake_clear_fault,
 	.stop = fake_stop,
+	.reference = fake_reference,
 	.set_setpoint = fake_set_setpoint,
 	.read_feedback = fake_read_feedback,
 	.set_drive_mode = fake_set_drive_mode,
@@ -138,4 +157,11 @@ int fake_stop_calls(const struct device *dev)
 	const struct fake_data *d = dev->data;
 
 	return d->stop_calls;
+}
+
+void fake_set_reference_rc(const struct device *dev, int rc)
+{
+	struct fake_data *d = dev->data;
+
+	d->reference_rc = rc;
 }
