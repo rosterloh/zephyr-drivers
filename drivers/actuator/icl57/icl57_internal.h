@@ -661,6 +661,10 @@ int icl57_pr0_move(const struct device *dev, int32_t pulses, uint16_t rpm);
 int icl57_write_verified(const struct shell *sh, uint8_t id, uint16_t addr, uint16_t val,
 			 const char *what);
 
+/* icl57_provision.c, behind `icl57 setup` and `icl57 save`. `sh` may be NULL. */
+int icl57_provision(const struct shell *sh, uint8_t id);
+int icl57_save(const struct shell *sh, uint8_t id);
+
 /* icl57_homing.c, shared with icl57 setup / home / unjam. `sh` may be NULL. */
 uint16_t icl57_di2_func(const struct icl57_config *cfg);
 int icl57_write_homing_mode(const struct shell *sh, const struct device *dev, uint8_t id);

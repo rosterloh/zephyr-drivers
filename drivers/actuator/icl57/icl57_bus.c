@@ -188,7 +188,7 @@ static bool icl57_reg_is_command(uint16_t addr)
  * is only trustworthy with the bus quiet (`actuator disable` on the other axes).
  * The message says so, because this function cannot tell the difference.
  *
- * A mismatch is reported and NOT made fatal. `cmd_icl57_setup` returns on the
+ * A mismatch is reported and NOT made fatal. `icl57_provision()` returns on the
  * first error, and the Pr8 block is written before DI2, so failing hard here
  * would abort provisioning before the DI2 function -- leaving the drive on
  * whatever function code it already had while the firmware assumed the new one.
