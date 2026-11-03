@@ -10,6 +10,7 @@
 #define ICL57_PROFILE_H_
 
 #include <errno.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -547,6 +548,50 @@ static inline size_t icl57_home_expand(const int32_t *groups, const bool *named,
 		count += out[i];
 	}
 	return count;
+}
+
+/*
+ * Generic actuator limits onto the PR0 profile, for set_limits: max velocity
+ * (rad/s) to the rpm ceiling, accel/decel (rad/s^2) to ms per 1000 rpm. NaN
+ * keeps a field. All or nothing: -EINVAL and *t untouched if any value is
+ * non-positive or outside what the drive takes.
+ */
+static inline int icl57_limits_to_tuning(float v_rad_s, float accel, float decel, uint16_t max_rpm,
+					 struct icl57_tuning *t)
+{
+	/* ms for a ramp of 1000 rpm (104.7198 rad/s) at `a` rad/s^2. */
+	const float ms_per_1000rpm = 104719.755f;
+	struct icl57_tuning out = *t;
+
+	if (!isnan(v_rad_s)) {
+		float rpm = v_rad_s * 60.0f / 6.2831853f;
+
+		if (!(rpm > 0.0f) || rpm > (float)max_rpm + 0.5f ||
+		    !icl57_tuning_rpm_valid((uint32_t)lroundf(rpm), max_rpm)) {
+			return -EINVAL;
+		}
+		out.rpm = (uint16_t)lroundf(rpm);
+	}
+	const float ramps[2] = {accel, decel};
+	uint16_t *fields[2] = {&out.accel, &out.decel};
+
+	for (size_t i = 0; i < 2; i++) {
+		if (isnan(ramps[i])) {
+			continue;
+		}
+		if (!(ramps[i] > 0.0f)) {
+			return -EINVAL;
+		}
+		float ms = ms_per_1000rpm / ramps[i];
+
+		if (ms > (float)ICL57_ACCEL_MAX + 0.5f ||
+		    !icl57_tuning_accel_valid((uint32_t)lroundf(ms))) {
+			return -EINVAL;
+		}
+		*fields[i] = (uint16_t)lroundf(ms);
+	}
+	*t = out;
+	return 0;
 }
 
 #endif /* ICL57_PROFILE_H_ */

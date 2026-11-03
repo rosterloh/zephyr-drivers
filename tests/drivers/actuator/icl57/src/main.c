@@ -9,6 +9,8 @@
  *      tests/drivers/actuator/icl57/src/main.c && /tmp/t
  */
 
+#include <math.h>
+
 #include "icl57_profile.h"
 
 #ifdef CONFIG_ZTEST
@@ -481,6 +483,25 @@ static void icl57_profile_checks(void)
 	/* Group 0 means "independent", not "one big group": two of them stay apart. */
 	CHECK(icl57_home_expand((const int32_t[]){0, 0}, (const bool[]){true, false}, sel, 2) == 1);
 	CHECK(sel[0] && !sel[1]);
+
+	/* Generic limits to the drive's PR0 profile: rad/s to rpm, rad/s^2 to ms
+	 * per 1000 rpm (1000 rpm = 104.7198 rad/s). NaN keeps a field. */
+	struct icl57_tuning tun = {.rpm = 100, .accel = 500, .decel = 500};
+
+	CHECK(icl57_limits_to_tuning(2.0f * 3.14159265f, NAN, NAN, 300, &tun) == 0);
+	CHECK(tun.rpm == 60 && tun.accel == 500 && tun.decel == 500);
+	CHECK(icl57_limits_to_tuning(NAN, 104.7198f, 52.3599f, 300, &tun) == 0);
+	CHECK(tun.rpm == 60 && tun.accel == 1000 && tun.decel == 2000);
+	CHECK(icl57_limits_to_tuning(NAN, NAN, NAN, 300, &tun) == 0);
+	CHECK(tun.rpm == 60 && tun.accel == 1000 && tun.decel == 2000);
+	/* Refused whole, nothing applied: over the ceiling, a ramp past Pr9.04's
+	 * range, and non-positive values. */
+	CHECK(icl57_limits_to_tuning(100.0f, 104.7198f, NAN, 300, &tun) == -EINVAL);
+	CHECK(tun.rpm == 60 && tun.accel == 1000);
+	CHECK(icl57_limits_to_tuning(NAN, 0.001f, NAN, 300, &tun) == -EINVAL);
+	CHECK(icl57_limits_to_tuning(-1.0f, NAN, NAN, 300, &tun) == -EINVAL);
+	CHECK(icl57_limits_to_tuning(NAN, 0.0f, NAN, 300, &tun) == -EINVAL);
+	CHECK(tun.rpm == 60 && tun.accel == 1000 && tun.decel == 2000);
 }
 
 #ifdef CONFIG_ZTEST

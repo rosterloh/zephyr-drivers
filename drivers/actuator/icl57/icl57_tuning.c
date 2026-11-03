@@ -6,6 +6,7 @@
  * shared across a homing group, and persisted per slave id with settings.
  */
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <zephyr/device.h>
@@ -265,6 +266,36 @@ int icl57_tuning_persist_group(const struct device *dev, enum icl57_tuning_field
 		}
 	}
 	return first;
+}
+
+/* set_limits: the generic speed and ramp limits, live on dev's homing group
+ * like any tuning set, not persisted (icl57_tuning_set() persists). */
+int icl57_set_limits(const struct device *dev, const struct actuator_limits *l)
+{
+	/* Travel is devicetree's position-min/max-rad-milli; there is no torque
+	 * limit to set over this protocol. */
+	if (!isnan(l->min_position) || !isnan(l->max_position) || !isnan(l->max_effort)) {
+		return -ENOTSUP;
+	}
+
+	const struct icl57_config *cfg = dev->config;
+	struct icl57_tuning t = icl57_get_tuning(dev);
+	int rc = icl57_limits_to_tuning(l->max_velocity, l->max_accel, l->max_decel,
+					cfg->profile_velocity_max_rpm, &t);
+
+	if (rc != 0) {
+		return rc;
+	}
+	if (!isnan(l->max_velocity)) {
+		rc = icl57_tuning_apply_group(dev, ICL57_TUNING_RPM, t.rpm);
+	}
+	if (rc == 0 && !isnan(l->max_accel)) {
+		rc = icl57_tuning_apply_group(dev, ICL57_TUNING_ACCEL, t.accel);
+	}
+	if (rc == 0 && !isnan(l->max_decel)) {
+		rc = icl57_tuning_apply_group(dev, ICL57_TUNING_DECEL, t.decel);
+	}
+	return rc;
 }
 
 /* The shell's write path: the whole homing group, then persisted. A failed

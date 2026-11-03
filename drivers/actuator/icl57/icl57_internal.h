@@ -664,6 +664,8 @@ int icl57_write_homing_mode(const struct shell *sh, const struct device *dev, ui
 int icl57_home_run(const struct shell *sh, const struct device *dev);
 /* The actuator reference op: homes devs plus their homing-group siblings. */
 int icl57_reference_op(const struct device *const *devs, size_t n);
+/* The actuator set_limits op (icl57_tuning.c). */
+int icl57_set_limits(const struct device *dev, const struct actuator_limits *l);
 int icl57_unjam(const struct shell *sh, const struct device *dev);
 
 #endif /* ICL57_INTERNAL_H_ */

@@ -984,6 +984,7 @@ static DEVICE_API(actuator, icl57_api) = {
 	.read_feedback = icl57_read_feedback,
 	.group_set_setpoints = icl57_group_set_setpoints,
 	.reference = icl57_reference_op,
+	.set_limits = icl57_set_limits,
 };
 
 /*
