@@ -11,8 +11,8 @@
 #include <espressif/partitions_0x2000_default_16M.dtsi>
 
 / {
-	model = "M5Stack Unit PoE-P4 HP Core";
 	compatible = "m5stack,unit-poe-p4";
+	model = "M5Stack Unit PoE-P4 HP Core";
 
 	chosen {
 		zephyr,sram = &sramhp;
@@ -101,10 +101,10 @@
 };
 
 &uart0 {
-	status = "okay";
 	current-speed = <115200>;
 	pinctrl-0 = <&uart0_default>;
 	pinctrl-names = "default";
+	status = "okay";
 };
 
 &trng0 {
@@ -173,10 +173,10 @@
 };
 
 &eth {
-	status = "okay";
 	phy-handle = <&phy>;
 	pinctrl-0 = <&rmii_default>;
 	pinctrl-names = "default";
+	status = "okay";
 };
 
 /* Native USB 2.0 HS OTG on the USB-C HOST port (dedicated UTMI DP/DM pads). */

@@ -36,8 +36,8 @@
  */
 
 / {
-	model = "Waveshare ESP32-P4-WIFI6-POE-ETH HP Core";
 	compatible = "waveshare,esp32-p4-wifi6-poe-eth";
+	model = "Waveshare ESP32-P4-WIFI6-POE-ETH HP Core";
 
 	chosen {
 		zephyr,sram = &sramhp;
@@ -87,7 +87,8 @@
  */
 /* ESP32-P4-WIFI6-POE-ETH: 32MB flash, 32MB PSRAM. This is the physical flash
  * size; the 16M partition table included above deliberately leaves the upper
- * 16MB unpartitioned. The SoC dtsi no longer sets reg or ranges. */
+ * 16MB unpartitioned. The SoC dtsi no longer sets reg or ranges.
+ */
 &flash0 {
 	reg = <0x0 DT_SIZE_M(32)>;
 	ranges = <0x0 0x0 DT_SIZE_M(32)>;
@@ -106,10 +107,10 @@
 };
 
 &uart0 {
-	status = "okay";
 	current-speed = <115200>;
 	pinctrl-0 = <&uart0_default>;
 	pinctrl-names = "default";
+	status = "okay";
 };
 
 &trng0 {
@@ -127,10 +128,10 @@
  * connector's touch pins (J1.11/12).
  */
 zephyr_i2c: &i2c0 {
-	status = "okay";
 	clock-frequency = <I2C_BITRATE_FAST>;
 	pinctrl-0 = <&i2c0_default>;
 	pinctrl-names = "default";
+	status = "okay";
 };
 
 &gpio0 {
@@ -190,7 +191,6 @@ zephyr_i2c: &i2c0 {
 
 &sdhc {
 	sdhc0: sdhc@0 {
-		status = "okay";
 		bus-width = <4>;
 		max-bus-freq = <40000000>;
 		/*
@@ -206,6 +206,7 @@ zephyr_i2c: &i2c0 {
 		d1-pin = <40>;
 		d2-pin = <41>;
 		d3-pin = <42>;
+		status = "okay";
 
 		mmc {
 			compatible = "zephyr,sdmmc-disk";
@@ -239,7 +240,6 @@ zephyr_i2c: &i2c0 {
 	 * application that sets neither never builds them.
 	 */
 	sdhc1: sdhc@1 {
-		status = "okay";
 		bus-width = <4>;
 		max-bus-freq = <40000000>;
 		clk-pin = <18>;
@@ -250,6 +250,7 @@ zephyr_i2c: &i2c0 {
 		d3-pin = <17>;
 		#address-cells = <1>;
 		#size-cells = <0>;
+		status = "okay";
 
 		esp_hosted_mcu: esp-hosted-mcu@0 {
 			compatible = "espressif,esp-hosted-mcu";
@@ -299,10 +300,10 @@ zephyr_i2c: &i2c0 {
 };
 
 &eth {
-	status = "okay";
 	phy-handle = <&phy>;
 	pinctrl-0 = <&rmii_default>;
 	pinctrl-names = "default";
+	status = "okay";
 };
 
 /*

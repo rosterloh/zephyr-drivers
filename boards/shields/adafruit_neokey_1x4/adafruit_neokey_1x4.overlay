@@ -13,17 +13,17 @@
 	status = "okay";
 
 	adafruit_neokey_1x4_mfd: seesaw@30 {
-		status = "okay";
 		compatible = "adafruit,seesaw-mfd";
 		reg = <0x30>;
 		read-delay-us = <10000>;
+		status = "okay";
 
 		adafruit_neokey_1x4_gpio: gpio {
-			status = "okay";
 			compatible = "adafruit,seesaw-gpio";
 			gpio-controller;
 			#gpio-cells = <2>;
 			ngpios = <16>;
+			status = "okay";
 		};
 
 		adafruit_neokey_1x4_leds: neopixel {

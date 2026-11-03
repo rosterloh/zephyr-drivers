@@ -13,10 +13,10 @@
 		status = "okay";
 
 		dxl_bus: dxl-bus {
-			status = "okay";
 			compatible = "robotis,dynamixel";
 			#address-cells = <1>;
 			#size-cells = <0>;
+			status = "okay";
 
 			alpha: motor@1 {
 				compatible = "rosterloh,actuator-dxl";

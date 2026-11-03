@@ -13,6 +13,7 @@
 				 <SPIM2_SCLK_GPIO14>,
 				 <SPIM2_CSEL_GPIO15>;
 		};
+
 		group2 {
 			pinmux = <SPIM2_MOSI_GPIO13>;
 			output-low;

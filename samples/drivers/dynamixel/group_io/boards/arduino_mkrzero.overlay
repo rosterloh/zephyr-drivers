@@ -18,13 +18,13 @@
  */
 
 &sercom5 {
-	status = "okay";
 	current-speed = <57600>;
+	status = "okay";
 
 	dxl_bus: dxl-bus {
-		status = "okay";
 		compatible = "robotis,dynamixel";
 		tx-en-gpios = <&arduino_mkr_header 21 GPIO_ACTIVE_LOW>;
+		status = "okay";
 
 		servo0: servo0 {
 			id = <1>;

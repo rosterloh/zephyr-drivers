@@ -33,6 +33,21 @@ jobs:
           fi
           echo "$files" | xargs clang-format --dry-run --Werror
 
+      # Zephyr's dts-linter with the flags its own CI uses (check_compliance.py).
+      # .github/west.yml tracks Zephyr main, so fetch scripts/ci from there.
+      - name: Fetch Zephyr scripts/ci
+        run: |
+          git clone -q --depth 1 --filter=blob:none --sparse https://github.com/zephyrproject-rtos/zephyr "$RUNNER_TEMP/zephyr"
+          git -C "$RUNNER_TEMP/zephyr" sparse-checkout set scripts/ci
+          npm ci --prefix "$RUNNER_TEMP/zephyr/scripts/ci" --ignore-scripts --no-audit --no-fund
+
+      - name: Check devicetree formatting
+        shell: bash
+        run: |
+          git ls-files '*.dts' '*.dtsi' '*.overlay' | sed 's/^/--file=/' | xargs \
+            npx --prefix "$RUNNER_TEMP/zephyr/scripts/ci" --no dts-linter -- \
+            --format --enableSortNodesAndProperties --sortNodesNodesBy address
+
   build:
     strategy:
       fail-fast: false

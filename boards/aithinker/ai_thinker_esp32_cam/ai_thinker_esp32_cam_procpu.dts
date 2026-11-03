@@ -9,8 +9,8 @@
 #include <espressif/partitions_0x1000_default_4M.dtsi>
 
 / {
-	model = "AI-Thinker ESP32-CAM PROCPU";
 	compatible = "espressif,esp32";
+	model = "AI-Thinker ESP32-CAM PROCPU";
 
 	aliases {
 		uart-0 = &uart0;
