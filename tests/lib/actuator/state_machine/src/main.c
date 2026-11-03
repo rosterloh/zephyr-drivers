@@ -97,3 +97,110 @@ ZTEST(actuator_state_machine, test_aligning_done_to_ready)
 	zassert_equal(err, 0);
 	zassert_equal(next, ACTUATOR_STATE_READY);
 }
+
+static const enum actuator_state all_states[] = {
+	ACTUATOR_STATE_DISABLED, ACTUATOR_STATE_READY, ACTUATOR_STATE_ALIGNING,
+	ACTUATOR_STATE_ACTIVE,   ACTUATOR_STATE_FAULT, ACTUATOR_STATE_STOPPED,
+};
+
+ZTEST(actuator_state_machine, test_setpoint_from_disabled_refused)
+{
+	enum actuator_state next = ACTUATOR_STATE_DISABLED;
+	int err = actuator_sm_step(ACTUATOR_STATE_DISABLED, ACTUATOR_SM_EVT_SETPOINT,
+				   ACTUATOR_CAP_POSITION, &next);
+	zassert_equal(err, -EPERM);
+}
+
+ZTEST(actuator_state_machine, test_stop_from_every_state)
+{
+	for (size_t i = 0; i < ARRAY_SIZE(all_states); i++) {
+		enum actuator_state next;
+		int err = actuator_sm_step(all_states[i], ACTUATOR_SM_EVT_STOP,
+					   ACTUATOR_CAP_POSITION, &next);
+		zassert_equal(err, 0, "from=%d", all_states[i]);
+		zassert_equal(next, ACTUATOR_STATE_STOPPED, "from=%d", all_states[i]);
+	}
+}
+
+ZTEST(actuator_state_machine, test_clear_stop_only_from_stopped)
+{
+	for (size_t i = 0; i < ARRAY_SIZE(all_states); i++) {
+		enum actuator_state next;
+		int err = actuator_sm_step(all_states[i], ACTUATOR_SM_EVT_CLEAR_STOP,
+					   ACTUATOR_CAP_POSITION, &next);
+		if (all_states[i] == ACTUATOR_STATE_STOPPED) {
+			zassert_equal(err, 0);
+			zassert_equal(next, ACTUATOR_STATE_DISABLED);
+		} else {
+			zassert_equal(err, -EINVAL, "from=%d", all_states[i]);
+		}
+	}
+}
+
+ZTEST(actuator_state_machine, test_stopped_is_sticky)
+{
+	enum actuator_state next;
+
+	zassert_ok(actuator_sm_step(ACTUATOR_STATE_STOPPED, ACTUATOR_SM_EVT_FAULT, 0, &next));
+	zassert_equal(next, ACTUATOR_STATE_STOPPED);
+	zassert_ok(actuator_sm_step(ACTUATOR_STATE_STOPPED, ACTUATOR_SM_EVT_DISABLE, 0, &next));
+	zassert_equal(next, ACTUATOR_STATE_STOPPED);
+	zassert_equal(actuator_sm_step(ACTUATOR_STATE_STOPPED, ACTUATOR_SM_EVT_ALIGNED,
+				       ACTUATOR_CAP_NEEDS_ALIGN, &next),
+		      -EINVAL);
+	zassert_equal(actuator_sm_step(ACTUATOR_STATE_STOPPED, ACTUATOR_SM_EVT_CLEAR_FAULT,
+				       ACTUATOR_CAP_FAULT_LATCHING, &next),
+		      -EINVAL);
+}
+
+ZTEST(actuator_state_machine, test_stopped_refuses_enable_and_setpoint)
+{
+	enum actuator_state next;
+
+	zassert_equal(actuator_sm_step(ACTUATOR_STATE_STOPPED, ACTUATOR_SM_EVT_ENABLE,
+				       ACTUATOR_CAP_POSITION, &next),
+		      -EPERM);
+	zassert_equal(actuator_sm_step(ACTUATOR_STATE_STOPPED, ACTUATOR_SM_EVT_SETPOINT,
+				       ACTUATOR_CAP_POSITION, &next),
+		      -EPERM);
+}
+
+ZTEST(actuator_state_machine, test_reference_from_ready_and_active)
+{
+	enum actuator_state next;
+
+	zassert_ok(actuator_sm_step(ACTUATOR_STATE_READY, ACTUATOR_SM_EVT_REFERENCE,
+				    ACTUATOR_CAP_NEEDS_REFERENCE, &next));
+	zassert_equal(next, ACTUATOR_STATE_ALIGNING);
+	zassert_ok(actuator_sm_step(ACTUATOR_STATE_ACTIVE, ACTUATOR_SM_EVT_REFERENCE,
+				    ACTUATOR_CAP_NEEDS_REFERENCE, &next));
+	zassert_equal(next, ACTUATOR_STATE_ALIGNING);
+}
+
+ZTEST(actuator_state_machine, test_reference_refused)
+{
+	enum actuator_state next;
+	const uint32_t caps = ACTUATOR_CAP_NEEDS_REFERENCE;
+
+	zassert_equal(
+		actuator_sm_step(ACTUATOR_STATE_DISABLED, ACTUATOR_SM_EVT_REFERENCE, caps, &next),
+		-EPERM);
+	zassert_equal(
+		actuator_sm_step(ACTUATOR_STATE_FAULT, ACTUATOR_SM_EVT_REFERENCE, caps, &next),
+		-EPERM);
+	zassert_equal(
+		actuator_sm_step(ACTUATOR_STATE_STOPPED, ACTUATOR_SM_EVT_REFERENCE, caps, &next),
+		-EPERM);
+	zassert_equal(
+		actuator_sm_step(ACTUATOR_STATE_ALIGNING, ACTUATOR_SM_EVT_REFERENCE, caps, &next),
+		-EBUSY);
+}
+
+ZTEST(actuator_state_machine, test_enum_values_stable)
+{
+	zassert_equal(ACTUATOR_STATE_FAULT, 4);
+	zassert_equal(ACTUATOR_STATE_STOPPED, 5);
+	zassert_equal(ACTUATOR_SM_EVT_CLEAR_FAULT, 5);
+	zassert_equal(ACTUATOR_CAP_NEEDS_REFERENCE, BIT(8));
+	zassert_equal(ACTUATOR_FAULT_REFERENCE, BIT(6));
+}

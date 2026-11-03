@@ -12,7 +12,8 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/actuator/actuator.h>
 
-static const char *const state_names[] = {"DISABLED", "READY", "ALIGNING", "ACTIVE", "FAULT"};
+static const char *const state_names[] = {"DISABLED", "READY", "ALIGNING",
+					  "ACTIVE",   "FAULT", "STOPPED"};
 
 static const char *state_name(enum actuator_state s)
 {

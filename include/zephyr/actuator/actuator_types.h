@@ -23,14 +23,15 @@ enum actuator_mode {
 };
 
 /** Driver capability bits. Returned by actuator_get_capabilities(). */
-#define ACTUATOR_CAP_POSITION       BIT(0)
-#define ACTUATOR_CAP_VELOCITY       BIT(1)
-#define ACTUATOR_CAP_EFFORT         BIT(2)
-#define ACTUATOR_CAP_NEEDS_ALIGN    BIT(3) /**< FOC sensorless / Hall align */
-#define ACTUATOR_CAP_GROUP_NATIVE   BIT(4) /**< backend has a real group_op */
-#define ACTUATOR_CAP_FAULT_LATCHING BIT(5) /**< faults need explicit clear  */
-#define ACTUATOR_CAP_DRIVE_MODE     BIT(6) /**< supports actuator_set_drive_mode  */
-#define ACTUATOR_CAP_DUTY           BIT(7) /**< open-loop duty setpoints         */
+#define ACTUATOR_CAP_POSITION        BIT(0)
+#define ACTUATOR_CAP_VELOCITY        BIT(1)
+#define ACTUATOR_CAP_EFFORT          BIT(2)
+#define ACTUATOR_CAP_NEEDS_ALIGN     BIT(3) /**< FOC sensorless / Hall align */
+#define ACTUATOR_CAP_GROUP_NATIVE    BIT(4) /**< backend has a real group_op */
+#define ACTUATOR_CAP_FAULT_LATCHING  BIT(5) /**< faults need explicit clear  */
+#define ACTUATOR_CAP_DRIVE_MODE      BIT(6) /**< supports actuator_set_drive_mode  */
+#define ACTUATOR_CAP_DUTY            BIT(7) /**< open-loop duty setpoints         */
+#define ACTUATOR_CAP_NEEDS_REFERENCE BIT(8) /**< position needs actuator_reference() */
 
 /** State machine. Owned by the subsystem; transitions reported by drivers. */
 enum actuator_state {
@@ -39,6 +40,8 @@ enum actuator_state {
 	ACTUATOR_STATE_ALIGNING, /**< FOC pre-run only              */
 	ACTUATOR_STATE_ACTIVE,   /**< tracking a setpoint           */
 	ACTUATOR_STATE_FAULT,
+	ACTUATOR_STATE_STOPPED, /**< latched by actuator_stop(); left only by actuator_clear_stop()
+				 */
 };
 
 /** Output policy of the power stage. Orthogonal to actuator_state. */
@@ -55,6 +58,7 @@ enum actuator_drive_mode {
 #define ACTUATOR_FAULT_UNDERVOLTAGE BIT(3)
 #define ACTUATOR_FAULT_OVERLOAD     BIT(4)
 #define ACTUATOR_FAULT_COMM         BIT(5)
+#define ACTUATOR_FAULT_REFERENCE    BIT(6) /**< referencing failed or was aborted */
 #define ACTUATOR_FAULT_DRIVER(n)    BIT(16 + (n))
 
 /** Bits for actuator_feedback.valid_mask. */
