@@ -1,10 +1,16 @@
 name: Zephyr Twister Tests
 
 on:
+  push:
+    branches: [main]
   pull_request:
   schedule:
     - cron: "0 0 * * SUN" # every sunday
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   format:
@@ -75,10 +81,11 @@ jobs:
         uses: zephyrproject-rtos/action-zephyr-setup@v1
         with:
           app-path: zephyr-drivers
-          toolchains: arm-zephyr-eabi:x86_64-zephyr-elf
+          toolchains: arm-zephyr-eabi:x86_64-zephyr-elf:riscv64-zephyr-elf:xtensa-espressif_esp32_zephyr-elf:xtensa-espressif_esp32s3_zephyr-elf
 
-      - name: Install protoc for nanopb
-        run: pip install grpcio-tools
+      # protoc for nanopb; imgtool signs the MCUboot-enabled ESP32 appcpu images
+      - name: Install extra Python tools
+        run: pip install grpcio-tools imgtool
 
       - name: Twister Tests
         working-directory: zephyr-drivers
@@ -87,4 +94,19 @@ jobs:
           if [ "${{ runner.os }}" = "Windows" ]; then
             EXTRA_TWISTER_FLAGS="--short-build-path -O/tmp/twister-out"
           fi
-          west twister -T tests -T samples -v --inline-logs --integration $EXTRA_TWISTER_FLAGS
+          # PRs build integration platforms only; main and the weekly run cover every platform_allow entry
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            SCOPE="--integration"
+          else
+            SCOPE="--all"
+          fi
+          west twister -T tests -T samples -v --inline-logs $SCOPE $EXTRA_TWISTER_FLAGS
+
+      # Boards with no test targeting them would otherwise never be compiled
+      - name: Board smoke builds
+        working-directory: zephyr-drivers
+        shell: bash
+        run: |
+          platforms=$(grep -h '^identifier:' boards/*/*/*.yaml | awk '{print "-p " $2}')
+          west twister -T ../zephyr/samples/hello_world --build-only -v --inline-logs \
+            -O twister-out-boards $platforms

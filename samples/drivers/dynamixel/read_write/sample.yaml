@@ -10,6 +10,8 @@ tests:
       - drivers
       - dynamixel
       - samples
+    platform_allow:
+      - arduino_mkrzero
     integration_platforms:
       - arduino_mkrzero
     filter: dt_compat_enabled("robotis,dynamixel")

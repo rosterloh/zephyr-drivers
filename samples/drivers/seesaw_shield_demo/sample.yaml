@@ -10,6 +10,8 @@ common:
     - seesaw
     - samples
   harness: keyboard
+  platform_allow:
+    - arduino_mkrzero/samd21g18a
 
 tests:
   sample.drivers.seesaw_shield_demo.neoslider:
