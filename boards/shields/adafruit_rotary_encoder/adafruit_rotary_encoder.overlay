@@ -11,10 +11,10 @@
 	status = "okay";
 
 	adafruit_rotary_encoder_mfd: seesaw@36 {
-		status = "okay";
 		compatible = "adafruit,seesaw-mfd";
 		reg = <0x36>;
 		read-delay-us = <10000>;
+		status = "okay";
 
 		adafruit_rotary_encoder: encoder {
 			compatible = "adafruit,seesaw-encoder";

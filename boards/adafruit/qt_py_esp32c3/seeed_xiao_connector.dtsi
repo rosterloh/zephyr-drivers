@@ -3,8 +3,8 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
- 
- / {
+
+/ {
 	xiao_d: connector {
 		compatible = "seeed,xiao-gpio";
 		#gpio-cells = <2>;
@@ -25,6 +25,9 @@
 };
 
 xiao_spi: &spi2 {};
+
 xiao_i2c: &i2c0 {};
+
 xiao_serial: &uart0 {};
+
 xiao_adc: &adc0 {};

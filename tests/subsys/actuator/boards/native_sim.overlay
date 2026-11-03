@@ -1,23 +1,25 @@
 / {
 	fake0: actuator0 {
 		compatible = "rosterloh,actuator-fake";
-		status = "okay";
 		label = "fake0";
 		default-mode = "position";
 		capabilities = <0x47>; /* POSITION | VELOCITY | EFFORT | DRIVE_MODE */
+		status = "okay";
 	};
+
 	fake1: actuator1 {
 		compatible = "rosterloh,actuator-fake";
-		status = "okay";
 		label = "fake1";
 		default-mode = "position";
 		capabilities = <0x47>;
+		status = "okay";
 	};
+
 	fake_nodm: actuator2 {
 		compatible = "rosterloh,actuator-fake";
-		status = "okay";
 		label = "fake_nodm";
 		default-mode = "position";
 		capabilities = <7>; /* POSITION | VELOCITY | EFFORT; NO drive_mode */
+		status = "okay";
 	};
 };

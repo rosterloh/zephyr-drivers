@@ -52,22 +52,24 @@
 		compatible = "gpio-leds";
 
 		io4_led: led_0 {
-			gpios =  <&gpio0 4 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio0 4 GPIO_ACTIVE_HIGH>;
 			label = "IO4 - LED0";
 		};
 
 		io5_led: led_1 {
-			gpios =  <&gpio0 5 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
 			label = "IO5 - LED1";
 		};
 	};
 
 	pwmleds {
 		compatible = "pwm-leds";
+
 		pwm_led_io4: pwm_led_0 {
 			label = "IO4 PWM LED";
 			pwms = <&ledc0 0 PWM_HZ(100) PWM_POLARITY_NORMAL>;
 		};
+
 		pwm_led_io5: pwm_led_1 {
 			label = "IO5 PWM LED";
 			pwms = <&ledc0 1 PWM_HZ(100) PWM_POLARITY_NORMAL>;
@@ -76,6 +78,7 @@
 
 	buttons {
 		compatible = "gpio-keys";
+
 		button0: button_0 {
 			gpios = <&gpio0 0 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
 			label = "BOOT Button";
@@ -112,14 +115,13 @@
 };
 
 &uart0 {
-	status = "okay";
 	current-speed = <115200>;
 	pinctrl-0 = <&uart0_default>;
 	pinctrl-names = "default";
+	status = "okay";
 };
 
 &uart1 {
-	status = "okay";
 	/* ST3215 serial bus servos run at their 1 Mbps factory default; the UART and
 	 * the bus-servo driver (which reads this current-speed) must match or the
 	 * servos never decode commands and never reply.
@@ -129,16 +131,18 @@
 	 * `actuator get feedback <name>` prints nothing at all rather than an error,
 	 * and an application sees feedback that never arrives. Confirmed on hardware
 	 * 2026-08-28 -- at 115200 neither servo answered; at 1000000 both did, pan
-	 * pos=-0.0077 temp=30.0 and tilt pos=-0.0031 temp=31.0. */
+	 * pos=-0.0077 temp=30.0 and tilt pos=-0.0031 temp=31.0.
+	 */
 	current-speed = <1000000>;
 	pinctrl-0 = <&uart1_default>;
 	pinctrl-names = "default";
+	status = "okay";
 
 	gimbal_servo_bus: bus-servo {
 		compatible = "waveshare,bus-servo";
-		status = "okay";
 		#address-cells = <1>;
 		#size-cells = <0>;
+		status = "okay";
 
 		/*
 		 * Identity only: which servo sits at which bus id on the servo
@@ -159,21 +163,22 @@
 		 * is not free either: absent means UNLIMITED, so the driver logs a
 		 * warning at init when an application leaves them out.
 		 */
+		gimbal_tilt_servo: servo@1 {
+			compatible = "rosterloh,actuator-bus-servo";
+			reg = <1>;
+			label = "tilt";
+			default-mode = "position";
+		};
+
 		gimbal_pan_servo: servo@2 {
 			compatible = "rosterloh,actuator-bus-servo";
 			reg = <2>;
 			/* The actuator shell addresses devices by this label, and a
 			 * space makes the name unusable there: `actuator get
 			 * feedback pan` reports not found, and the quoted form
-			 * matches nothing either. */
+			 * matches nothing either.
+			 */
 			label = "pan";
-			default-mode = "position";
-		};
-
-		gimbal_tilt_servo: servo@1 {
-			compatible = "rosterloh,actuator-bus-servo";
-			reg = <1>;
-			label = "tilt";
 			default-mode = "position";
 		};
 	};
@@ -195,15 +200,16 @@
 };
 
 &i2c0 {
-	status = "okay";
 	clock-frequency = <I2C_BITRATE_STANDARD>;
 	/* GPIO32/33 live on the gpio1 controller (pins 0/1); gpio0 only covers
 	 * 0..31. These specs drive the i2c_esp32 bit-bang bus-recovery, so they
-	 * must reference the correct controller or recovery silently no-ops. */
+	 * must reference the correct controller or recovery silently no-ops.
+	 */
 	sda-gpios = <&gpio1 0 GPIO_OPEN_DRAIN>;
 	scl-gpios = <&gpio1 1 GPIO_OPEN_DRAIN>;
 	pinctrl-0 = <&i2c0_default>;
 	pinctrl-names = "default";
+	status = "okay";
 
 	ssd1306_ssd1306_128x32: ssd1306@3c {
 		compatible = "solomon,ssd1306fb";
@@ -225,7 +231,8 @@
 	 * sets the current-register resolution: max_current/2^15 => ~3.2 A
 	 * ceiling at 100 uA/LSB. brng/pg/adc are left at their power-on defaults
 	 * (32 V FSR, +/-320 mV, 12-bit), which comfortably cover a ~33 mV shunt
-	 * drop at 3.2 A. */
+	 * drop at 3.2 A.
+	 */
 	ina219: ina219@42 {
 		compatible = "ti,ina219";
 		reg = <0x42>;
@@ -245,29 +252,33 @@
 &spi2 {
 	#address-cells = <1>;
 	#size-cells = <0>;
-	status = "okay";
 	pinctrl-0 = <&spim2_default>;
 	pinctrl-names = "default";
+	status = "okay";
 };
 
 &ledc0 {
 	pinctrl-0 = <&ledc0_default>;
 	pinctrl-names = "default";
-	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
+	status = "okay";
+
 	channel0@0 {
 		reg = <0x0>;
 		timer = <0>;
 	};
+
 	channel1@1 {
 		reg = <0x1>;
 		timer = <1>;
 	};
+
 	channel2@2 {
 		reg = <0x2>;
 		timer = <2>;
 	};
+
 	channel3@3 {
 		reg = <0x3>;
 		timer = <3>;
@@ -306,9 +317,9 @@
 	compatible = "rosterloh,esp32-pcnt";
 	pinctrl-0 = <&pcnt_default>;
 	pinctrl-names = "default";
-	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
+	status = "okay";
 
 	/* Half-quad decode (vendor ESP32Encoder::attachHalfQuad):
 	 * both edges of the signal input count, control input inverts.

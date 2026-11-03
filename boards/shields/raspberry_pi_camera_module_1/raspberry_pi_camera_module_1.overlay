@@ -39,8 +39,8 @@
 &csi_i2c {
 	ov5647: ov5647@36 {
 		compatible = "ovti,ov5647";
-		clocks = <&ov5647_input_clock>;
 		reg = <0x36>;
+		clocks = <&ov5647_input_clock>;
 
 		port {
 			ov5647_ep_out: endpoint {

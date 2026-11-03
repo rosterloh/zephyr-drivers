@@ -10,8 +10,8 @@
 #include "waveshare_esp32_s3_eth-pinctrl.dtsi"
 
 / {
-	model = "Waveshare ESP32-S3-ETH APPCPU";
 	compatible = "espressif,esp32s3";
+	model = "Waveshare ESP32-S3-ETH APPCPU";
 
 	chosen {
 		zephyr,sram = &sram1;

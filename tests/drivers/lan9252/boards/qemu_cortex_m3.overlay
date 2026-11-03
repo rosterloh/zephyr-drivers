@@ -9,12 +9,12 @@
 	};
 
 	fake_spi: spi@200 {
-		status = "okay";
 		compatible = "zephyr,spi-emul-controller";
+		reg = <0x200 4>;
 		clock-frequency = <50000000>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		reg = <0x200 4>;
+		status = "okay";
 
 		lan9252: lan9252@0 {
 			compatible = "microchip,lan9252";

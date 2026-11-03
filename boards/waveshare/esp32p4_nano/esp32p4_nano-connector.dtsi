@@ -53,4 +53,5 @@
 };
 
 rpi_i2c: &i2c0 {};
+
 rpi_serial: &uart0 {};

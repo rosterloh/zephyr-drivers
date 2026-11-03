@@ -9,8 +9,8 @@
 #include <espressif/partitions_0x2000_default_16M.dtsi>
 
 / {
-	model = "M5Stack Unit PoE-P4 LP Core";
 	compatible = "m5stack,unit-poe-p4";
+	model = "M5Stack Unit PoE-P4 LP Core";
 
 	/*
 	 * No console: lp_uart's fixed pins (TX G14, RX G15) drive the RGB LED on

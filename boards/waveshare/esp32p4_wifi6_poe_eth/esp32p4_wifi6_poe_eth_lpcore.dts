@@ -10,8 +10,8 @@
 #include "esp32p4_wifi6_poe_eth-partitions.dtsi"
 
 / {
-	model = "Waveshare ESP32-P4-WIFI6-POE-ETH LP Core";
 	compatible = "espressif,esp32p4";
+	model = "Waveshare ESP32-P4-WIFI6-POE-ETH LP Core";
 
 	chosen {
 		zephyr,sram = &sramlp;
@@ -29,6 +29,6 @@
 };
 
 &lp_uart {
-	status = "okay";
 	current-speed = <115200>;
+	status = "okay";
 };

@@ -4,8 +4,8 @@
 #include <espressif/partitions_0x1000_amp_16M.dtsi>
 
 / {
-	model = "Waveshare General Driver for Robots APPCPU";
 	compatible = "espressif,esp32";
+	model = "Waveshare General Driver for Robots APPCPU";
 
 	chosen {
 		zephyr,sram = &sram0;
