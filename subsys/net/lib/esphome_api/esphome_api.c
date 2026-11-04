@@ -656,18 +656,20 @@ static int open_listener(void)
 {
 	int one = 1;
 	int fd;
-#if defined(CONFIG_NET_IPV4)
-#define LISTEN_FAMILY NET_AF_INET
-	/* shortcut: IPv4 only when IPv4 is enabled; add a v6 listener if a user needs both. */
-	struct net_sockaddr_in addr = {
-		.sin_family = NET_AF_INET,
-		.sin_port = net_htons(CONFIG_ESPHOME_API_PORT),
-	};
-#else
+/* One IPv6 socket serves IPv4 too when v4-mapped addresses are on (as the HTTP server does). */
+#if defined(CONFIG_NET_IPV6) &&                                                                    \
+	(defined(CONFIG_NET_IPV4_MAPPING_TO_IPV6) || !defined(CONFIG_NET_IPV4))
 #define LISTEN_FAMILY NET_AF_INET6
 	struct net_sockaddr_in6 addr = {
 		.sin6_family = NET_AF_INET6,
 		.sin6_port = net_htons(CONFIG_ESPHOME_API_PORT),
+	};
+#else
+#define LISTEN_FAMILY NET_AF_INET
+	/* shortcut: without v4 mapping only IPv4 is served; add a v6 listener if needed. */
+	struct net_sockaddr_in addr = {
+		.sin_family = NET_AF_INET,
+		.sin_port = net_htons(CONFIG_ESPHOME_API_PORT),
 	};
 #endif
 
@@ -676,6 +678,11 @@ static int open_listener(void)
 		return -errno;
 	}
 	(void)zsock_setsockopt(fd, ZSOCK_SOL_SOCKET, ZSOCK_SO_REUSEADDR, &one, sizeof(one));
+	if (IS_ENABLED(CONFIG_NET_IPV4_MAPPING_TO_IPV6) && LISTEN_FAMILY == NET_AF_INET6) {
+		int off = 0;
+
+		(void)zsock_setsockopt(fd, NET_IPPROTO_IPV6, ZSOCK_IPV6_V6ONLY, &off, sizeof(off));
+	}
 	if (zsock_bind(fd, (struct net_sockaddr *)&addr, sizeof(addr)) < 0 ||
 	    zsock_listen(fd, CONFIG_ESPHOME_API_MAX_CLIENTS) < 0) {
 		int err = -errno;

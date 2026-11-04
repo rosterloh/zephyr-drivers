@@ -3,11 +3,14 @@ menuconfig ESPHOME_API
 	depends on NET_SOCKETS
 	depends on NET_TCP
 	select NANOPB
+	imply NET_IPV4_MAPPING_TO_IPV6 if NET_IPV4 && NET_IPV6
 	help
 	  Server side of the ESPHome native API (TCP, protobuf messages,
 	  optional Noise encryption, mDNS discovery) so Home Assistant can
 	  discover the device and read and control its entities. Only the
 	  networking protocol is implemented, not ESPHome's YAML/codegen.
+	  With IPv4 and IPv6 both on, one IPv6 listener serves both through
+	  NET_IPV4_MAPPING_TO_IPV6; without that mapping only IPv4 is served.
 
 if ESPHOME_API
 
