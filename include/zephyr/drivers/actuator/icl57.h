@@ -36,18 +36,19 @@ int icl57_estop(const struct device *dev);
 
 /*
  * Home `dev` and every drive in its homing group, or every drive when `dev` is
- * NULL, and establish the datum icl57_is_homed() reports. All or nothing:
- * blocks for the whole search (seconds to minutes), and a failure or a stop
- * (ACTUATOR_STATE_FAULT on any drive in the set) e-stops and releases the
- * whole set. Returns -ECANCELED for a stop, -ENODEV with no bus or no drives.
+ * NULL: actuator_reference() / actuator_group_reference() for icl57, kept for
+ * existing callers. All or nothing: blocks for the whole search (seconds to
+ * minutes); a failure or a stop (FAULT or STOPPED on any drive in the set)
+ * e-stops and releases the whole set, and a failure leaves FAULT with
+ * ACTUATOR_FAULT_REFERENCE. Returns -ECANCELED for a stop, -ENODEV with no bus
+ * or no drives.
  */
 int icl57_home(const struct device *dev);
 
-/* Has this motor been referenced since boot? See icl57_data.homed. */
+/* actuator_is_referenced(), kept for existing callers. */
 bool icl57_is_homed(const struct device *dev);
-/* Drop the datum for a reason only the caller can see, e.g. an application's
- * skew guard on a homing group: a racked load is still racked after a fault
- * clear. */
+/* actuator_invalidate_reference(), kept for existing callers: e.g. an
+ * application's skew guard, as a racked load is still racked after a clear. */
 void icl57_datum_void(const struct device *dev);
 /* A homing routine (remote or shell) holds this drive, through an aborted
  * run's settle and re-pin. No bus traffic. */

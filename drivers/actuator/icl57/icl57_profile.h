@@ -9,6 +9,8 @@
 #ifndef ICL57_PROFILE_H_
 #define ICL57_PROFILE_H_
 
+#include <errno.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -502,6 +504,94 @@ static inline bool icl57_needs_retrigger(bool running, int32_t cmd_pulses, int32
 static inline bool icl57_abort_may_repin(bool stopped, bool state_read, bool enabled)
 {
 	return !stopped || (state_read && !enabled);
+}
+
+/*
+ * May a group setpoint write go to the next member? Asked before EACH write of
+ * a group, with a fresh snapshot: live[i] is "READY or ACTIVE" and
+ * referenced[i] the member's reference. A member stopped after the first write
+ * must keep the rest from being sent, or a pair moves one motor of two.
+ * -EPERM (a member is not energised and tracking) outranks -EACCES (one is
+ * unreferenced): the stop is the cause to report.
+ */
+static inline int icl57_group_may_write(const bool *live, const bool *referenced, size_t n)
+{
+	int rc = 0;
+
+	for (size_t i = 0; i < n; i++) {
+		if (!live[i]) {
+			return -EPERM;
+		}
+		if (!referenced[i]) {
+			rc = -EACCES;
+		}
+	}
+	return rc;
+}
+
+/*
+ * Which motors a reference request homes: every named motor, plus every motor
+ * sharing a non-zero homing group with one (they move one rigid load, so homing
+ * one alone racks it). Group 0 is "independent". Fills out[] for the n
+ * instances and returns how many are selected.
+ */
+static inline size_t icl57_home_expand(const int32_t *groups, const bool *named, bool *out,
+				       size_t n)
+{
+	size_t count = 0;
+
+	for (size_t i = 0; i < n; i++) {
+		out[i] = named[i];
+		for (size_t j = 0; j < n && !out[i] && groups[i] != 0; j++) {
+			out[i] = named[j] && groups[j] == groups[i];
+		}
+		count += out[i];
+	}
+	return count;
+}
+
+/*
+ * Generic actuator limits onto the PR0 profile, for set_limits: max velocity
+ * (rad/s) to the rpm ceiling, accel/decel (rad/s^2) to ms per 1000 rpm. NaN
+ * keeps a field. All or nothing: -EINVAL and *t untouched if any value is
+ * non-positive or outside what the drive takes.
+ */
+static inline int icl57_limits_to_tuning(float v_rad_s, float accel, float decel, uint16_t max_rpm,
+					 struct icl57_tuning *t)
+{
+	/* ms for a ramp of 1000 rpm (104.7198 rad/s) at `a` rad/s^2. */
+	const float ms_per_1000rpm = 104719.755f;
+	struct icl57_tuning out = *t;
+
+	if (!isnan(v_rad_s)) {
+		float rpm = v_rad_s * 60.0f / 6.2831853f;
+
+		if (!(rpm > 0.0f) || rpm > (float)max_rpm + 0.5f ||
+		    !icl57_tuning_rpm_valid((uint32_t)lroundf(rpm), max_rpm)) {
+			return -EINVAL;
+		}
+		out.rpm = (uint16_t)lroundf(rpm);
+	}
+	const float ramps[2] = {accel, decel};
+	uint16_t *fields[2] = {&out.accel, &out.decel};
+
+	for (size_t i = 0; i < 2; i++) {
+		if (isnan(ramps[i])) {
+			continue;
+		}
+		if (!(ramps[i] > 0.0f)) {
+			return -EINVAL;
+		}
+		float ms = ms_per_1000rpm / ramps[i];
+
+		if (ms > (float)ICL57_ACCEL_MAX + 0.5f ||
+		    !icl57_tuning_accel_valid((uint32_t)lroundf(ms))) {
+			return -EINVAL;
+		}
+		*fields[i] = (uint16_t)lroundf(ms);
+	}
+	*t = out;
+	return 0;
 }
 
 #endif /* ICL57_PROFILE_H_ */

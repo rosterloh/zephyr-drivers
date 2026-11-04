@@ -9,6 +9,8 @@
  *      tests/drivers/actuator/icl57/src/main.c && /tmp/t
  */
 
+#include <math.h>
+
 #include "icl57_profile.h"
 
 #ifdef CONFIG_ZTEST
@@ -453,6 +455,53 @@ static void icl57_profile_checks(void)
 	CHECK(!icl57_needs_retrigger(false, 59540, 59550, 200, PERIOD));
 	CHECK(icl57_needs_retrigger(false, 59539, 59550, 200, PERIOD));
 	CHECK(icl57_needs_retrigger(false, INT32_MIN, INT32_MAX, 200, PERIOD));
+
+	/* A group write goes ahead only while every member is energised and
+	 * referenced, re-checked before each write: a member stopped after the
+	 * first write keeps the second from being sent. */
+	const bool live2[] = {true, true}, ref2[] = {true, true};
+	const bool one_down[] = {true, false}, one_unref[] = {true, false};
+
+	CHECK(icl57_group_may_write(live2, ref2, 2) == 0);
+	CHECK(icl57_group_may_write(one_down, ref2, 2) == -EPERM);
+	CHECK(icl57_group_may_write(live2, one_unref, 2) == -EACCES);
+	/* Not energised outranks unreferenced: the stop is the cause to report. */
+	CHECK(icl57_group_may_write(one_down, one_unref, 2) == -EPERM);
+	CHECK(icl57_group_may_write(live2, ref2, 0) == 0);
+
+	/* Referencing a motor homes its whole homing group (one rigid load). x0 is
+	 * independent (group 0); z0 and z1 share group 1. */
+	const int32_t groups[] = {0, 1, 1};
+	bool sel[3];
+
+	CHECK(icl57_home_expand(groups, (const bool[]){false, true, false}, sel, 3) == 2);
+	CHECK(!sel[0] && sel[1] && sel[2]);
+	CHECK(icl57_home_expand(groups, (const bool[]){true, false, false}, sel, 3) == 1);
+	CHECK(sel[0] && !sel[1] && !sel[2]);
+	CHECK(icl57_home_expand(groups, (const bool[]){true, false, true}, sel, 3) == 3);
+	CHECK(icl57_home_expand(groups, (const bool[]){false, false, false}, sel, 3) == 0);
+	/* Group 0 means "independent", not "one big group": two of them stay apart. */
+	CHECK(icl57_home_expand((const int32_t[]){0, 0}, (const bool[]){true, false}, sel, 2) == 1);
+	CHECK(sel[0] && !sel[1]);
+
+	/* Generic limits to the drive's PR0 profile: rad/s to rpm, rad/s^2 to ms
+	 * per 1000 rpm (1000 rpm = 104.7198 rad/s). NaN keeps a field. */
+	struct icl57_tuning tun = {.rpm = 100, .accel = 500, .decel = 500};
+
+	CHECK(icl57_limits_to_tuning(2.0f * 3.14159265f, NAN, NAN, 300, &tun) == 0);
+	CHECK(tun.rpm == 60 && tun.accel == 500 && tun.decel == 500);
+	CHECK(icl57_limits_to_tuning(NAN, 104.7198f, 52.3599f, 300, &tun) == 0);
+	CHECK(tun.rpm == 60 && tun.accel == 1000 && tun.decel == 2000);
+	CHECK(icl57_limits_to_tuning(NAN, NAN, NAN, 300, &tun) == 0);
+	CHECK(tun.rpm == 60 && tun.accel == 1000 && tun.decel == 2000);
+	/* Refused whole, nothing applied: over the ceiling, a ramp past Pr9.04's
+	 * range, and non-positive values. */
+	CHECK(icl57_limits_to_tuning(100.0f, 104.7198f, NAN, 300, &tun) == -EINVAL);
+	CHECK(tun.rpm == 60 && tun.accel == 1000);
+	CHECK(icl57_limits_to_tuning(NAN, 0.001f, NAN, 300, &tun) == -EINVAL);
+	CHECK(icl57_limits_to_tuning(-1.0f, NAN, NAN, 300, &tun) == -EINVAL);
+	CHECK(icl57_limits_to_tuning(NAN, 0.0f, NAN, 300, &tun) == -EINVAL);
+	CHECK(tun.rpm == 60 && tun.accel == 1000 && tun.decel == 2000);
 }
 
 #ifdef CONFIG_ZTEST
