@@ -1,0 +1,45 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * QEMU variant: disable the peripherals Espressif QEMU does not model.
+ * See boards/espressif/common/qemu.rst for the feature matrix.
+ */
+
+#include "adafruit_qt_py_esp32c3.dts"
+
+/ {
+	chosen {
+		/* USB Serial/JTAG is not emulated, so the console moves to UART0. */
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		/delete-property/ zephyr,bt-hci;
+	};
+
+	aliases {
+		/delete-property/ sw0;
+	};
+
+	/delete-node/ buttons;
+};
+
+&usb_serial {
+	status = "disabled";
+};
+
+&wifi {
+	status = "disabled";
+};
+
+&esp32_bt_hci {
+	status = "disabled";
+};
+
+&i2c0 {
+	status = "disabled";
+};
+
+&spi2 {
+	status = "disabled";
+};

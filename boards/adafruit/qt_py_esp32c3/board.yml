@@ -4,3 +4,5 @@ board:
   vendor: adafruit
   socs:
   - name: esp32c3
+    variants:
+    - name: qemu

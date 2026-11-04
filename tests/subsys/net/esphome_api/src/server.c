@@ -19,6 +19,12 @@
 #define KEY_RELAY       0xd3a92fe4
 #define KEY_RESET       0xef75803a
 
+#if defined(CONFIG_NET_HOSTNAME_ENABLE)
+#define DEVICE_NAME CONFIG_NET_HOSTNAME
+#else
+#define DEVICE_NAME CONFIG_ESPHOME_API_DEVICE_NAME
+#endif
+
 static int relay_calls;
 static bool relay_last;
 static int reset_calls;
@@ -185,7 +191,7 @@ static int connect_hello(void)
 	expect_frame(fd, HelloResponse_msgid, HelloResponse_fields, &resp);
 	zassert_equal(resp.api_version_major, ESPHOME_API_VERSION_MAJOR);
 	zassert_equal(resp.api_version_minor, ESPHOME_API_VERSION_MINOR);
-	zassert_str_equal(resp.name, CONFIG_ESPHOME_API_DEVICE_NAME);
+	zassert_str_equal(resp.name, DEVICE_NAME);
 
 	return fd;
 }
@@ -240,7 +246,7 @@ ZTEST(esphome_api_server, test_device_info_and_capabilities)
 
 	send_frame(fd, DeviceInfoRequest_msgid, NULL, NULL);
 	expect_frame(fd, DeviceInfoResponse_msgid, DeviceInfoResponse_fields, &info);
-	zassert_str_equal(info.name, CONFIG_ESPHOME_API_DEVICE_NAME);
+	zassert_str_equal(info.name, DEVICE_NAME);
 	zassert_str_equal(info.model, CONFIG_BOARD);
 	zassert_equal(strlen(info.mac_address), 17);
 	zassert_false(info.api_encryption_supported);
