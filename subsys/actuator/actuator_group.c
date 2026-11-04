@@ -11,6 +11,8 @@
 #include <zephyr/actuator/actuator_group.h>
 
 static int register_group_once(const struct actuator_group *grp);
+/* Implemented in actuator.c. */
+int actuator_setpoint_check(const struct device *dev, enum actuator_mode mode, float value);
 
 static bool all_share_api(const struct actuator_group *grp,
 			  const struct actuator_driver_api **out_api)
@@ -114,11 +116,13 @@ static int dispatch_set(const struct actuator_group *grp, enum actuator_mode mod
 	if (grp->data->latched) {
 		return -EPERM;
 	}
-	/* Before either path: a native group op bypasses the per-device gate. */
-	for (size_t i = 0; mode == ACTUATOR_MODE_POSITION && i < grp->n; i++) {
-		if ((actuator_get_capabilities(grp->devs[i]) & ACTUATOR_CAP_NEEDS_REFERENCE) &&
-		    !actuator_is_referenced(grp->devs[i])) {
-			return -EACCES;
+	/* Before either path: a native group op bypasses the per-device gates,
+	 * and a coupled group must not be half written. */
+	for (size_t i = 0; i < grp->n; i++) {
+		int err = actuator_setpoint_check(grp->devs[i], mode, values[i]);
+
+		if (err != 0) {
+			return err;
 		}
 	}
 	const struct actuator_driver_api *api;

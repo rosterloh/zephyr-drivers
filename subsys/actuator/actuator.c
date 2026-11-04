@@ -126,6 +126,19 @@ int z_impl_actuator_enable(const struct device *dev)
 		actuator_report_state(dev, ACTUATOR_SM_EVT_FAULT, ACTUATOR_FAULT_DRIVER(0));
 		return err;
 	}
+	/* A stop or disable that landed while the op ran did its I/O before the
+	 * enable write: redo it, or the drive is left energised under it. */
+	key = k_spin_lock(&cd->lock);
+	enum actuator_state now = cd->state;
+	k_spin_unlock(&cd->lock, key);
+	if (now == ACTUATOR_STATE_STOPPED) {
+		(void)(api(dev)->stop != NULL ? api(dev)->stop(dev) : api(dev)->disable(dev));
+		return -EPERM;
+	}
+	if (now == ACTUATOR_STATE_DISABLED) {
+		(void)api(dev)->disable(dev);
+		return -EPERM;
+	}
 	if (rc == 1) {
 		actuator_callbacks_fire_state(dev, new_state);
 	}
@@ -181,8 +194,6 @@ int z_impl_actuator_stop_latch(const struct device *dev)
 
 	if (rc == 1) {
 		actuator_callbacks_fire_state(dev, ACTUATOR_STATE_STOPPED);
-		/* A stopped member is lost to its group as surely as a faulted one. */
-		actuator_group_on_member_fault(dev);
 	}
 	return rc < 0 ? rc : 0;
 }
@@ -194,7 +205,11 @@ int z_impl_actuator_stop(const struct device *dev)
 	if (rc != 0) {
 		return rc;
 	}
-	return api(dev)->stop != NULL ? api(dev)->stop(dev) : api(dev)->disable(dev);
+	rc = api(dev)->stop != NULL ? api(dev)->stop(dev) : api(dev)->disable(dev);
+	/* A stopped member is lost to its group as surely as a faulted one. Run
+	 * here, not in the latch: DISABLE_ALL and ESTOP do I/O on the peers. */
+	actuator_group_on_member_fault(dev);
+	return rc;
 }
 
 int z_impl_actuator_clear_stop(const struct device *dev)
@@ -361,21 +376,6 @@ int z_impl_actuator_set_limits(const struct device *dev, const struct actuator_l
 	return 0;
 }
 
-/* NaN bounds are unset, and every comparison with NaN is false. */
-static bool outside_limits(const struct actuator_limits *l, enum actuator_mode mode, float value)
-{
-	switch (mode) {
-	case ACTUATOR_MODE_POSITION:
-		return value < l->min_position || value > l->max_position;
-	case ACTUATOR_MODE_VELOCITY:
-		return fabsf(value) > l->max_velocity;
-	case ACTUATOR_MODE_EFFORT:
-		return fabsf(value) > l->max_effort;
-	default:
-		return false;
-	}
-}
-
 int z_impl_actuator_set_drive_mode(const struct device *dev, enum actuator_drive_mode mode)
 {
 	struct actuator_common_data *cd = common(dev);
@@ -405,6 +405,60 @@ int z_impl_actuator_set_drive_mode(const struct device *dev, enum actuator_drive
 	return err;
 }
 
+/* NaN bounds are unset, and every comparison with NaN is false. */
+static bool outside_limits(const struct actuator_limits *l, enum actuator_mode mode, float value)
+{
+	switch (mode) {
+	case ACTUATOR_MODE_POSITION:
+		return value < l->min_position || value > l->max_position;
+	case ACTUATOR_MODE_VELOCITY:
+		return fabsf(value) > l->max_velocity;
+	case ACTUATOR_MODE_EFFORT:
+		return fabsf(value) > l->max_effort;
+	default:
+		return false;
+	}
+}
+
+/* The reference and limit gates. The caller holds cd->lock. */
+static int setpoint_refusal_locked(const struct actuator_common_data *cd, enum actuator_mode mode,
+				   float value)
+{
+	if (mode == ACTUATOR_MODE_POSITION && (cd->caps & ACTUATOR_CAP_NEEDS_REFERENCE) &&
+	    !cd->referenced) {
+		return -EACCES;
+	}
+	if (cd->limits_set && outside_limits(&cd->limits, mode, value)) {
+		return -ERANGE;
+	}
+	return 0;
+}
+
+/* Dry run of every per-device setpoint gate; a native group op bypasses them.
+ * Also behind actuator_group_set_*(). */
+int actuator_setpoint_check(const struct device *dev, enum actuator_mode mode, float value)
+{
+	struct actuator_common_data *cd = common(dev);
+
+	if (mode == ACTUATOR_MODE_DUTY && isnan(value)) {
+		return -EINVAL;
+	}
+	int rc = actuator_cap_check_mode(cd->caps, mode);
+
+	if (rc != 0) {
+		return rc;
+	}
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	enum actuator_state next;
+
+	rc = setpoint_refusal_locked(cd, mode, value);
+	if (rc == 0) {
+		rc = actuator_sm_step(cd->state, ACTUATOR_SM_EVT_SETPOINT, cd->caps, &next);
+	}
+	k_spin_unlock(&cd->lock, key);
+	return rc;
+}
+
 static int set_setpoint_typed(const struct device *dev, enum actuator_mode mode, float value)
 {
 	struct actuator_common_data *cd = common(dev);
@@ -414,14 +468,9 @@ static int set_setpoint_typed(const struct device *dev, enum actuator_mode mode,
 		return err;
 	}
 	k_spinlock_key_t key = k_spin_lock(&cd->lock);
-	int rc;
+	int rc = setpoint_refusal_locked(cd, mode, value);
 
-	if (mode == ACTUATOR_MODE_POSITION && (cd->caps & ACTUATOR_CAP_NEEDS_REFERENCE) &&
-	    !cd->referenced) {
-		rc = -EACCES;
-	} else if (cd->limits_set && outside_limits(&cd->limits, mode, value)) {
-		rc = -ERANGE;
-	} else {
+	if (rc == 0) {
 		rc = sm_step_locked(dev, ACTUATOR_SM_EVT_SETPOINT, 0);
 	}
 	if (rc >= 0) {

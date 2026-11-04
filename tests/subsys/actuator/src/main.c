@@ -22,6 +22,9 @@ ACTUATOR_GROUP_DEFINE(ref_grp, FAKE_REF);
 extern void fake_force_fault(const struct device *dev);
 extern int fake_stop_calls(const struct device *dev);
 extern void fake_set_reference_rc(const struct device *dev, int rc);
+extern bool fake_is_energised(const struct device *dev);
+extern void fake_stop_during_enable(const struct device *dev);
+extern int fake_group_set_calls(const struct device *dev);
 
 static void before_each(void *data)
 {
@@ -412,4 +415,54 @@ ZTEST(actuator_subsys, test_set_drive_mode_rejected_when_stopped)
 	zassert_ok(actuator_stop(FAKE0));
 	zassert_equal(actuator_set_drive_mode(FAKE0, ACTUATOR_DRIVE_MODE_NORMAL), -EPERM);
 	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_STOPPED);
+}
+
+ZTEST(actuator_subsys, test_stop_during_enable_leaves_drive_stopped)
+{
+	/* The stop's I/O ran before the enable's write: the drive must not be
+	 * left energised under a STOPPED state. */
+	fake_stop_during_enable(FAKE0);
+	zassert_equal(actuator_enable(FAKE0), -EPERM);
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_STOPPED);
+	zassert_false(fake_is_energised(FAKE0));
+}
+
+ZTEST(actuator_subsys, test_native_group_write_refused_for_stopped_member)
+{
+	const float pos[] = {0.1f, 0.1f};
+	int before = fake_group_set_calls(FAKE0);
+
+	zassert_ok(actuator_group_set_fault_policy(&arm, ACTUATOR_GROUP_POLICY_ISOLATE));
+	zassert_ok(actuator_group_enable(&arm));
+	zassert_ok(actuator_stop_latch(FAKE1));
+	zassert_equal(actuator_group_set_position(&arm, pos), -EPERM);
+	zassert_equal(fake_group_set_calls(FAKE0), before);
+}
+
+ZTEST(actuator_subsys, test_native_group_write_enforces_limits)
+{
+	struct actuator_limits lim = ACTUATOR_LIMITS_NONE;
+	const float pos[] = {2.0f, 0.0f};
+	int before = fake_group_set_calls(FAKE0);
+
+	lim.max_position = 1.0f;
+	zassert_ok(actuator_set_limits(FAKE0, &lim));
+	zassert_ok(actuator_group_set_fault_policy(&arm, ACTUATOR_GROUP_POLICY_ISOLATE));
+	zassert_ok(actuator_group_enable(&arm));
+	zassert_equal(actuator_group_set_position(&arm, pos), -ERANGE);
+	zassert_equal(fake_group_set_calls(FAKE0), before);
+}
+
+ZTEST(actuator_subsys, test_stop_latch_defers_group_policy_io)
+{
+	zassert_ok(actuator_group_set_fault_policy(&arm, ACTUATOR_GROUP_POLICY_DISABLE_ALL));
+	zassert_ok(actuator_group_enable(&arm));
+	zassert_ok(actuator_stop_latch(FAKE0));
+	/* No I/O on a peer from the latch... */
+	zassert_equal(actuator_get_state(FAKE1), ACTUATOR_STATE_READY);
+	zassert_true(fake_is_energised(FAKE1));
+	/* ...the policy runs with the stop's I/O. */
+	zassert_ok(actuator_stop(FAKE0));
+	zassert_equal(actuator_get_state(FAKE1), ACTUATOR_STATE_DISABLED);
+	zassert_false(fake_is_energised(FAKE1));
 }

@@ -38,15 +38,16 @@ __syscall int actuator_clear_fault(const struct device *dev);
  * The latch is taken before any I/O, so from the moment this is called every
  * enable and setpoint is refused (-EPERM), whatever else the actuator reports.
  * Then the backend's own controlled stop runs (or disable, for a backend
- * without one). Idempotent: calling it again retries that stop.
+ * without one), then the member's group fault policy. Idempotent: calling it
+ * again retries that stop.
  *
  * @return The backend stop's result. The latch holds either way.
  */
 __syscall int actuator_stop(const struct device *dev);
 
 /**
- * Latch ACTUATOR_STATE_STOPPED with NO I/O. The hardware is not stopped: the
- * caller owes an actuator_stop(). For latching several actuators before any of
+ * Latch ACTUATOR_STATE_STOPPED with NO I/O, not even the group fault policy's.
+ * The hardware is not stopped: the caller owes an actuator_stop(). For latching several actuators before any of
  * their blocking stops, or keeping one latched between paced stop retries.
  */
 __syscall int actuator_stop_latch(const struct device *dev);

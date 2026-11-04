@@ -70,8 +70,11 @@ outstanding when stopped, or reported while stopped, is kept and surfaces as `FA
 `actuator_clear_fault()` still resets the drive. `actuator_stop_latch()` takes
 the latch with no I/O, for latching several actuators before any of their
 blocking stops, or holding one between paced retries of a failing stop; the
-caller still owes an `actuator_stop()`. A member entering `STOPPED` triggers its
-group's fault policy, as a fault does.
+caller still owes an `actuator_stop()`. `actuator_stop()` then runs the
+member's group fault policy, as a fault does; the latch alone does not, because
+`DISABLE_ALL` and `ESTOP` disable the peers. A stop or disable that lands while
+`actuator_enable()`'s backend op is running is redone after it, and the enable
+returns `-EPERM`.
 
 ### Referencing
 
@@ -133,7 +136,9 @@ policy:
 When every member shares a backend that has a native multi-actuator transaction
 (e.g. a Dynamixel sync/bulk write, advertised via `ACTUATOR_CAP_GROUP_NATIVE`),
 the group uses that fast path; otherwise it falls back to a per-device loop.
-A native path must hold the same guarantees as the loop: it re-checks each
+Either way, every member first passes the per-device gates (state, reference,
+limits, capability) or nothing is written: a coupled group is never half
+written because one member was refused. A native path must also hold the same guarantees as the loop: it re-checks each
 member's state before each write, so a member stopped mid-group is not written
 after it.
 

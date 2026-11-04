@@ -21,6 +21,9 @@ struct fake_data {
 	enum actuator_drive_mode last_drive_mode;
 	int stop_calls;
 	int reference_rc; /* <0 fail after begin; >0 "succeed" without finishing */
+	bool energised;
+	bool stop_during_enable; /* a concurrent stop lands while enable is in flight */
+	int group_set_calls;
 };
 
 struct fake_config {
@@ -30,13 +33,21 @@ struct fake_config {
 
 static int fake_enable(const struct device *dev)
 {
-	ARG_UNUSED(dev);
+	struct fake_data *d = dev->data;
+
+	if (d->stop_during_enable) {
+		d->stop_during_enable = false;
+		(void)actuator_stop(dev);
+	}
+	d->energised = true;
 	return 0;
 }
 
 static int fake_disable(const struct device *dev)
 {
-	ARG_UNUSED(dev);
+	struct fake_data *d = dev->data;
+
+	d->energised = false;
 	return 0;
 }
 
@@ -45,6 +56,20 @@ static int fake_stop(const struct device *dev)
 	struct fake_data *d = dev->data;
 
 	d->stop_calls++;
+	d->energised = false;
+	return 0;
+}
+
+static int fake_group_set_setpoints(const struct device *const *devs, size_t n,
+				    enum actuator_mode mode, const float *values)
+{
+	for (size_t i = 0; i < n; i++) {
+		struct fake_data *d = devs[i]->data;
+
+		d->group_set_calls++;
+		d->last_setpoint = values[i];
+		d->last_mode = mode;
+	}
 	return 0;
 }
 
@@ -110,6 +135,7 @@ static DEVICE_API(actuator, fake_api) = {
 	.set_setpoint = fake_set_setpoint,
 	.read_feedback = fake_read_feedback,
 	.set_drive_mode = fake_set_drive_mode,
+	.group_set_setpoints = fake_group_set_setpoints,
 };
 
 static int fake_init(const struct device *dev)
@@ -164,4 +190,25 @@ void fake_set_reference_rc(const struct device *dev, int rc)
 	struct fake_data *d = dev->data;
 
 	d->reference_rc = rc;
+}
+
+bool fake_is_energised(const struct device *dev)
+{
+	const struct fake_data *d = dev->data;
+
+	return d->energised;
+}
+
+void fake_stop_during_enable(const struct device *dev)
+{
+	struct fake_data *d = dev->data;
+
+	d->stop_during_enable = true;
+}
+
+int fake_group_set_calls(const struct device *dev)
+{
+	const struct fake_data *d = dev->data;
+
+	return d->group_set_calls;
 }
