@@ -414,16 +414,28 @@ static int icl57_enable(const struct device *dev)
 	const struct icl57_config *cfg = dev->config;
 	struct icl57_data *d = dev->data;
 
+	/* Checked and written under the bus lock icl57_estop() holds, so a stop
+	 * cannot land between the checks and the write and be undone by it. */
+	icl57_bus_lock();
 	/* Enable holds position: an energised drive runs its queued PR0 target,
 	 * so one left by a stop or an aborted home is retired first (icl57_repin). */
 	if (d->repin_pending) {
+		icl57_bus_unlock();
 		LOG_ERR("motor %u: enable refused: a queued PR0 target would run; retire it "
 			"with icl57_repin() first",
 			cfg->slave_id);
 		return -EAGAIN;
 	}
+	/* Nothing written: the subsystem re-reads the state and refuses the enable. */
+	if (actuator_get_state(dev) == ACTUATOR_STATE_STOPPED) {
+		icl57_bus_unlock();
+		return 0;
+	}
 
-	if (icl57_mb_write_reg(d->iface, cfg->slave_id, ICL57_REG_FORCE_ENABLE, 1) < 0) {
+	int wrc = icl57_mb_write_reg(d->iface, cfg->slave_id, ICL57_REG_FORCE_ENABLE, 1);
+
+	icl57_bus_unlock();
+	if (wrc < 0) {
 		return -EIO;
 	}
 

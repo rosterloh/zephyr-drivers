@@ -690,6 +690,28 @@ static bool icl57_stage_is_live(const struct device *dev)
 	return s == ACTUATOR_STATE_READY || s == ACTUATOR_STATE_ACTIVE;
 }
 
+/* Every motor of the set must be able to start before any of them moves: a
+ * homing-group peer found unable after its partner's pre-move racks the pair. */
+static int icl57_home_set_check(const struct shell *sh, const struct device *const *devs, size_t n)
+{
+	for (size_t i = 0; i < n; i++) {
+		const struct icl57_config *cfg = devs[i]->config;
+		const struct icl57_data *d = devs[i]->data;
+
+		if (!icl57_stage_is_live(devs[i])) {
+			ICL57_ERROR(sh, "motor %u: enable the axis before homing (state %d)",
+				    cfg->slave_id, (int)actuator_get_state(devs[i]));
+			return -EPERM;
+		}
+		if (d->homing) {
+			ICL57_ERROR(sh, "motor %u: already homing (another shell session?)",
+				    cfg->slave_id);
+			return -EBUSY;
+		}
+	}
+	return 0;
+}
+
 /* Phase 1: claim the drive and move it off home. Returns 0 when the pre-move has
  * been ISSUED, not when it has arrived — every motor must be moving before any
  * of them is waited on, or a homing group racks. */
@@ -1592,6 +1614,12 @@ static int icl57_home_set(const struct shell *sh, const struct device *const *de
 	}
 	if (n == 0) {
 		return -ENODEV;
+	}
+
+	int check = icl57_home_set_check(sh, devs, n);
+
+	if (check != 0) {
+		return check;
 	}
 
 	struct icl57_home_ctx ctx[ICL57_MOTOR_COUNT];
