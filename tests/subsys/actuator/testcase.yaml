@@ -6,6 +6,8 @@ tests:
   subsys.actuator.userspace:
     platform_allow: [mps2/an385]
     integration_platforms: [mps2/an385]
+    # test_user_bad_pointer_is_refused oopses on purpose.
+    ignore_faults: true
     extra_configs:
       - CONFIG_TEST_USERSPACE=y
       - CONFIG_FPU_SHARING=y
