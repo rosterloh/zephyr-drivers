@@ -167,8 +167,8 @@
 		 * ESP32-P4-ETH, whose upstream DTS omits them, so each app there patches
 		 * it back in from its own board overlay.
 		 */
-		reset-assert-duration-us = <10000>;
-		reset-deassertion-timeout-ms = <50>;
+		reset-assert-us = <10000>;
+		reset-deassert-us = <50000>;
 	};
 };
 
