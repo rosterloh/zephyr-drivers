@@ -466,3 +466,55 @@ ZTEST(actuator_subsys, test_stop_latch_defers_group_policy_io)
 	zassert_equal(actuator_get_state(FAKE1), ACTUATOR_STATE_DISABLED);
 	zassert_false(fake_is_energised(FAKE1));
 }
+
+#ifdef CONFIG_USERSPACE
+#include <zephyr/ztest_error_hook.h>
+
+static void *user_setup(void)
+{
+	k_object_access_all_grant(FAKE0);
+	k_object_access_all_grant(FAKE_REF);
+	return NULL;
+}
+
+ZTEST_SUITE(actuator_user, NULL, user_setup, NULL, NULL, NULL);
+
+ZTEST_USER(actuator_user, test_every_syscall_from_user_mode)
+{
+	struct actuator_limits lim = ACTUATOR_LIMITS_NONE;
+	struct actuator_feedback fb;
+
+	zassert_ok(actuator_set_limits(FAKE0, &lim));
+	zassert_ok(actuator_enable(FAKE0));
+	zassert_equal(actuator_get_capabilities(FAKE0) & ACTUATOR_CAP_POSITION,
+		      ACTUATOR_CAP_POSITION);
+	zassert_ok(actuator_set_position(FAKE0, 0.25f));
+	zassert_ok(actuator_read_feedback(FAKE0, &fb));
+	zassert_within(fb.position, 0.25f, 1e-6f);
+	zassert_ok(actuator_get_feedback(FAKE0, &fb));
+	zassert_ok(actuator_set_velocity(FAKE0, 0.1f));
+	zassert_ok(actuator_set_effort(FAKE0, 0.1f));
+	zassert_equal(actuator_set_duty(FAKE0, 0.1f), -ENOTSUP);
+	zassert_ok(actuator_set_drive_mode(FAKE0, ACTUATOR_DRIVE_MODE_BRAKE));
+	zassert_ok(actuator_stop_latch(FAKE0));
+	zassert_ok(actuator_stop(FAKE0));
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_STOPPED);
+	zassert_ok(actuator_clear_stop(FAKE0));
+	zassert_equal(actuator_clear_fault(FAKE0), -EINVAL); /* not faulted */
+	zassert_ok(actuator_disable(FAKE0));
+
+	zassert_ok(actuator_enable(FAKE_REF));
+	zassert_ok(actuator_reference(FAKE_REF));
+	zassert_true(actuator_is_referenced(FAKE_REF));
+	actuator_invalidate_reference(FAKE_REF);
+	zassert_false(actuator_is_referenced(FAKE_REF));
+	zassert_ok(actuator_disable(FAKE_REF));
+}
+
+ZTEST_USER(actuator_user, test_user_bad_pointer_is_refused)
+{
+	ztest_set_fault_valid(true);
+	(void)actuator_get_feedback(FAKE0, (struct actuator_feedback *)FAKE0);
+	ztest_test_fail();
+}
+#endif

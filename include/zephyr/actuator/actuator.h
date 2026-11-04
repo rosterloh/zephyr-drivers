@@ -47,8 +47,9 @@ __syscall int actuator_stop(const struct device *dev);
 
 /**
  * Latch ACTUATOR_STATE_STOPPED with NO I/O, not even the group fault policy's.
- * The hardware is not stopped: the caller owes an actuator_stop(). For latching several actuators before any of
- * their blocking stops, or keeping one latched between paced stop retries.
+ * The hardware is not stopped: the caller owes an actuator_stop(). For latching
+ * several actuators before any of their blocking stops, or keeping one latched
+ * between paced stop retries.
  */
 __syscall int actuator_stop_latch(const struct device *dev);
 
