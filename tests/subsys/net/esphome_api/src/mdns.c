@@ -70,7 +70,8 @@ ZTEST(esphome_api_mdns, test_txt)
 	zassert_str_equal(val, CONFIG_BOARD);
 	zassert_not_null(txt_get(rec, "friendly_name", val, sizeof(val)));
 	zassert_str_equal(val, CONFIG_ESPHOME_API_FRIENDLY_NAME);
-	zassert_is_null(txt_get(rec, "api_encryption", val, sizeof(val)));
+	zassert_equal(txt_get(rec, "api_encryption", val, sizeof(val)) != NULL,
+		      IS_ENABLED(CONFIG_ESPHOME_API_NOISE));
 }
 
 ZTEST_SUITE(esphome_api_mdns, NULL, NULL, NULL, NULL, NULL);

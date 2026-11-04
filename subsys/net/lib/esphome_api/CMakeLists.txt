@@ -1,5 +1,6 @@
 zephyr_library_named(esphome_api)
 zephyr_library_sources(esphome_api.c)
+zephyr_library_sources_ifdef(CONFIG_ESPHOME_API_NOISE noise.c)
 zephyr_linker_sources(DATA_SECTIONS esphome_api.ld)
 zephyr_iterable_section(NAME esphome_entity GROUP DATA_REGION ${XIP_ALIGN_WITH_INPUT})
 

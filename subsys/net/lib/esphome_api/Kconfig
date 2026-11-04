@@ -61,8 +61,39 @@ config ESPHOME_API_MDNS
 	  (friendly_name, version, mac, board, network). Needs
 	  MDNS_RESPONDER, DNS_SD and NET_HOSTNAME_ENABLE.
 
+config ESPHOME_API_NOISE
+	bool "Noise encryption"
+	select PSA_CRYPTO
+	select PSA_WANT_ALG_CHACHA20_POLY1305
+	select PSA_WANT_KEY_TYPE_CHACHA20
+	select PSA_WANT_ALG_ECDH
+	select PSA_WANT_ECC_MONTGOMERY_255
+	select PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_GENERATE
+	select PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_EXPORT
+	select PSA_WANT_ALG_HMAC
+	select PSA_WANT_KEY_TYPE_HMAC
+	select PSA_WANT_ALG_SHA_256
+	select BASE64
+	help
+	  Encrypt the connection with Noise_NNpsk0_25519_ChaChaPoly_SHA256, as
+	  ESPHome's "api: encryption: key:" does. Plaintext clients are
+	  refused. Set the 32-byte key with esphome_api_set_psk() (saved to
+	  settings when CONFIG_SETTINGS is enabled; call settings_load() at
+	  boot) or, for development, ESPHOME_API_NOISE_PSK. Until a key is
+	  set every client is refused.
+
+config ESPHOME_API_NOISE_PSK
+	string "Encryption key (base64), development only"
+	depends on ESPHOME_API_NOISE
+	default ""
+	help
+	  Base64 of the 32-byte key, as Home Assistant asks for it. The key
+	  ends up in the firmware image, so use esphome_api_set_psk() for
+	  anything beyond development.
+
 config ESPHOME_API_STACK_SIZE
 	int "Server thread stack size"
+	default 4096 if ESPHOME_API_NOISE
 	default 2048
 
 config ESPHOME_API_THREAD_PRIORITY

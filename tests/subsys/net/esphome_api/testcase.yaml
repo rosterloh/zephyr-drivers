@@ -15,3 +15,11 @@ tests:
       - qemu_cortex_m3
       - esp32c3_devkitc/esp32c3/qemu
     integration_platforms: [native_sim]
+  net.esphome_api.noise:
+    extra_args: EXTRA_CONF_FILE=noise.conf
+    modules: [nanopb, mbedtls, tf-psa-crypto]
+    platform_allow:
+      - native_sim
+      - qemu_cortex_m3
+      - esp32c3_devkitc/esp32c3/qemu
+    integration_platforms: [native_sim]
