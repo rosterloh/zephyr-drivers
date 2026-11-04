@@ -83,9 +83,10 @@ jobs:
           app-path: zephyr-drivers
           toolchains: arm-zephyr-eabi:x86_64-zephyr-elf:riscv64-zephyr-elf:xtensa-espressif_esp32_zephyr-elf:xtensa-espressif_esp32s3_zephyr-elf
 
-      # protoc for nanopb; imgtool signs the MCUboot-enabled ESP32 appcpu images
+      # protoc for nanopb; imgtool signs the MCUboot-enabled ESP32 appcpu images;
+      # aioesphomeapi (pinned to api.proto's tag) drives the esphome_api sample's pytest
       - name: Install extra Python tools
-        run: pip install grpcio-tools imgtool
+        run: pip install grpcio-tools imgtool aioesphomeapi==46.25.1
 
       - name: Twister Tests
         working-directory: zephyr-drivers
