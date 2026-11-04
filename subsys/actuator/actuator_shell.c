@@ -12,7 +12,8 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/actuator/actuator.h>
 
-static const char *const state_names[] = {"DISABLED", "READY", "ALIGNING", "ACTIVE", "FAULT"};
+static const char *const state_names[] = {"DISABLED", "READY", "ALIGNING",
+					  "ACTIVE",   "FAULT", "STOPPED"};
 
 static const char *state_name(enum actuator_state s)
 {
@@ -124,6 +125,40 @@ static int cmd_disable(const struct shell *sh, size_t argc, char **argv)
 	}
 	int err = actuator_disable(dev);
 	shell_print(sh, "disable: %d", err);
+	return err;
+}
+
+static int cmd_stop(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	const struct device *dev = resolve(sh, argv[1]);
+	if (!dev) {
+		return -ENODEV;
+	}
+	int err = actuator_stop(dev);
+	shell_print(sh, "stop: %d (latched either way)", err);
+	return err;
+}
+
+static int cmd_clear_stop(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	const struct device *dev = resolve(sh, argv[1]);
+	if (!dev) {
+		return -ENODEV;
+	}
+	return actuator_clear_stop(dev);
+}
+
+static int cmd_reference(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	const struct device *dev = resolve(sh, argv[1]);
+	if (!dev) {
+		return -ENODEV;
+	}
+	int err = actuator_reference(dev);
+	shell_print(sh, "reference: %d", err);
 	return err;
 }
 
@@ -268,6 +303,18 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		      cmd_enable, 2, 0),
 	SHELL_CMD_ARG(disable, NULL, "De-energize an actuator.\nUsage: actuator disable <name>",
 		      cmd_disable, 2, 0),
+	SHELL_CMD_ARG(stop, NULL,
+		      "Stop and latch STOPPED; enable and setpoints are refused until\n"
+		      "clear_stop. Usage: actuator stop <name>",
+		      cmd_stop, 2, 0),
+	SHELL_CMD_ARG(clear_stop, NULL,
+		      "Release a stop: to DISABLED, or FAULT if one was reported while\n"
+		      "stopped. Usage: actuator clear_stop <name>",
+		      cmd_clear_stop, 2, 0),
+	SHELL_CMD_ARG(reference, NULL,
+		      "Reference (home) an actuator that needs it; MOVES the axis and\n"
+		      "blocks until done. Usage: actuator reference <name>",
+		      cmd_reference, 2, 0),
 	SHELL_CMD_ARG(clear_fault, NULL,
 		      "Clear a latched fault and return to READY.\n"
 		      "Usage: actuator clear_fault <name>",

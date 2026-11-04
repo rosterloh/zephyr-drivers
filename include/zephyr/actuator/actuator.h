@@ -22,22 +22,79 @@ extern "C" {
  * @{
  */
 
+/**
+ * Energise an actuator. Never resumes a target set before the last disable,
+ * stop or fault: a backend that cannot guarantee that refuses the enable.
+ *
+ * @retval -EPERM  In FAULT (clear it first) or STOPPED (actuator_clear_stop()).
+ */
 __syscall int actuator_enable(const struct device *dev);
 __syscall int actuator_disable(const struct device *dev);
 __syscall int actuator_clear_fault(const struct device *dev);
+
+/**
+ * Stop the actuator and latch it in ACTUATOR_STATE_STOPPED.
+ *
+ * The latch is taken before any I/O, so from the moment this is called every
+ * enable and setpoint is refused (-EPERM), whatever else the actuator reports.
+ * Then the backend's own controlled stop runs (or disable, for a backend
+ * without one), then the member's group fault policy. Idempotent: calling it
+ * again retries that stop.
+ *
+ * @return The backend stop's result. The latch holds either way.
+ */
+__syscall int actuator_stop(const struct device *dev);
+
+/**
+ * Latch ACTUATOR_STATE_STOPPED with NO I/O, not even the group fault policy's.
+ * The hardware is not stopped: the caller owes an actuator_stop(). For latching
+ * several actuators before any of their blocking stops, or keeping one latched
+ * between paced stop retries.
+ */
+__syscall int actuator_stop_latch(const struct device *dev);
+
+/**
+ * Release a stop: STOPPED -> DISABLED, or FAULT if a fault was outstanding when
+ * stopped or reported since (clear that with actuator_clear_fault()). No I/O.
+ *
+ * @retval -EINVAL  Not stopped.
+ */
+__syscall int actuator_clear_stop(const struct device *dev);
+
+/**
+ * Reference (home) an actuator that advertises ACTUATOR_CAP_NEEDS_REFERENCE.
+ * Blocks until done. It must be READY or ACTIVE. While referencing it is in
+ * ACTUATOR_STATE_ALIGNING, so setpoints get -EAGAIN. The backend may also
+ * reference actuators mechanically coupled to this one. A failure leaves it in
+ * FAULT with ACTUATOR_FAULT_REFERENCE; a stop during it leaves it STOPPED.
+ *
+ * Until referenced, position setpoints on such an actuator get -EACCES.
+ *
+ * @retval -ENOTSUP  No ACTUATOR_CAP_NEEDS_REFERENCE.
+ * @retval -EPERM    Not READY or ACTIVE.
+ */
+__syscall int actuator_reference(const struct device *dev);
+
+/** Whether the actuator has been referenced since boot or the last invalidation. */
+__syscall bool actuator_is_referenced(const struct device *dev);
+
+/**
+ * Drop the reference for a reason only the caller can see, e.g. a coupled load
+ * found racked. Position setpoints get -EACCES until it is referenced again.
+ */
+__syscall void actuator_invalidate_reference(const struct device *dev);
 
 __syscall enum actuator_state actuator_get_state(const struct device *dev);
 __syscall uint32_t actuator_get_capabilities(const struct device *dev);
 
 /**
- * Command a position setpoint (radians).
- * Implicitly transitions the actuator from DISABLED through READY into
- * ACTIVE if needed.
+ * Command a position setpoint (radians). The actuator must be enabled: a
+ * setpoint never enables it.
  *
  * @retval 0         Setpoint accepted.
  * @retval -ENOTSUP  Backend does not support position mode.
  * @retval -EAGAIN   Actuator is in ALIGNING state; retry later.
- * @retval -EPERM    Actuator is in FAULT state; clear fault first.
+ * @retval -EPERM    Actuator is DISABLED, STOPPED or in FAULT.
  */
 __syscall int actuator_set_position(const struct device *dev, float rad);
 __syscall int actuator_set_velocity(const struct device *dev, float rad_s);
@@ -71,7 +128,7 @@ __syscall int actuator_set_duty(const struct device *dev, float duty);
  *
  * @retval 0         Mode applied.
  * @retval -ENOTSUP  Backend does not advertise ACTUATOR_CAP_DRIVE_MODE.
- * @retval -EPERM    Actuator is in DISABLED or FAULT state.
+ * @retval -EPERM    Actuator is DISABLED, STOPPED or in FAULT.
  */
 __syscall int actuator_set_drive_mode(const struct device *dev, enum actuator_drive_mode mode);
 
@@ -81,6 +138,13 @@ __syscall int actuator_read_feedback(const struct device *dev, struct actuator_f
 /** Cached read: returns last sample populated by the driver-internal worker. */
 __syscall int actuator_get_feedback(const struct device *dev, struct actuator_feedback *out);
 
+/**
+ * Apply limits; start from ACTUATOR_LIMITS_NONE. With a backend set_limits op
+ * the backend applies them. Without one, position/velocity/effort limits are
+ * enforced here (setpoints outside get -ERANGE) and all-NaN clears them.
+ *
+ * @retval -ENOTSUP  A limit nobody here can enforce (e.g. accel without an op).
+ */
 __syscall int actuator_set_limits(const struct device *dev, const struct actuator_limits *limits);
 
 typedef void (*actuator_state_cb_t)(const struct device *dev, enum actuator_state new_state,
@@ -106,6 +170,13 @@ __subsystem struct actuator_driver_api {
 	int (*enable)(const struct device *dev);
 	int (*disable)(const struct device *dev);
 	int (*clear_fault)(const struct device *dev);
+	/* Optional: a controlled stop that ends de-energised, ordered after any
+	 * setpoint transaction already in progress. NULL = disable. */
+	int (*stop)(const struct device *dev);
+	/* Optional: reference devs (and any devices mechanically coupled to
+	 * them), blocking. Report each device moved with
+	 * actuator_report_reference_begin() and actuator_report_referenced(). */
+	int (*reference)(const struct device *const *devs, size_t n);
 
 	int (*set_setpoint)(const struct device *dev, enum actuator_mode mode, float value);
 
@@ -137,6 +208,12 @@ struct actuator_common_data {
 	enum actuator_mode current_mode;
 	struct actuator_feedback cached_fb;
 	struct actuator_limits limits;
+	/* Faults reported while STOPPED; actuator_clear_stop() lands in FAULT
+	 * when non-zero. Separate from cached_fb, which each sample overwrites. */
+	uint32_t stopped_faults;
+	bool referenced;
+	/* limits holds caller limits for the subsystem to enforce. */
+	bool limits_set;
 	struct k_spinlock lock;
 };
 
@@ -190,6 +267,16 @@ void actuator_report_state(const struct device *dev, enum actuator_sm_event even
  * a previously observed state. If the state changed since validation, no state
  * change is forced.
  */
+/**
+ * Backend: a device is about to be referenced. Steps it to ALIGNING and drops
+ * its reference. Returns -EPERM (or -EBUSY) if it may not start.
+ */
+int actuator_report_reference_begin(const struct device *dev);
+
+/** Backend: referencing finished. ALIGNING -> READY, referenced. A device
+ *  that left ALIGNING meanwhile (stopped, faulted) stays as it is. */
+void actuator_report_referenced(const struct device *dev);
+
 int actuator_report_setpoint_if_state(const struct device *dev, enum actuator_mode mode,
 				      enum actuator_state expected_state);
 
