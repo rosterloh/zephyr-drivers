@@ -12,5 +12,7 @@ manifest:
           - cmsis_6
           - hal_atmel
           - hal_espressif
+          - mbedtls
           - nanopb
+          - tf-psa-crypto
           - zcbor
