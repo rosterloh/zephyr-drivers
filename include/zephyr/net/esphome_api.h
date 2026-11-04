@@ -120,6 +120,16 @@ int esphome_api_publish_float(struct esphome_entity *entity, float state);
  */
 int esphome_api_publish_bool(struct esphome_entity *entity, bool state);
 
+/**
+ * Set the Noise encryption key (CONFIG_ESPHOME_API_NOISE), the 32 bytes behind the base64
+ * key Home Assistant asks for. Saved to settings when CONFIG_SETTINGS is enabled. Clients
+ * that connect afterwards use it.
+ *
+ * @retval 0 on success
+ * @retval <0 settings_save_one() error; the key is still in use until reboot
+ */
+int esphome_api_set_psk(const uint8_t key[32]);
+
 /** @} */
 
 #endif /* ZEPHYR_INCLUDE_NET_ESPHOME_API_H_ */

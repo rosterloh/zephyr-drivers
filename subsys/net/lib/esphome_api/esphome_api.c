@@ -10,6 +10,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/net/esphome_api.h>
@@ -21,6 +22,13 @@
 #include <pb_decode.h>
 #include <pb_encode.h>
 #include <api.pb.h>
+
+#if defined(CONFIG_ESPHOME_API_NOISE)
+#include <zephyr/settings/settings.h>
+#include <zephyr/sys/base64.h>
+#include <zephyr/sys/byteorder.h>
+#include "noise.h"
+#endif
 
 LOG_MODULE_REGISTER(esphome_api, CONFIG_ESPHOME_API_LOG_LEVEL);
 
@@ -36,8 +44,11 @@ BUILD_ASSERT(sizeof(CONFIG_ESPHOME_API_DEVICE_NAME) <= sizeof(((HelloResponse *)
 
 #define VERSION_STR "Zephyr " KERNEL_VERSION_STRING
 
-#define FRAME_HDR_MAX   (1 + 5 + 5)
-#define IDLE_TIMEOUT_MS (CONFIG_ESPHOME_API_IDLE_TIMEOUT * MSEC_PER_SEC)
+#define FRAME_HDR_MAX          (1 + 5 + 5)
+/* Noise frame: 0x01, u16 length, then encrypted u16 type, u16 length, body, tag. */
+#define NOISE_HDR              (3 + 4)
+#define NOISE_HANDSHAKE_REJECT "Handshake MAC failure"
+#define IDLE_TIMEOUT_MS        (CONFIG_ESPHOME_API_IDLE_TIMEOUT * MSEC_PER_SEC)
 
 struct client {
 	int fd;
@@ -46,6 +57,15 @@ struct client {
 	int64_t last_rx;
 	size_t len;
 	uint8_t rx[CONFIG_ESPHOME_API_RX_BUF_SIZE];
+#if defined(CONFIG_ESPHOME_API_NOISE)
+	enum {
+		NOISE_HELLO,
+		NOISE_HANDSHAKE,
+		NOISE_READY
+	} noise;
+	struct noise_cs rx_cs;
+	struct noise_cs tx_cs;
+#endif
 };
 
 static struct client clients[CONFIG_ESPHOME_API_MAX_CLIENTS] = {
@@ -54,7 +74,8 @@ static struct client clients[CONFIG_ESPHOME_API_MAX_CLIENTS] = {
 static K_MUTEX_DEFINE(lock);
 
 /* Encode buffers; only used with lock held. */
-static uint8_t tx[FRAME_HDR_MAX + PROTO_API_PB_H_MAX_SIZE];
+static uint8_t tx[FRAME_HDR_MAX + PROTO_API_PB_H_MAX_SIZE +
+		  COND_CODE_1(CONFIG_ESPHOME_API_NOISE, (NOISE_TAG_LEN), (0))];
 static union {
 	HelloRequest hello_req;
 	HelloResponse hello;
@@ -129,8 +150,9 @@ static int get_varint(const uint8_t *buf, size_t len, size_t *pos, uint32_t *val
 	return -EBADMSG;
 }
 
-/* Encode one frame into tx; returns its length or a negative errno. */
-static int encode_frame(uint16_t type, const pb_msgdesc_t *fields, const void *body)
+/* Encode one frame for @p c into tx; returns its length or a negative errno. */
+static int encode_frame(struct client *c, uint16_t type, const pb_msgdesc_t *fields,
+			const void *body)
 {
 	size_t len = 0;
 	size_t hdr = 0;
@@ -140,9 +162,16 @@ static int encode_frame(uint16_t type, const pb_msgdesc_t *fields, const void *b
 		return -EINVAL;
 	}
 
+#if defined(CONFIG_ESPHOME_API_NOISE)
+	ARG_UNUSED(put_varint);
+	ARG_UNUSED(get_varint);
+	hdr = NOISE_HDR;
+#else
+	ARG_UNUSED(c);
 	tx[hdr++] = 0x00;
 	hdr += put_varint(&tx[hdr], len);
 	hdr += put_varint(&tx[hdr], type);
+#endif
 
 	if (fields != NULL) {
 		os = pb_ostream_from_buffer(&tx[hdr], sizeof(tx) - hdr);
@@ -151,6 +180,20 @@ static int encode_frame(uint16_t type, const pb_msgdesc_t *fields, const void *b
 			return -EINVAL;
 		}
 	}
+
+#if defined(CONFIG_ESPHOME_API_NOISE)
+	int ret;
+
+	tx[0] = 0x01;
+	sys_put_be16(4 + len + NOISE_TAG_LEN, &tx[1]);
+	sys_put_be16(type, &tx[3]);
+	sys_put_be16(len, &tx[5]);
+	ret = noise_encrypt(&c->tx_cs, &tx[3], 4 + len);
+	if (ret < 0) {
+		return ret;
+	}
+	len += NOISE_TAG_LEN;
+#endif
 
 	return hdr + len;
 }
@@ -174,7 +217,7 @@ static int send_all(int fd, size_t len)
 
 static int send_msg(struct client *c, uint16_t type, const pb_msgdesc_t *fields, const void *body)
 {
-	int len = encode_frame(type, fields, body);
+	int len = encode_frame(c, type, fields, body);
 
 	return len < 0 ? len : send_all(c->fd, len);
 }
@@ -187,6 +230,10 @@ static void close_client(struct client *c)
 	LOG_DBG("client %d closed", c->fd);
 	zsock_close(c->fd);
 	c->fd = -1;
+#if defined(CONFIG_ESPHOME_API_NOISE)
+	noise_cs_destroy(&c->rx_cs);
+	noise_cs_destroy(&c->tx_cs);
+#endif
 }
 
 static void fill_state(struct esphome_entity *e, uint16_t *type, const pb_msgdesc_t **fields)
@@ -404,6 +451,123 @@ static int dispatch(struct client *c, uint32_t type, const uint8_t *buf, size_t 
 	}
 }
 
+#if defined(CONFIG_ESPHOME_API_NOISE)
+static uint8_t psk[NOISE_KEY_LEN];
+static bool psk_set;
+
+/* An unencrypted 0x01 frame; used for the hello and handshake. */
+static int send_raw(struct client *c, const void *a, size_t a_len, const void *b, size_t b_len)
+{
+	tx[0] = 0x01;
+	sys_put_be16(a_len + b_len, &tx[1]);
+	memcpy(&tx[3], a, a_len);
+	memcpy(&tx[3 + a_len], b, b_len);
+
+	return send_all(c->fd, 3 + a_len + b_len);
+}
+
+/* Handshake failure the client shows to the user; aioesphomeapi maps the MAC one to a bad key. */
+static int send_reject(struct client *c, const char *reason)
+{
+	LOG_WRN("client %d: %s", c->fd, reason);
+	(void)send_raw(c, "\x01", 1, reason, strlen(reason));
+
+	return -EPROTO;
+}
+
+static int send_server_hello(struct client *c)
+{
+	/* Chosen protocol 0x01, then name and lowercase MAC, each NUL terminated. */
+	char buf[1 + sizeof(((HelloResponse *)0)->name) + 13];
+	uint8_t mac[6];
+	int n;
+
+	get_mac(mac);
+	n = snprintk(buf, sizeof(buf), "\x01%.31s%c%02x%02x%02x%02x%02x%02x", DEVICE_NAME, 0,
+		     mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+	return send_raw(c, buf, MIN(n, sizeof(buf) - 1) + 1, "", 0);
+}
+
+static int noise_frame(struct client *c, uint8_t *buf, size_t len)
+{
+	uint8_t msg2[1 + NOISE_HS_LEN] = {0x00};
+	psa_key_id_t e;
+	uint32_t type;
+	size_t mlen;
+	int ret;
+
+	switch (c->noise) {
+	case NOISE_HELLO:
+		/* ClientHello carries nothing this server uses. */
+		c->noise = NOISE_HANDSHAKE;
+		return send_server_hello(c);
+	case NOISE_HANDSHAKE:
+		if (!psk_set) {
+			return send_reject(c, "No encryption key set");
+		}
+		if (len != 1 + NOISE_HS_LEN || buf[0] != 0x00) {
+			return send_reject(c, "Bad handshake packet len");
+		}
+		ret = noise_generate_e(&e, &msg2[1]);
+		ret = ret ?: noise_respond(psk, &buf[1], e, &msg2[1], &c->rx_cs, &c->tx_cs);
+		if (ret == -EBADMSG) {
+			return send_reject(c, NOISE_HANDSHAKE_REJECT);
+		}
+		if (ret < 0) {
+			return send_reject(c, "Handshake error");
+		}
+		c->noise = NOISE_READY;
+		return send_raw(c, msg2, sizeof(msg2), "", 0);
+	default:
+		if (noise_decrypt(&c->rx_cs, buf, len) < 0 || len < NOISE_TAG_LEN + 4) {
+			LOG_WRN("client %d: decrypt failed", c->fd);
+			return -EBADMSG;
+		}
+		type = sys_get_be16(buf);
+		mlen = sys_get_be16(&buf[2]);
+		if (mlen > len - NOISE_TAG_LEN - 4) {
+			return -EBADMSG;
+		}
+		return dispatch(c, type, &buf[4], mlen);
+	}
+}
+
+/* Parse every complete frame in the client's buffer. */
+static int process_rx(struct client *c)
+{
+	while (c->len > 0 && c->fd >= 0) {
+		size_t len;
+		int ret;
+
+		if (c->rx[0] != 0x01) {
+			/* aioesphomeapi tells a plaintext user the device needs encryption. */
+			return send_reject(c, "Bad indicator byte");
+		}
+		if (c->len < 3) {
+			return 0;
+		}
+		len = sys_get_be16(&c->rx[1]);
+		if (len > sizeof(c->rx) - 3) {
+			LOG_WRN("oversized frame");
+			return -EMSGSIZE;
+		}
+		if (c->len - 3 < len) {
+			return 0;
+		}
+
+		ret = noise_frame(c, &c->rx[3], len);
+		if (ret < 0) {
+			return ret;
+		}
+
+		memmove(c->rx, &c->rx[3 + len], c->len - 3 - len);
+		c->len -= 3 + len;
+	}
+
+	return 0;
+}
+#else
 /* Parse every complete frame in the client's buffer. */
 static int process_rx(struct client *c)
 {
@@ -414,7 +578,7 @@ static int process_rx(struct client *c)
 		int ret;
 
 		if (c->rx[0] != 0x00) {
-			/* 0x01 is a Noise client: this server is plaintext only. */
+			/* 0x01 is a Noise client; CONFIG_ESPHOME_API_NOISE is off. */
 			LOG_WRN("bad preamble 0x%02x", c->rx[0]);
 			return -EPROTO;
 		}
@@ -445,6 +609,7 @@ static int process_rx(struct client *c)
 
 	return 0;
 }
+#endif /* CONFIG_ESPHOME_API_NOISE */
 
 static void handle_rx(struct client *c)
 {
@@ -538,6 +703,15 @@ static void server_thread(void *p1, void *p2, void *p3)
 		k_sleep(K_SECONDS(1));
 	}
 	LOG_INF("listening on port %d", CONFIG_ESPHOME_API_PORT);
+#if defined(CONFIG_ESPHOME_API_NOISE)
+	if (psa_crypto_init() != PSA_SUCCESS) {
+		LOG_ERR("PSA crypto init failed");
+		return;
+	}
+	if (!psk_set) {
+		LOG_WRN("no encryption key: clients are refused until esphome_api_set_psk()");
+	}
+#endif
 
 	while (true) {
 		int64_t now = k_uptime_get();
@@ -584,7 +758,6 @@ static void server_thread(void *p1, void *p2, void *p3)
 }
 
 #if defined(CONFIG_ESPHOME_API_MDNS)
-#include <zephyr/init.h>
 #include <zephyr/net/dns_sd.h>
 
 /* TXT keys Home Assistant and ESPHome tools read; "mac" is required for discovery. */
@@ -592,6 +765,7 @@ static void server_thread(void *p1, void *p2, void *p3)
 #define TXT_VERSION  "version=" VERSION_STR
 #define TXT_MAC      "mac=000000000000"
 #define TXT_BOARD    "board=" CONFIG_BOARD
+#define TXT_NOISE    "api_encryption=Noise_NNpsk0_25519_ChaChaPoly_SHA256"
 #if defined(CONFIG_WIFI)
 #define TXT_NETWORK "network=wifi"
 #elif defined(CONFIG_NET_L2_ETHERNET)
@@ -603,6 +777,7 @@ static void server_thread(void *p1, void *p2, void *p3)
 #define TXT_SIZE                                                                                   \
 	((sizeof(CONFIG_ESPHOME_API_FRIENDLY_NAME) > 1 ? TXT_LEN(TXT_FRIENDLY) : 0) +              \
 	 TXT_LEN(TXT_VERSION) + TXT_LEN(TXT_MAC) + TXT_LEN(TXT_BOARD) +                            \
+	 COND_CODE_1(CONFIG_ESPHOME_API_NOISE, (TXT_LEN(TXT_NOISE)), (0)) +                        \
 	 COND_CODE_1(IS_ENABLED(CONFIG_WIFI), (TXT_LEN("network=wifi")),                           \
 		     (COND_CODE_1(IS_ENABLED(CONFIG_NET_L2_ETHERNET),                              \
 				  (TXT_LEN("network=ethernet")), (0)))))
@@ -645,6 +820,9 @@ static int mdns_init(void)
 #if defined(TXT_NETWORK)
 	pos = txt_add(pos, TXT_NETWORK);
 #endif
+#if defined(CONFIG_ESPHOME_API_NOISE)
+	pos = txt_add(pos, TXT_NOISE);
+#endif
 	__ASSERT_NO_MSG(pos == TXT_SIZE);
 
 	if (strlen(DEVICE_NAME) >= sizeof(mdns_instance)) {
@@ -666,16 +844,12 @@ static int publish(struct esphome_entity *e)
 {
 	uint16_t type;
 	const pb_msgdesc_t *fields;
-	int len;
 
 	fill_state(e, &type, &fields);
-	len = encode_frame(type, fields, &msg);
-	if (len < 0) {
-		return len;
-	}
 
+	/* Encoded per client: with Noise each has its own key and nonce. */
 	ARRAY_FOR_EACH_PTR(clients, c) {
-		if (c->fd >= 0 && c->subscribed && send_all(c->fd, len) < 0) {
+		if (c->fd >= 0 && c->subscribed && send_msg(c, type, fields, &msg) < 0) {
 			close_client(c);
 		}
 	}
@@ -718,3 +892,57 @@ int esphome_api_publish_bool(struct esphome_entity *entity, bool state)
 
 	return ret;
 }
+
+#if defined(CONFIG_ESPHOME_API_NOISE)
+int esphome_api_set_psk(const uint8_t key[32])
+{
+	k_mutex_lock(&lock, K_FOREVER);
+	memcpy(psk, key, sizeof(psk));
+	psk_set = true;
+	k_mutex_unlock(&lock);
+
+	if (IS_ENABLED(CONFIG_SETTINGS)) {
+		return settings_save_one("esphome_api/psk", key, sizeof(psk));
+	}
+	return 0;
+}
+
+static int psk_settings_set(const char *name, size_t len, settings_read_cb read_cb, void *cb_arg)
+{
+	if (strcmp(name, "psk") != 0) {
+		return -ENOENT;
+	}
+	if (len != sizeof(psk) || read_cb(cb_arg, psk, sizeof(psk)) != sizeof(psk)) {
+		return -EINVAL;
+	}
+	psk_set = true;
+
+	return 0;
+}
+
+#if defined(CONFIG_SETTINGS)
+SETTINGS_STATIC_HANDLER_DEFINE(esphome_api, "esphome_api", NULL, psk_settings_set, NULL, NULL);
+#endif
+
+/* Development key from Kconfig; a key from settings, loaded later, replaces it. */
+static int psk_init(void)
+{
+	size_t olen;
+
+	ARG_UNUSED(psk_settings_set);
+	if (sizeof(CONFIG_ESPHOME_API_NOISE_PSK) == 1) {
+		return 0;
+	}
+	if (base64_decode(psk, sizeof(psk), &olen, CONFIG_ESPHOME_API_NOISE_PSK,
+			  sizeof(CONFIG_ESPHOME_API_NOISE_PSK) - 1) != 0 ||
+	    olen != sizeof(psk)) {
+		LOG_ERR("CONFIG_ESPHOME_API_NOISE_PSK is not a base64 32-byte key");
+		return 0;
+	}
+	psk_set = true;
+
+	return 0;
+}
+
+SYS_INIT(psk_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
+#endif /* CONFIG_ESPHOME_API_NOISE */
