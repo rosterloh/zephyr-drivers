@@ -31,6 +31,9 @@
 #define OD_CMD_DW_START        0x0070U
 #define OD_CMD_DW_DATA         0x0071U
 #define OD_CMD_DW_END          0x0072U
+#define OD_CMD_PIPE_START      0x0080U
+#define OD_CMD_PIPE_DATA       0x0081U
+#define OD_CMD_PIPE_END        0x0082U
 /* Device-to-host notifications after DW_END. */
 #define OD_EVT_REFRESH_OK      0x0073U
 #define OD_EVT_REFRESH_TIMEOUT 0x0074U
@@ -122,6 +125,15 @@ void od_lan_set_mac(const uint8_t mac[6]);
 /* Direct write (od_direct.c); called with the core lock held. */
 void od_direct(const struct od_transport *tp, uint16_t cmd, const uint8_t *payload, size_t len);
 void od_direct_abort(const struct od_transport *tp);
+/** Append decoded image bytes to the transfer in progress. */
+int od_direct_feed(const uint8_t *buf, size_t len);
+
+/* zlib stream (od_inflate.c), output goes to od_direct_feed(). */
+void od_inflate_start(void);
+/** @retval -ENOTSUP Window over 512 bytes. @retval -EBADMSG Corrupt stream. */
+int od_inflate_data(const uint8_t *buf, size_t len);
+/** Decode what is left; fails unless the stream ended with a valid checksum. */
+int od_inflate_end(void);
 
 /* Config (od_config.c); called with the core lock held. */
 void od_config_read(const struct od_transport *tp);
