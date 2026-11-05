@@ -100,10 +100,18 @@ void od_handle(const struct od_transport *tp, const uint8_t *req, size_t len);
 int od_reply(const struct od_transport *tp, uint8_t status, uint16_t cmd, const uint8_t *data,
 	     size_t len);
 
+/** A transport lost its peer: abort transfers it started. */
+void od_disconnected(const struct od_transport *tp);
+
+/** BLE transport (od_ble.c): the MSD record changed. */
+void od_ble_msd_changed(void);
+
 /* Config (od_config.c); called with the core lock held. */
 void od_config_read(const struct od_transport *tp);
 void od_config_write(const struct od_transport *tp, uint16_t cmd, const uint8_t *data, size_t len);
 void od_config_clear(const struct od_transport *tp);
+/** Drop a chunked write in progress. */
+void od_config_abort(void);
 /** Host-written packet body of @p type, or NULL. */
 const uint8_t *od_config_packet(uint8_t type);
 
