@@ -152,7 +152,9 @@ static size_t build_config(uint8_t *buf)
 	sys_put_le16(caps.y_resolution, &b[6]);
 	memset(&b[15], OD_PIN_NONE, 5); /* reset, busy, dc, cs, data */
 	b[21] = OD_COLOR_MONO;
-	b[22] = OD_TX_DIRECT_WRITE;
+	b[22] = OD_TX_DIRECT_WRITE |
+		(IS_ENABLED(CONFIG_OPENDISPLAY_ZLIB) ? OD_TX_STREAMING_ZLIB : 0U) |
+		(IS_ENABLED(CONFIG_OPENDISPLAY_PIPE) ? OD_TX_PIPE : 0U);
 	memset(&b[23], OD_PIN_NONE, 8); /* clk + 7 reserved pins */
 	p = b + OD_DISPLAY_LEN;
 

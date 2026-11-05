@@ -6,3 +6,5 @@ common:
   integration_platforms: [native_sim]
 tests:
   opendisplay.direct: {}
+  opendisplay.direct.zlib_pipe:
+    extra_args: EXTRA_CONF_FILE=zlib.conf
