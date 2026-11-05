@@ -1,0 +1,3 @@
+# Vendored upstream sources: keep them byte-identical.
+DisableFormat: true
+SortIncludes: Never
