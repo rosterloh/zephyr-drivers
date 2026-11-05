@@ -48,6 +48,25 @@ void opendisplay_set_status(const struct opendisplay_status *status);
  */
 void opendisplay_get_msd(uint8_t msd[OPENDISPLAY_MSD_LEN]);
 
+/** Image upload notifications. Called on the transport thread. */
+struct opendisplay_callbacks {
+	/** A complete image was written to the display; the refresh follows. */
+	void (*image_received)(void);
+	/**
+	 * The panel refresh finished.
+	 *
+	 * @param err 0, or the negative errno display_blanking_off() returned.
+	 */
+	void (*refresh_done)(int err);
+};
+
+/**
+ * @brief Register upload callbacks.
+ *
+ * @param cb Callbacks, kept by reference; NULL removes them.
+ */
+void opendisplay_set_callbacks(const struct opendisplay_callbacks *cb);
+
 /**
  * @brief Start advertising the OpenDisplay GATT service.
  *
