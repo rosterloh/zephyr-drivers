@@ -221,6 +221,7 @@ ZTEST(opendisplay_core, test_read_config)
 	zassert_equal(sys_get_le16(&p[4]), 296, "width from devicetree");
 	zassert_equal(sys_get_le16(&p[6]), 128, "height from devicetree");
 	zassert_equal(p[21], OD_COLOR_MONO);
+	zassert_equal(p[22], OD_TX_DIRECT_WRITE, "transmission modes");
 }
 
 ZTEST(opendisplay_core, test_write_config)
