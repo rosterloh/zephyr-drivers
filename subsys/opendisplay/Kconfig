@@ -130,6 +130,7 @@ config OPENDISPLAY_LAN_MDNS
 
 config OPENDISPLAY_LAN_STACK_SIZE
 	int "Server thread stack size"
+	default 4096 if OPENDISPLAY_SECURITY
 	default 2048
 
 config OPENDISPLAY_LAN_THREAD_PRIORITY
@@ -137,6 +138,28 @@ config OPENDISPLAY_LAN_THREAD_PRIORITY
 	default 7
 
 endif # OPENDISPLAY_LAN
+
+config OPENDISPLAY_SECURITY
+	bool "Encryption"
+	depends on !OPENDISPLAY_LAN || NET_SOCKETS_SOCKOPT_TLS
+	select PSA_CRYPTO
+	select PSA_WANT_KEY_TYPE_AES
+	select PSA_WANT_ALG_CMAC
+	select PSA_WANT_ALG_CCM
+	select PSA_WANT_ALG_ECB_NO_PADDING
+	help
+	  Honour the host-written SecurityConfig. While it is enabled with a
+	  non-zero key, BLE hosts must pass AUTHENTICATE (0x0050) before any
+	  command but FIRMWARE_VERSION, and frames are then AES-128-CCM
+	  wrapped. The LAN transport serves only TLS 1.2 PSK on server_port
+	  + 1, with identity "opendisplay" and a PSK derived from the key;
+	  enable a PSK ciphersuite such as
+	  MBEDTLS_CIPHERSUITE_TLS_PSK_WITH_AES_128_GCM_SHA256 for it.
+
+config OPENDISPLAY_LAN_TLS_SEC_TAG
+	int "TLS credential tag for the LAN PSK"
+	depends on OPENDISPLAY_SECURITY && OPENDISPLAY_LAN
+	default 2446
 
 module = OPENDISPLAY
 module-str = opendisplay

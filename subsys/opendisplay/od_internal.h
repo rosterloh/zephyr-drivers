@@ -12,6 +12,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <zephyr/kernel.h>
 
 /* Response status byte (frame byte 0). */
 #define OD_ACK           0x00U
@@ -94,7 +95,12 @@
 struct od_transport {
 	/** Send one response or notification frame. */
 	int (*send)(const struct od_transport *tp, const uint8_t *buf, size_t len);
+	/** The link is already confidential (TLS): no AUTHENTICATE or envelope. */
+	bool secure;
 };
+
+/** Serialises commands, config and session state across transports. */
+extern struct k_mutex od_lock;
 
 /** Handle one request frame; replies go out through @p tp before it returns. */
 void od_handle(const struct od_transport *tp, const uint8_t *req, size_t len);
@@ -129,5 +135,39 @@ uint16_t od_config_server_port(void);
 void od_config_abort(void);
 /** Host-written packet body of @p type, or NULL. */
 const uint8_t *od_config_packet(uint8_t type);
+
+/* Encryption (od_crypto.c); called with the core lock held. */
+/** Largest reply payload (after [status][echo]) that can be enveloped. */
+#define OD_SEC_MAX_PAYLOAD 128U
+/** The host-written SecurityConfig enables encryption with a non-zero key. */
+bool od_sec_enabled(void);
+/** Handle AUTHENTICATE; replies are always plain. */
+void od_sec_authenticate(const struct od_transport *tp, const uint8_t *data, size_t len);
+/**
+ * Open an enveloped request [cmd:2][nonce:16][ct][tag:12].
+ *
+ * @retval 0 @p payload and @p plen point at the plaintext.
+ * @retval -EACCES No session on @p tp, or the frame is not enveloped.
+ * @retval -EBADMSG Wrong session, replayed counter or bad tag.
+ */
+int od_sec_open(const struct od_transport *tp, const uint8_t *req, size_t len,
+		const uint8_t **payload, size_t *plen);
+/** Send a frame, enveloped while @p tp has a session. */
+int od_sec_send(const struct od_transport *tp, const uint8_t *buf, size_t len);
+/** End the session of @p tp, or any session for NULL. */
+void od_sec_reset(const struct od_transport *tp);
+/** TLS PSK: AES-CMAC(master, "opendisplay-tls-psk"); -ENOENT when disabled. */
+int od_sec_tls_psk(uint8_t psk[16]);
+
+/** Send through the session envelope when one applies. */
+static inline int od_send(const struct od_transport *tp, const uint8_t *buf, size_t len)
+{
+#if defined(CONFIG_OPENDISPLAY_SECURITY)
+	if (!tp->secure) {
+		return od_sec_send(tp, buf, len);
+	}
+#endif
+	return tp->send(tp, buf, len);
+}
 
 #endif /* ZEPHYR_SUBSYS_OPENDISPLAY_OD_INTERNAL_H_ */
