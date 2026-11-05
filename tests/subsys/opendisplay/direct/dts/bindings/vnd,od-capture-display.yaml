@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: Test display that records what OpenDisplay writes
+
+compatible: "vnd,od-capture-display"
+
+include: display-controller.yaml
