@@ -1,7 +1,8 @@
 /*
  * OpenDisplay LAN transport: [len:2 LE][frame] over TCP, one client at a time
  * (a new connection evicts the old one), dropped after an idle timeout.
- * Registers _opendisplay._tcp with DNS-SD while listening.
+ * Registers _opendisplay._tcp with DNS-SD while listening. With encryption
+ * on it serves only TLS 1.2 PSK, on server_port + 1.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -14,6 +15,7 @@
 #include <zephyr/net/hostname.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/socket.h>
+#include <zephyr/net/tls_credentials.h>
 #include <zephyr/opendisplay/opendisplay.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/byteorder.h>
@@ -69,7 +71,8 @@ static int od_lan_send(const struct od_transport *tp, const uint8_t *buf, size_t
 	return 0;
 }
 
-static const struct od_transport od_lan_tp = {.send = od_lan_send};
+/* Plain TCP only while encryption is off, so the link never needs the envelope. */
+static const struct od_transport od_lan_tp = {.send = od_lan_send, .secure = true};
 
 #if defined(CONFIG_OPENDISPLAY_LAN_MDNS)
 #define TXT_FW                                                                                     \
@@ -135,8 +138,10 @@ static void mdns_init(void)
 		sizeof(mdns_instance) - 1U);
 }
 
-static void mdns_set_port(uint16_t port)
+static void mdns_set_port(uint16_t port, bool tls)
 {
+	/* tls=x is the second string. */
+	mdns_txt[sizeof(TXT_MAC) + sizeof(TXT_TLS) - 1U] = tls ? '1' : '0';
 	mdns_port = sys_cpu_to_be16(port);
 }
 #else
@@ -149,9 +154,10 @@ static void mdns_init(void)
 {
 }
 
-static void mdns_set_port(uint16_t port)
+static void mdns_set_port(uint16_t port, bool tls)
 {
 	ARG_UNUSED(port);
+	ARG_UNUSED(tls);
 }
 #endif /* CONFIG_OPENDISPLAY_LAN_MDNS */
 
@@ -160,14 +166,52 @@ void od_lan_config_changed(void)
 	atomic_set(&reconfigure, 1);
 }
 
-static uint16_t lan_port(void)
+/* Port to serve; with @p psk filled in when TLS is required. */
+static uint16_t lan_port(uint8_t psk[16], bool *tls)
 {
-	uint16_t port = od_config_server_port();
+	uint16_t port;
 
-	return port != 0U ? port : CONFIG_OPENDISPLAY_LAN_PORT;
+	k_mutex_lock(&od_lock, K_FOREVER);
+	port = od_config_server_port();
+	if (port == 0U) {
+		port = CONFIG_OPENDISPLAY_LAN_PORT;
+	}
+#if defined(CONFIG_OPENDISPLAY_SECURITY)
+	*tls = od_sec_tls_psk(psk) == 0;
+#else
+	*tls = false;
+#endif
+	k_mutex_unlock(&od_lock);
+
+	return *tls ? port + 1U : port;
 }
 
-static int open_listener(uint16_t port)
+#if defined(CONFIG_OPENDISPLAY_SECURITY)
+static int set_psk(int fd, const uint8_t key[16])
+{
+	/* Credentials are kept by reference. */
+	static uint8_t psk[16];
+	static const char id[] = "opendisplay";
+	static const sec_tag_t tags[] = {CONFIG_OPENDISPLAY_LAN_TLS_SEC_TAG};
+	int err;
+
+	(void)tls_credential_delete(tags[0], TLS_CREDENTIAL_PSK);
+	(void)tls_credential_delete(tags[0], TLS_CREDENTIAL_PSK_ID);
+	memcpy(psk, key, sizeof(psk));
+	err = tls_credential_add(tags[0], TLS_CREDENTIAL_PSK, psk, sizeof(psk));
+	if (err == 0) {
+		err = tls_credential_add(tags[0], TLS_CREDENTIAL_PSK_ID, id, sizeof(id) - 1U);
+	}
+	if (err == 0 &&
+	    zsock_setsockopt(fd, ZSOCK_SOL_TLS, ZSOCK_TLS_SEC_TAG_LIST, tags, sizeof(tags)) < 0) {
+		err = -errno;
+	}
+
+	return err;
+}
+#endif
+
+static int open_listener(uint16_t port, bool tls, const uint8_t psk[16])
 {
 	int one = 1;
 	int fd;
@@ -185,10 +229,23 @@ static int open_listener(uint16_t port)
 	};
 #endif
 
-	fd = zsock_socket(LISTEN_FAMILY, NET_SOCK_STREAM, NET_IPPROTO_TCP);
+	fd = zsock_socket(LISTEN_FAMILY, NET_SOCK_STREAM,
+			  tls ? NET_IPPROTO_TLS_1_2 : NET_IPPROTO_TCP);
 	if (fd < 0) {
 		return -errno;
 	}
+#if defined(CONFIG_OPENDISPLAY_SECURITY)
+	if (tls) {
+		int err = set_psk(fd, psk);
+
+		if (err != 0) {
+			zsock_close(fd);
+			return err;
+		}
+	}
+#else
+	ARG_UNUSED(psk);
+#endif
 	(void)zsock_setsockopt(fd, ZSOCK_SOL_SOCKET, ZSOCK_SO_REUSEADDR, &one, sizeof(one));
 	if (zsock_bind(fd, (struct net_sockaddr *)&addr, sizeof(addr)) < 0 ||
 	    zsock_listen(fd, 1) < 0) {
@@ -259,10 +316,11 @@ static void handle_rx(void)
 static void handle_accept(int listen_fd)
 {
 	int one = 1;
+	/* shortcut: a TLS handshake blocks this thread, fine for one host at a time. */
 	int fd = zsock_accept(listen_fd, NULL, NULL);
 
 	if (fd < 0) {
-		LOG_ERR("accept: %d", errno);
+		LOG_WRN("accept: %d", errno);
 		return;
 	}
 	if (cl.fd >= 0) {
@@ -280,6 +338,8 @@ static void od_lan_thread(void *p1, void *p2, void *p3)
 {
 	int listen_fd = -1;
 	uint16_t port = 0;
+	bool tls = false;
+	uint8_t psk[16] = {0};
 
 	ARG_UNUSED(p1);
 	ARG_UNUSED(p2);
@@ -294,24 +354,31 @@ static void od_lan_thread(void *p1, void *p2, void *p3)
 		int timeout = POLL_MS;
 
 		if (atomic_cas(&reconfigure, 1, 0) || listen_fd < 0) {
-			uint16_t want = lan_port();
+			uint8_t want_psk[16] = {0};
+			bool want_tls;
+			uint16_t want = lan_port(want_psk, &want_tls);
 
-			if (listen_fd >= 0 && want != port) {
+			if (listen_fd >= 0 && (want != port || want_tls != tls ||
+					       (tls && memcmp(want_psk, psk, sizeof(psk)) != 0))) {
+				/* The client was let in under the old rules. */
+				close_client();
 				zsock_close(listen_fd);
 				listen_fd = -1;
 			}
 			if (listen_fd < 0) {
 				/* Binding the wildcard address works before an interface is up. */
-				listen_fd = open_listener(want);
+				listen_fd = open_listener(want, want_tls, want_psk);
 				if (listen_fd < 0) {
 					LOG_ERR("listen on port %u: %d", want, listen_fd);
-					mdns_set_port(0);
+					mdns_set_port(0, false);
 					k_sleep(K_SECONDS(1));
 					continue;
 				}
 				port = want;
-				mdns_set_port(port);
-				LOG_INF("listening on port %u", port);
+				tls = want_tls;
+				memcpy(psk, want_psk, sizeof(psk));
+				mdns_set_port(port, tls);
+				LOG_INF("listening on port %u%s", port, tls ? " (TLS)" : "");
 			}
 		}
 

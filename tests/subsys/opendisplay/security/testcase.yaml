@@ -1,0 +1,11 @@
+common:
+  tags: [opendisplay]
+  platform_allow:
+    - native_sim
+    - qemu_cortex_m3
+  integration_platforms: [native_sim]
+tests:
+  opendisplay.security: {}
+  opendisplay.security.ble:
+    build_only: true
+    extra_args: EXTRA_CONF_FILE=../core/ble.conf

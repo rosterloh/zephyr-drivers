@@ -8,3 +8,4 @@ zephyr_library_sources(
 )
 zephyr_library_sources_ifdef(CONFIG_OPENDISPLAY_BLE od_ble.c)
 zephyr_library_sources_ifdef(CONFIG_OPENDISPLAY_LAN od_lan.c)
+zephyr_library_sources_ifdef(CONFIG_OPENDISPLAY_SECURITY od_crypto.c)
