@@ -20,6 +20,7 @@ This repository provides a shared drivers module for all my other projects
 
 - [Actuator subsystem](docs/actuator.md) — generic actuator API with typed SI setpoints, capabilities, a state machine, group operations, and pluggable backends (H-bridge DC motor, Dynamixel, Waveshare bus servo, fake)
 - Kinematics joint descriptors (`rosterloh,joint`) — URDF-style joint metadata exposed over a transport-agnostic CBOR wire format
+- [OpenDisplay receiver](docs/opendisplay.md) (`CONFIG_OPENDISPLAY`): Home Assistant / py-opendisplay push images to the `zephyr,display` device over BLE and LAN, with optional zlib, PIPE_WRITE and encryption (BLE AES-CCM, LAN TLS-PSK); sample in `samples/opendisplay`
 - ESPHome native API server (`CONFIG_ESPHOME_API`, work in progress, #60): TCP server, plaintext or Noise-encrypted (`CONFIG_ESPHOME_API_NOISE`, on PSA crypto; needs the `mbedtls` and `tf-psa-crypto` modules), advertised over mDNS (`_esphomelib._tcp`, with `CONFIG_MDNS_RESPONDER`, `CONFIG_DNS_SD` and `CONFIG_NET_HOSTNAME_ENABLE`), with sensor, binary sensor, switch and button entities declared via `ESPHOME_*_DEFINE` (`include/zephyr/net/esphome_api.h`); protobuf messages generated with nanopb from a pinned `api.proto`; requires the `nanopb` module and `protoc` (`pip install grpcio-tools`)
 
 ## Boards
