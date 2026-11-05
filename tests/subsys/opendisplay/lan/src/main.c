@@ -298,4 +298,109 @@ ZTEST(opendisplay_lan, test_port_from_config)
 	zsock_close(fd);
 }
 
+#if defined(CONFIG_OPENDISPLAY_SECURITY)
+#include <zephyr/net/tls_credentials.h>
+
+#define CLIENT_TAG 1
+
+/* Config with a SecurityConfig holding @p key (NULL: disabled). */
+static size_t security_config(uint8_t *buf, const uint8_t *key)
+{
+	static const uint8_t zero[2];
+	size_t len = 3 + 2 + OD_SECURITY_LEN + 2;
+	uint16_t crc;
+
+	memset(buf, 0, len);
+	buf[2] = 1;
+	buf[4] = OD_PKT_SECURITY;
+	buf[5] = 1;
+	memcpy(&buf[6], key, 16);
+	crc = crc16_itu_t(crc16_itu_t(0xFFFF, zero, 2), &buf[2], len - 4);
+	sys_put_le16(crc, &buf[len - 2]);
+
+	return len;
+}
+
+static int dial_tls(uint16_t port, const uint8_t psk[16])
+{
+	static uint8_t cred[16];
+	static const sec_tag_t tags[] = {CLIENT_TAG};
+	struct net_sockaddr_in addr = {
+		.sin_family = NET_AF_INET,
+		.sin_port = net_htons(port),
+	};
+	struct zsock_timeval tv = {.tv_sec = 5};
+	int none = ZSOCK_TLS_PEER_VERIFY_NONE;
+	int fd;
+
+	(void)tls_credential_delete(CLIENT_TAG, TLS_CREDENTIAL_PSK);
+	(void)tls_credential_delete(CLIENT_TAG, TLS_CREDENTIAL_PSK_ID);
+	memcpy(cred, psk, sizeof(cred));
+	zassert_ok(tls_credential_add(CLIENT_TAG, TLS_CREDENTIAL_PSK, cred, sizeof(cred)));
+	zassert_ok(tls_credential_add(CLIENT_TAG, TLS_CREDENTIAL_PSK_ID, "opendisplay", 11));
+
+	zsock_inet_pton(NET_AF_INET, "127.0.0.1", &addr.sin_addr);
+	fd = zsock_socket(NET_AF_INET, NET_SOCK_STREAM, NET_IPPROTO_TLS_1_2);
+	zassert_true(fd >= 0);
+	zassert_ok(zsock_setsockopt(fd, ZSOCK_SOL_SOCKET, ZSOCK_SO_RCVTIMEO, &tv, sizeof(tv)));
+	zassert_ok(zsock_setsockopt(fd, ZSOCK_SOL_TLS, ZSOCK_TLS_SEC_TAG_LIST, tags, sizeof(tags)));
+	zassert_ok(zsock_setsockopt(fd, ZSOCK_SOL_TLS, ZSOCK_TLS_PEER_VERIFY, &none, sizeof(none)));
+	if (zsock_connect(fd, (struct net_sockaddr *)&addr, sizeof(addr)) < 0) {
+		int err = -errno;
+
+		zsock_close(fd);
+		return err;
+	}
+
+	return fd;
+}
+
+ZTEST(opendisplay_lan, test_tls_psk)
+{
+	static const uint8_t key[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+	/* AES-CMAC(key, "opendisplay-tls-psk"), from py-opendisplay. */
+	static const uint8_t psk[16] = {0xf7, 0x2b, 0x0b, 0x50, 0x9e, 0xd9, 0x8c, 0x95,
+					0xad, 0xae, 0x5a, 0x4e, 0xc9, 0x40, 0x25, 0x7e};
+	uint8_t cfg[3 + 2 + OD_SECURITY_LEN + 2];
+	uint8_t wrong[16] = {0};
+	const struct dns_sd_rec *rec = find_rec();
+	int fd = dial_retry(DEFAULT_PORT);
+
+	send_cmd(fd, OD_CMD_CONFIG_WRITE, cfg, security_config(cfg, key));
+	expect(fd, OD_ACK, 0x41);
+	zassert_true(closed_by_peer(fd), "plain client dropped");
+	zsock_close(fd);
+
+	/* Plain port closes; TLS comes up on port + 1. */
+	for (int i = 0; i < 30 && net_ntohs(*rec->port) != DEFAULT_PORT + 1; i++) {
+		k_msleep(100);
+	}
+	zassert_equal(net_ntohs(*rec->port), DEFAULT_PORT + 1);
+	zassert_true(txt_has(rec, "tls=1"));
+	zassert_equal(dial(DEFAULT_PORT), -ECONNREFUSED);
+
+	wrong[0] = 1;
+	fd = dial_tls(DEFAULT_PORT + 1, wrong);
+	zassert_true(fd < 0, "wrong PSK refused");
+
+	fd = dial_tls(DEFAULT_PORT + 1, psk);
+	zassert_true(fd >= 0, "handshake: %d", fd);
+	send_cmd(fd, OD_CMD_READ_MSD, NULL, 0);
+	{
+		uint8_t buf[64];
+
+		zassert_equal(recv_frame(fd, buf, sizeof(buf)), 18, "plain inside TLS");
+		zassert_equal(sys_get_be16(buf), 0x0044);
+	}
+	send_cmd(fd, OD_CMD_CONFIG_CLEAR, NULL, 0);
+	expect(fd, OD_ACK, 0x45);
+	zsock_close(fd);
+
+	fd = dial_retry(DEFAULT_PORT);
+	zassert_true(fd >= 0, "back to plain");
+	zassert_true(txt_has(rec, "tls=0"));
+	zsock_close(fd);
+}
+#endif
+
 ZTEST_SUITE(opendisplay_lan, NULL, NULL, NULL, NULL, NULL);
