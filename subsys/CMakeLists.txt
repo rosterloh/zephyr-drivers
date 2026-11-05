@@ -1,3 +1,4 @@
 add_subdirectory_ifdef(CONFIG_ACTUATOR actuator)
 add_subdirectory_ifdef(CONFIG_WIFI_CONNECTIVITY net/wifi_connectivity)
 add_subdirectory_ifdef(CONFIG_ESPHOME_API net/lib/esphome_api)
+add_subdirectory_ifdef(CONFIG_OPENDISPLAY opendisplay)
