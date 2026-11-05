@@ -109,24 +109,25 @@ static uint8_t *put_hdr(uint8_t *p, uint8_t type, size_t len)
 	return &p[2];
 }
 
+uint8_t od_comm_modes(void)
+{
+	return (IS_ENABLED(CONFIG_OPENDISPLAY_BLE) ? OD_COMM_BLE : 0U) |
+	       (IS_ENABLED(CONFIG_OPENDISPLAY_LAN) ? OD_COMM_WIFI : 0U);
+}
+
 static size_t build_config(uint8_t *buf)
 {
 	struct display_capabilities caps;
-	uint8_t modes = 0U;
 	uint8_t *p = &buf[OD_CFG_HDR_LEN];
 	uint8_t *b;
 
 	display_get_capabilities(od_display, &caps);
 
-	if (IS_ENABLED(CONFIG_OPENDISPLAY_BLE)) {
-		modes |= OD_COMM_BLE;
-	}
-
 	buf[2] = OD_CFG_VERSION;
 
 	b = put_hdr(p, OD_PKT_SYSTEM, OD_SYSTEM_LEN);
 	sys_put_le16(CONFIG_OPENDISPLAY_IC_TYPE, &b[0]);
-	b[2] = modes;
+	b[2] = od_comm_modes();
 	b[4] = OD_PIN_NONE;
 	b[20] = OD_PIN_NONE;
 	b[21] = OD_PIN_NONE;
@@ -276,6 +277,9 @@ static int apply(const uint8_t *blob, size_t len)
 	if (soft_save() < 0) {
 		LOG_WRN("config not persisted");
 	}
+	if (IS_ENABLED(CONFIG_OPENDISPLAY_LAN)) {
+		od_lan_config_changed();
+	}
 	LOG_INF("config written (%zu bytes)", len);
 
 	return 0;
@@ -333,6 +337,16 @@ void od_config_clear(const struct od_transport *tp)
 	wr.active = false;
 	soft.present = 0U;
 	reply(tp, OD_CMD_CONFIG_CLEAR, soft_save());
+	if (IS_ENABLED(CONFIG_OPENDISPLAY_LAN)) {
+		od_lan_config_changed();
+	}
+}
+
+uint16_t od_config_server_port(void)
+{
+	const uint8_t *wifi = od_config_packet(OD_PKT_WIFI);
+
+	return wifi != NULL ? sys_get_be16(&wifi[OD_WIFI_PORT_OFFSET]) : 0U;
 }
 
 const uint8_t *od_config_packet(uint8_t type)

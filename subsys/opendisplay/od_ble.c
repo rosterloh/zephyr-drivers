@@ -17,6 +17,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/opendisplay/opendisplay.h>
 #include <zephyr/spinlock.h>
+#include <zephyr/sys/byteorder.h>
 
 #include "od_internal.h"
 
@@ -223,6 +224,19 @@ int opendisplay_ble_start(void)
 
 	if (!bt_is_ready()) {
 		return -EAGAIN;
+	}
+
+	if (IS_ENABLED(CONFIG_OPENDISPLAY_LAN)) {
+		bt_addr_le_t id[CONFIG_BT_ID_MAX];
+		size_t count = ARRAY_SIZE(id);
+		uint8_t mac[6];
+
+		/* mDNS "mac" is the advertised address, most significant byte first. */
+		bt_id_get(id, &count);
+		if (count > 0U) {
+			sys_memcpy_swap(mac, id[0].a.val, sizeof(mac));
+			od_lan_set_mac(mac);
+		}
 	}
 
 	err = adv_start();

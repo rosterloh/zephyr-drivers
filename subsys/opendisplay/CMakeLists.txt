@@ -7,3 +7,4 @@ zephyr_library_sources(
   od_direct.c
 )
 zephyr_library_sources_ifdef(CONFIG_OPENDISPLAY_BLE od_ble.c)
+zephyr_library_sources_ifdef(CONFIG_OPENDISPLAY_LAN od_lan.c)
