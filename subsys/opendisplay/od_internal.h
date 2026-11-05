@@ -70,6 +70,9 @@
 #define OD_SECURITY_LEN      64U
 #define OD_DATA_EXTENDED_LEN 288U
 
+/* WifiConfig.server_port: big-endian, 0 means the default port. */
+#define OD_WIFI_PORT_OFFSET 129U
+
 /* SystemConfig.communication_modes */
 #define OD_COMM_BLE  0x01U
 #define OD_COMM_WIFI 0x04U
@@ -106,6 +109,10 @@ void od_disconnected(const struct od_transport *tp);
 /** BLE transport (od_ble.c): the MSD record changed. */
 void od_ble_msd_changed(void);
 
+/* LAN transport (od_lan.c). */
+void od_lan_config_changed(void);
+void od_lan_set_mac(const uint8_t mac[6]);
+
 /* Direct write (od_direct.c); called with the core lock held. */
 void od_direct(const struct od_transport *tp, uint16_t cmd, const uint8_t *payload, size_t len);
 void od_direct_abort(const struct od_transport *tp);
@@ -114,6 +121,10 @@ void od_direct_abort(const struct od_transport *tp);
 void od_config_read(const struct od_transport *tp);
 void od_config_write(const struct od_transport *tp, uint16_t cmd, const uint8_t *data, size_t len);
 void od_config_clear(const struct od_transport *tp);
+/** SystemConfig.communication_modes for the transports built in. */
+uint8_t od_comm_modes(void);
+/** TCP port the host configured (WifiConfig.server_port), 0 if unset. */
+uint16_t od_config_server_port(void);
 /** Drop a chunked write in progress. */
 void od_config_abort(void);
 /** Host-written packet body of @p type, or NULL. */
