@@ -153,6 +153,11 @@ static void dispatch(const struct od_transport *tp, uint16_t cmd, const uint8_t 
 	case OD_CMD_DW_START:
 	case OD_CMD_DW_DATA:
 	case OD_CMD_DW_END:
+#if defined(CONFIG_OPENDISPLAY_PIPE)
+	case OD_CMD_PIPE_START:
+	case OD_CMD_PIPE_DATA:
+	case OD_CMD_PIPE_END:
+#endif
 		od_direct(tp, cmd, payload, plen);
 		break;
 	case OD_CMD_CONFIG_CLEAR:

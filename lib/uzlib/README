@@ -1,0 +1,3 @@
+uzlib v2.9.5 (https://github.com/pfalcon/uzlib, tag v2.9.5, commit 27e4f4c)
+Zlib license, see LICENSE. Only the inflate sources are kept; they are
+unmodified.
