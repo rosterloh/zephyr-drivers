@@ -66,8 +66,50 @@ config OPENDISPLAY_CONFIG_BUF_SIZE
 	  with WiFi, security and extended identity packets plus the usual
 	  hardware packets is about 650 bytes.
 
+config OPENDISPLAY_BLE
+	bool "BLE transport"
+	depends on BT_PERIPHERAL
+	help
+	  GATT service 0x2446 with connectable advertising carrying the
+	  manufacturer-specific data Home Assistant discovers. Start it with
+	  opendisplay_ble_start() after bt_enable(). Hosts write up to 232-byte
+	  frames, so the ATT MTU must reach 235: the defaults below raise the
+	  ACL buffers and L2CAP MTU to 251/247.
+
+if OPENDISPLAY_BLE
+
+config OPENDISPLAY_BLE_RX_QUEUE
+	int "Queued writes"
+	default 4
+	help
+	  Writes waiting for the transport thread, each up to 253 bytes. Hosts
+	  wait for the reply to each command, so a few are enough.
+
+config OPENDISPLAY_BLE_STACK_SIZE
+	int "Transport thread stack size"
+	default 2048
+
+config OPENDISPLAY_BLE_THREAD_PRIORITY
+	int "Transport thread priority"
+	default 7
+
+endif # OPENDISPLAY_BLE
+
 module = OPENDISPLAY
 module-str = opendisplay
 source "subsys/logging/Kconfig.template.log_config"
 
 endif # OPENDISPLAY
+
+if OPENDISPLAY_BLE
+
+config BT_L2CAP_TX_MTU
+	default 247
+
+config BT_BUF_ACL_RX_SIZE
+	default 251
+
+config BT_BUF_ACL_TX_SIZE
+	default 251
+
+endif # OPENDISPLAY_BLE

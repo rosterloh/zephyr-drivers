@@ -118,6 +118,10 @@ static size_t build_config(uint8_t *buf)
 
 	display_get_capabilities(od_display, &caps);
 
+	if (IS_ENABLED(CONFIG_OPENDISPLAY_BLE)) {
+		modes |= OD_COMM_BLE;
+	}
+
 	buf[2] = OD_CFG_VERSION;
 
 	b = put_hdr(p, OD_PKT_SYSTEM, OD_SYSTEM_LEN);
@@ -317,6 +321,11 @@ void od_config_write(const struct od_transport *tp, uint16_t cmd, const uint8_t 
 	}
 	wr.active = false;
 	reply(tp, cmd, apply(cfg_buf, wr.total));
+}
+
+void od_config_abort(void)
+{
+	wr.active = false;
 }
 
 void od_config_clear(const struct od_transport *tp)
