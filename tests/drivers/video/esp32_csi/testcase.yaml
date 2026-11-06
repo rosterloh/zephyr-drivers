@@ -3,7 +3,7 @@ common:
     - drivers
     - video
   build_only: true
-  # The driver compiles hal_espressif sources, so the test is skipped in
+  # The driver uses hal_espressif's MIPI CSI HAL, so the test is skipped in
   # workspaces (such as this repo's CI) that do not carry that module.
   modules:
     - hal_espressif
