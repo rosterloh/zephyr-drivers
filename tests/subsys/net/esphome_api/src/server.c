@@ -52,23 +52,36 @@ ESPHOME_BUTTON_DEFINE(reset, .name = "Reset", .on_press = reset_cb);
 static uint8_t buf[512];
 static int open_fd = -1;
 
-static int connect_server(void)
+static int connect_to(int family, const char *ip)
 {
-	struct net_sockaddr_in addr = {
-		.sin_family = NET_AF_INET,
-		.sin_port = net_htons(CONFIG_ESPHOME_API_PORT),
-	};
+	struct net_sockaddr_storage ss = {0};
+	struct net_sockaddr_in *in = (struct net_sockaddr_in *)&ss;
+	struct net_sockaddr_in6 *in6 = (struct net_sockaddr_in6 *)&ss;
 	struct zsock_timeval tv = {.tv_sec = 1};
-	int fd = zsock_socket(NET_AF_INET, NET_SOCK_STREAM, NET_IPPROTO_TCP);
+	int fd = zsock_socket(family, NET_SOCK_STREAM, NET_IPPROTO_TCP);
 
 	zassert_true(fd >= 0);
 	open_fd = fd;
-	zassert_equal(zsock_inet_pton(NET_AF_INET, "127.0.0.1", &addr.sin_addr), 1);
+	if (family == NET_AF_INET) {
+		in->sin_family = NET_AF_INET;
+		in->sin_port = net_htons(CONFIG_ESPHOME_API_PORT);
+		zassert_equal(zsock_inet_pton(NET_AF_INET, ip, &in->sin_addr), 1);
+	} else {
+		in6->sin6_family = NET_AF_INET6;
+		in6->sin6_port = net_htons(CONFIG_ESPHOME_API_PORT);
+		zassert_equal(zsock_inet_pton(NET_AF_INET6, ip, &in6->sin6_addr), 1);
+	}
 	zassert_ok(zsock_setsockopt(fd, ZSOCK_SOL_SOCKET, ZSOCK_SO_RCVTIMEO, &tv, sizeof(tv)));
-	zassert_ok(zsock_connect(fd, (struct net_sockaddr *)&addr, sizeof(addr)), "connect: %d",
-		   errno);
+	zassert_ok(zsock_connect(fd, (struct net_sockaddr *)&ss,
+				 family == NET_AF_INET ? sizeof(*in) : sizeof(*in6)),
+		   "connect %s: %d", ip, errno);
 
 	return fd;
+}
+
+static int connect_server(void)
+{
+	return connect_to(NET_AF_INET, "127.0.0.1");
 }
 
 static void send_raw(int fd, const uint8_t *data, size_t len)
@@ -211,6 +224,18 @@ ZTEST(esphome_api_server, test_hello_ping_disconnect)
 	expect_frame(fd, PingResponse_msgid, NULL, NULL);
 	disconnect(fd);
 }
+
+#if defined(CONFIG_NET_IPV6)
+/* The IPv4 tests above reach the same listener through v4-mapped addresses. */
+ZTEST(esphome_api_server, test_ipv6_ping)
+{
+	int fd = connect_to(NET_AF_INET6, "::1");
+
+	send_frame(fd, PingRequest_msgid, NULL, NULL);
+	expect_frame(fd, PingResponse_msgid, NULL, NULL);
+	disconnect(fd);
+}
+#endif
 
 ZTEST(esphome_api_server, test_request_before_hello_closes)
 {
