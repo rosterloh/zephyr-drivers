@@ -1,0 +1,29 @@
+sample:
+  name: ESPHome native API server
+common:
+  tags: [esphome_api, sample]
+  modules: [nanopb]
+tests:
+  sample.net.esphome_api:
+    platform_allow: [native_sim]
+    integration_platforms: [native_sim]
+    harness: pytest
+    harness_config:
+      pytest_root: ["pytest/test_esphome_api.py"]
+  sample.net.esphome_api.noise:
+    platform_allow: [native_sim]
+    integration_platforms: [native_sim]
+    modules: [nanopb, mbedtls, tf-psa-crypto]
+    # Its own port: twister runs both scenarios at once on the host's sockets.
+    extra_args: EXTRA_CONF_FILE=noise.conf
+    extra_configs:
+      - CONFIG_ESPHOME_API_PORT=6054
+    harness: pytest
+    harness_config:
+      pytest_root: ["pytest/test_esphome_api.py"]
+  sample.net.esphome_api.build:
+    build_only: true
+    platform_allow: [qemu_cortex_m3, esp32c3_devkitc/esp32c3/qemu]
+    integration_platforms: [qemu_cortex_m3]
+    extra_args: EXTRA_CONF_FILE=noise.conf
+    modules: [nanopb, mbedtls, tf-psa-crypto]

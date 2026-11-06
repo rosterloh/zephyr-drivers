@@ -1,7 +1,6 @@
 menuconfig ESPHOME_API
 	bool "ESPHome native API server"
 	depends on NET_SOCKETS
-	depends on NET_TCP
 	select NANOPB
 	imply NET_IPV4_MAPPING_TO_IPV6 if NET_IPV4 && NET_IPV6
 	help
