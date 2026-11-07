@@ -197,7 +197,7 @@ void od_config_read(const struct od_transport *tp)
 		}
 		n = MIN(len - off, sizeof(frame) - hdr);
 		memcpy(&frame[hdr], &cfg_buf[off], n);
-		if (tp->send(tp, frame, hdr + n) < 0) {
+		if (od_send(tp, frame, hdr + n) < 0) {
 			return;
 		}
 		off += n;
