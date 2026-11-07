@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(esphome_api_test)
 target_sources(app PRIVATE src/main.c)
+# The test sources include <api.pb.h>, generated for the esphome_api library.
+add_dependencies(app nanopb_generated_headers)
 target_sources_ifdef(CONFIG_ESPHOME_API_MDNS app PRIVATE src/mdns.c)
 if(CONFIG_ESPHOME_API_NOISE)
   target_sources(app PRIVATE src/noise.c)
