@@ -103,10 +103,9 @@ void opendisplay_set_status(const struct opendisplay_status *status)
 
 void od_disconnected(const struct od_transport *tp)
 {
-	ARG_UNUSED(tp);
-
 	k_mutex_lock(&od_lock, K_FOREVER);
 	od_config_abort();
+	od_direct_abort(tp);
 	k_mutex_unlock(&od_lock);
 }
 
@@ -154,6 +153,11 @@ void od_handle(const struct od_transport *tp, const uint8_t *req, size_t len)
 	case OD_CMD_CONFIG_WRITE:
 	case OD_CMD_CONFIG_CHUNK:
 		od_config_write(tp, cmd, payload, plen);
+		break;
+	case OD_CMD_DW_START:
+	case OD_CMD_DW_DATA:
+	case OD_CMD_DW_END:
+		od_direct(tp, cmd, payload, plen);
 		break;
 	case OD_CMD_CONFIG_CLEAR:
 		od_config_clear(tp);

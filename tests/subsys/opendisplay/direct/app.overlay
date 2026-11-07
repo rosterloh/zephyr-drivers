@@ -1,0 +1,11 @@
+/ {
+	chosen {
+		zephyr,display = &capture_display;
+	};
+
+	capture_display: capture-display {
+		compatible = "vnd,od-capture-display";
+		height = <24>;
+		width = <100>;
+	};
+};

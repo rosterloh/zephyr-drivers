@@ -106,6 +106,10 @@ void od_disconnected(const struct od_transport *tp);
 /** BLE transport (od_ble.c): the MSD record changed. */
 void od_ble_msd_changed(void);
 
+/* Direct write (od_direct.c); called with the core lock held. */
+void od_direct(const struct od_transport *tp, uint16_t cmd, const uint8_t *payload, size_t len);
+void od_direct_abort(const struct od_transport *tp);
+
 /* Config (od_config.c); called with the core lock held. */
 void od_config_read(const struct od_transport *tp);
 void od_config_write(const struct od_transport *tp, uint16_t cmd, const uint8_t *data, size_t len);
