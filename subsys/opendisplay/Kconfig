@@ -95,6 +95,49 @@ config OPENDISPLAY_BLE_THREAD_PRIORITY
 
 endif # OPENDISPLAY_BLE
 
+config OPENDISPLAY_LAN
+	bool "LAN transport"
+	depends on NET_SOCKETS
+	help
+	  TCP server for protocol 2.2's network transport: [len:2 LE][frame],
+	  one client at a time (a new one evicts the old), dropped when idle.
+	  Listens on the port the host wrote in WifiConfig, or
+	  OPENDISPLAY_LAN_PORT, as soon as the stack is up. Needs a 4 KB
+	  receive buffer: hosts send direct write chunks of 4092 bytes.
+
+if OPENDISPLAY_LAN
+
+config OPENDISPLAY_LAN_PORT
+	int "Default TCP port"
+	range 1 65534
+	default 2446
+	help
+	  Used while the host-written WifiConfig server_port is 0.
+
+config OPENDISPLAY_LAN_IDLE_TIMEOUT
+	int "Idle timeout in seconds"
+	default 30
+
+config OPENDISPLAY_LAN_MDNS
+	bool "Advertise over mDNS"
+	default y
+	depends on MDNS_RESPONDER_DNS_SD
+	help
+	  Register _opendisplay._tcp with TXT keys mac (the BLE address when
+	  the BLE transport is on, else the interface MAC), tls, fw, cm and
+	  pv. The instance is the hostname with NET_HOSTNAME_ENABLE, else
+	  "opendisplay".
+
+config OPENDISPLAY_LAN_STACK_SIZE
+	int "Server thread stack size"
+	default 2048
+
+config OPENDISPLAY_LAN_THREAD_PRIORITY
+	int "Server thread priority"
+	default 7
+
+endif # OPENDISPLAY_LAN
+
 module = OPENDISPLAY
 module-str = opendisplay
 source "subsys/logging/Kconfig.template.log_config"
