@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: Apache-2.0
+
+DT_CHOSEN_ZEPHYR_DISPLAY := zephyr,display
+
+menuconfig OPENDISPLAY
+	bool "OpenDisplay device"
+	depends on DISPLAY
+	depends on $(dt_chosen_enabled,$(DT_CHOSEN_ZEPHYR_DISPLAY))
+	select CRC
+	help
+	  Device side of the OpenDisplay protocol 2.2 (opendisplay.org), so
+	  Home Assistant's opendisplay integration or py-opendisplay can read
+	  the device config and push images to the zephyr,display device.
+
+if OPENDISPLAY
+
+config OPENDISPLAY_FW_VERSION_MAJOR
+	int "Firmware version major"
+	range 0 255
+	default 1
+
+config OPENDISPLAY_FW_VERSION_MINOR
+	int "Firmware version minor"
+	range 0 255
+	default 0
+
+config OPENDISPLAY_FW_VERSION_PATCH
+	int "Firmware version patch"
+	range 0 255
+	default 0
+
+config OPENDISPLAY_IC_TYPE
+	int "SystemConfig ic_type"
+	range 0 65535
+	default 0
+	help
+	  Microcontroller id reported to hosts. 0 is "unknown"; hosts only
+	  use it for display.
+
+config OPENDISPLAY_MANUFACTURER_ID
+	int "ManufacturerData manufacturer_id"
+	range 0 65535
+	default 0
+	help
+	  0 is DIY.
+
+config OPENDISPLAY_BOARD_TYPE
+	int "ManufacturerData board_type"
+	range 0 255
+	default 0
+
+config OPENDISPLAY_POWER_MODE
+	int "PowerOption power_mode"
+	range 1 3
+	default 2
+	help
+	  1 battery, 2 USB, 3 solar.
+
+config OPENDISPLAY_CONFIG_BUF_SIZE
+	int "Config buffer size"
+	range 660 4096
+	default 1024
+	help
+	  Holds the generated READ_CONFIG reply and a chunked WRITE_CONFIG
+	  while it arrives. Larger written configs are refused. A config
+	  with WiFi, security and extended identity packets plus the usual
+	  hardware packets is about 650 bytes.
+
+module = OPENDISPLAY
+module-str = opendisplay
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # OPENDISPLAY
