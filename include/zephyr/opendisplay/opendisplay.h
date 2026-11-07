@@ -48,6 +48,19 @@ void opendisplay_set_status(const struct opendisplay_status *status);
  */
 void opendisplay_get_msd(uint8_t msd[OPENDISPLAY_MSD_LEN]);
 
+/**
+ * @brief Start advertising the OpenDisplay GATT service.
+ *
+ * Call after bt_enable() (and settings_load() when Bluetooth settings are
+ * used). Advertising restarts by itself after each disconnect. Needs
+ * CONFIG_OPENDISPLAY_BLE.
+ *
+ * @retval 0 Advertising started.
+ * @retval -EAGAIN Bluetooth is not enabled yet.
+ * @retval -errno Other negative errno from bt_le_adv_start().
+ */
+int opendisplay_ble_start(void);
+
 /** @} */
 
 #endif /* ZEPHYR_INCLUDE_OPENDISPLAY_OPENDISPLAY_H_ */

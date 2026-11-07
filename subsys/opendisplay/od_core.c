@@ -95,6 +95,19 @@ void opendisplay_set_status(const struct opendisplay_status *status)
 	od_msd.status = *status;
 	od_msd.loop = (od_msd.loop + 1U) & 0x0FU;
 	k_mutex_unlock(&od_lock);
+
+	if (IS_ENABLED(CONFIG_OPENDISPLAY_BLE)) {
+		od_ble_msd_changed();
+	}
+}
+
+void od_disconnected(const struct od_transport *tp)
+{
+	ARG_UNUSED(tp);
+
+	k_mutex_lock(&od_lock, K_FOREVER);
+	od_config_abort();
+	k_mutex_unlock(&od_lock);
 }
 
 static void reboot_handler(struct k_work *work)
