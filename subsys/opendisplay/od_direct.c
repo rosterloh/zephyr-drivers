@@ -7,6 +7,11 @@
  * vertically tiled, either bit order, either polarity). Displays with 8 bits
  * per pixel or more get each row as black/white pixels, written in segments.
  *
+ * The image arrives through DIRECT_WRITE (0x70-0x72), optionally zlib
+ * compressed, or through PIPE_WRITE (0x80-0x82): the same bytes in sequenced
+ * frames with one cumulative ACK per N frames. The receiver keeps no
+ * out-of-order frames; the host rewinds or re-sends after a gap.
+ *
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -16,6 +21,7 @@
 #include <zephyr/drivers/display.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/opendisplay/opendisplay.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/util.h>
 
 #include "od_internal.h"
@@ -27,6 +33,23 @@ LOG_MODULE_DECLARE(opendisplay, CONFIG_OPENDISPLAY_LOG_LEVEL);
 #define OD_MAX_STRIDE   DIV_ROUND_UP(OD_MAX_WIDTH, 8)
 #define OD_BAND_ROWS    8U
 #define OD_OUT_SIZE     MAX(OD_MAX_WIDTH, 256)
+
+#define PIPE_VERSION       1U
+#define PIPE_FLAG_ZLIB     0x01U
+#define PIPE_FLAG_PARTIAL  0x02U
+#define PIPE_MAX_WINDOW    32U
+#define PIPE_MAX_ACK_EVERY 8U
+/* Largest BLE notification at the default 247-byte MTU. */
+#define PIPE_MAX_FRAME     244U
+/* PIPE_WRITE_START NACK reasons */
+#define PIPE_ERR_PARAMS    0x01U
+#define PIPE_ERR_ZLIB      0x02U
+#define PIPE_ERR_SIZE      0x03U
+#define PIPE_ERR_STATE     0x04U
+#define PIPE_ERR_PARTIAL   0x06U
+/* PIPE_WRITE_DATA NACK reasons */
+#define PIPE_ERR_INFLATE   0x02U
+#define PIPE_ERR_WRITE     0x03U
 
 static const struct device *const od_display = DEVICE_DT_GET(OD_DISPLAY_NODE);
 
@@ -44,6 +67,12 @@ static struct {
 	uint8_t bpp_bytes; /* 0 for mono */
 	bool invert;
 	bool active;
+	bool zlib;
+	bool pipe;
+	uint8_t ack_every;
+	uint8_t since_ack;
+	uint8_t next_seq;
+	bool any_seq;
 	uint8_t in[OD_BAND_ROWS * OD_MAX_STRIDE];
 	uint8_t out[OD_OUT_SIZE];
 } dw;
@@ -151,25 +180,31 @@ static int flush_band(void)
 	return 0;
 }
 
+#if defined(CONFIG_OPENDISPLAY_ZLIB)
+#define inflate_start()        od_inflate_start()
+#define inflate_data(buf, len) od_inflate_data(buf, len)
+#define inflate_end()          od_inflate_end()
+#else
+#define inflate_start()
+#define inflate_data(buf, len) (-ENOTSUP)
+#define inflate_end()          (-ENOTSUP)
+#endif
+
 static void abort_transfer(void)
 {
 	dw.active = false;
 	dw.owner = NULL;
 }
 
-static int start(const struct od_transport *tp, size_t plen)
+static int start(const struct od_transport *tp)
 {
 	struct display_capabilities *caps = &dw.caps;
 	enum display_pixel_format fmt;
 	uint8_t bits;
 
 	abort_transfer();
-
-	if (plen != 0U) {
-		/* Compressed START: [size:4][zlib...]. Hosts fall back to plain. */
-		LOG_DBG("compressed direct write not supported");
-		return -ENOTSUP;
-	}
+	dw.zlib = false;
+	dw.pipe = false;
 
 	display_get_capabilities(od_display, caps);
 	fmt = caps->current_pixel_format;
@@ -216,14 +251,10 @@ static int start(const struct od_transport *tp, size_t plen)
 	return 0;
 }
 
-static int data(const struct od_transport *tp, const uint8_t *buf, size_t len)
+int od_direct_feed(const uint8_t *buf, size_t len)
 {
-	if (!dw.active || dw.owner != tp) {
-		return -EINVAL;
-	}
 	if (dw.received + len > dw.total) {
 		LOG_WRN("direct write overflow");
-		abort_transfer();
 		return -EFBIG;
 	}
 
@@ -241,7 +272,6 @@ static int data(const struct od_transport *tp, const uint8_t *buf, size_t len)
 			int err = flush_band();
 
 			if (err != 0) {
-				abort_transfer();
 				return err;
 			}
 		}
@@ -250,18 +280,35 @@ static int data(const struct od_transport *tp, const uint8_t *buf, size_t len)
 	return 0;
 }
 
-static void end(const struct od_transport *tp)
+static int data(const struct od_transport *tp, const uint8_t *buf, size_t len)
 {
 	int err;
 
-	if (!dw.active || dw.owner != tp || dw.received != dw.total) {
+	if (!dw.active || dw.owner != tp) {
+		return -EINVAL;
+	}
+	err = dw.zlib ? inflate_data(buf, len) : od_direct_feed(buf, len);
+	if (err != 0) {
+		abort_transfer();
+	}
+
+	return err;
+}
+
+/* Finish the transfer and refresh; @p cmd is the END opcode to acknowledge. */
+static void end(const struct od_transport *tp, uint16_t cmd)
+{
+	int err;
+
+	if (!dw.active || dw.owner != tp || (dw.zlib && inflate_end() != 0) ||
+	    dw.received != dw.total) {
 		LOG_WRN("direct write ended at %u of %u bytes", dw.received, dw.total);
 		abort_transfer();
-		(void)od_reply(tp, OD_NACK, OD_CMD_DW_END, NULL, 0);
+		(void)od_reply(tp, OD_NACK, cmd, NULL, 0);
 		return;
 	}
 	abort_transfer();
-	(void)od_reply(tp, OD_ACK, OD_CMD_DW_END, NULL, 0);
+	(void)od_reply(tp, OD_ACK, cmd, NULL, 0);
 
 	if (od_cb != NULL && od_cb->image_received != NULL) {
 		od_cb->image_received();
@@ -282,21 +329,153 @@ static void end(const struct od_transport *tp)
 	}
 }
 
+/* START payload: none, or [uncompressed size:4 LE][first zlib bytes]. */
+static int dw_start(const struct od_transport *tp, const uint8_t *payload, size_t len)
+{
+	int err;
+
+	if (len != 0U && !IS_ENABLED(CONFIG_OPENDISPLAY_ZLIB)) {
+		/* Hosts fall back to an uncompressed upload. */
+		return -ENOTSUP;
+	}
+	if (len != 0U && len < 6U) {
+		return -EINVAL;
+	}
+	err = start(tp);
+	if (err == 0 && len != 0U) {
+		dw.zlib = true;
+		inflate_start();
+		/* The zlib header is in here, so a bad window NACKs the START. */
+		err = sys_get_le32(payload) != dw.total ? -EINVAL
+							: inflate_data(&payload[4], len - 4U);
+	}
+	if (err != 0) {
+		abort_transfer();
+	}
+
+	return err;
+}
+
+#if defined(CONFIG_OPENDISPLAY_PIPE)
+static void pipe_nack(const struct od_transport *tp, uint16_t cmd, uint8_t err)
+{
+	/* START: [err][0]; DATA: [err][highest seq][mask:4 LE] */
+	uint8_t buf[6] = {err, cmd == OD_CMD_PIPE_START ? 0U : (uint8_t)(dw.next_seq - 1U)};
+
+	(void)od_reply(tp, OD_NACK, cmd, buf, cmd == OD_CMD_PIPE_START ? 2U : sizeof(buf));
+}
+
+/* [ver][flags][window][ack_every][max_frame:2 LE][total:4 LE] */
+static void pipe_start(const struct od_transport *tp, const uint8_t *p, size_t len)
+{
+	uint8_t ack[6] = {PIPE_VERSION, PIPE_MAX_WINDOW, PIPE_MAX_ACK_EVERY};
+	uint8_t err = 0U;
+	bool zlib;
+
+	if (len < 10U || p[0] != PIPE_VERSION) {
+		err = PIPE_ERR_PARAMS;
+	} else if ((p[1] & PIPE_FLAG_PARTIAL) != 0U) {
+		err = PIPE_ERR_PARTIAL;
+	} else if ((p[1] & PIPE_FLAG_ZLIB) != 0U && !IS_ENABLED(CONFIG_OPENDISPLAY_ZLIB)) {
+		err = PIPE_ERR_ZLIB;
+	} else if (start(tp) != 0) {
+		err = PIPE_ERR_STATE;
+	} else if (sys_get_le32(&p[6]) != dw.total) {
+		err = PIPE_ERR_SIZE;
+	}
+	if (err != 0U) {
+		abort_transfer();
+		pipe_nack(tp, OD_CMD_PIPE_START, err);
+		return;
+	}
+
+	zlib = (p[1] & PIPE_FLAG_ZLIB) != 0U;
+	/* The host computes the same: min of both sides, ack_every <= window. */
+	dw.ack_every =
+		CLAMP(MIN(p[3], PIPE_MAX_ACK_EVERY), 1U, MAX(MIN(p[2], PIPE_MAX_WINDOW), 1U));
+	dw.since_ack = 0U;
+	dw.next_seq = 0U;
+	dw.any_seq = false;
+	dw.pipe = true;
+	if (zlib) {
+		/* The stream, header included, arrives in DATA frames. */
+		dw.zlib = true;
+		inflate_start();
+	}
+	sys_put_le16(PIPE_MAX_FRAME, &ack[3]);
+	(void)od_reply(tp, OD_ACK, OD_CMD_PIPE_START, ack, sizeof(ack));
+}
+
+/* Cumulative ACK: [highest in-order seq][mask:4 LE, all earlier frames seen]. */
+static void pipe_ack(const struct od_transport *tp)
+{
+	uint8_t buf[5] = {(uint8_t)(dw.next_seq - 1U), 0xFF, 0xFF, 0xFF, 0xFF};
+
+	dw.since_ack = 0U;
+	(void)od_reply(tp, OD_ACK, OD_CMD_PIPE_DATA, buf, sizeof(buf));
+}
+
+/* [seq][data] */
+static void pipe_data(const struct od_transport *tp, const uint8_t *p, size_t len)
+{
+	int err;
+
+	if (!dw.active || !dw.pipe || dw.owner != tp || len < 1U) {
+		pipe_nack(tp, OD_CMD_PIPE_DATA, PIPE_ERR_STATE);
+		return;
+	}
+	if (p[0] != dw.next_seq) {
+		/* Duplicate or gap: tell the host where we are. */
+		if (dw.any_seq) {
+			pipe_ack(tp);
+		}
+		return;
+	}
+
+	err = data(tp, &p[1], len - 1U);
+	if (err != 0) {
+		pipe_nack(tp, OD_CMD_PIPE_DATA,
+			  err == -EBADMSG ? PIPE_ERR_INFLATE : PIPE_ERR_WRITE);
+		return;
+	}
+	dw.next_seq++;
+	dw.any_seq = true;
+	if (++dw.since_ack >= dw.ack_every || dw.received == dw.total) {
+		pipe_ack(tp);
+	}
+	/* Uncompressed transfers end themselves; the host sends no END. */
+	if (!dw.zlib && dw.received == dw.total) {
+		end(tp, OD_CMD_PIPE_END);
+	}
+}
+#endif /* CONFIG_OPENDISPLAY_PIPE */
+
 void od_direct(const struct od_transport *tp, uint16_t cmd, const uint8_t *payload, size_t len)
 {
 	int err;
 
 	switch (cmd) {
 	case OD_CMD_DW_START:
-		err = start(tp, len);
+		err = dw_start(tp, payload, len);
 		(void)od_reply(tp, err == 0 ? OD_ACK : OD_NACK, cmd, NULL, 0);
 		break;
 	case OD_CMD_DW_DATA:
 		err = data(tp, payload, len);
 		(void)od_reply(tp, err == 0 ? OD_ACK : OD_NACK, cmd, NULL, 0);
 		break;
+	case OD_CMD_DW_END:
+		end(tp, cmd);
+		break;
+#if defined(CONFIG_OPENDISPLAY_PIPE)
+	case OD_CMD_PIPE_START:
+		pipe_start(tp, payload, len);
+		break;
+	case OD_CMD_PIPE_DATA:
+		pipe_data(tp, payload, len);
+		break;
+#endif
 	default:
-		end(tp);
+		end(tp, cmd);
 		break;
 	}
 }

@@ -9,7 +9,7 @@
 #include <zephyr/drivers/display.h>
 
 #define CAP_W 100
-#define CAP_H 24
+#define CAP_H 96
 
 struct capture_state {
 	/* Set by the test. */
