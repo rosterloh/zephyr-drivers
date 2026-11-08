@@ -1,0 +1,165 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+/dts-v1/;
+
+#include <espressif/esp32s3/esp32s3.dtsi>
+#include "dfrobot_esp32s3_ai_cam-pinctrl.dtsi"
+#include <espressif/partitions_0x0_default_16M.dtsi>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/pwm/pwm.h>
+
+/ {
+	compatible = "espressif,esp32s3";
+	model = "DFRobot ESP32-S3 AI Camera PROCPU";
+
+	aliases {
+		uart-0 = &uart0;
+		i2c-0 = &i2c0;
+		led0 = &status_led;
+		sw0 = &boot_button;
+		watchdog0 = &wdt0;
+	};
+
+	chosen {
+		zephyr,sram = &sram1;
+		zephyr,console = &usb_serial;
+		zephyr,shell-uart = &usb_serial;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+		zephyr,bt-hci = &esp32_bt_hci;
+		zephyr,camera = &lcd_cam_dvp;
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+
+		boot_button: button_0 {
+			gpios = <&gpio0 0 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "BOOT Button";
+			zephyr,code = <INPUT_KEY_0>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		status_led: led_0 {
+			gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>;
+			label = "Status LED";
+		};
+	};
+
+	pwmleds {
+		compatible = "pwm-leds";
+
+		/* 940 nm IR LEDs; the OV3660 has no IR-cut filter. */
+		ir_led: ir_led {
+			pwms = <&ledc0 0 PWM_HZ(2000) PWM_POLARITY_NORMAL>;
+			label = "IR LED";
+		};
+	};
+};
+
+&flash0 {
+	reg = <0x0 DT_SIZE_M(16)>;
+};
+
+&psram0 {
+	size = <DT_SIZE_M(8)>;
+};
+
+&usb_serial {
+	status = "okay";
+};
+
+&uart0 {
+	current-speed = <115200>;
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&dma {
+	status = "okay";
+};
+
+&ledc0 {
+	pinctrl-0 = <&ledc0_default>;
+	pinctrl-names = "default";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	channel0@0 {
+		reg = <0x0>;
+		timer = <0>;
+	};
+};
+
+&i2c0 {
+	clock-frequency = <I2C_BITRATE_STANDARD>;
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	ov3660: ov3660@3c {
+		compatible = "ovti,ov3660";
+		reg = <0x3c>;
+
+		port {
+			ov3660_ep_out: endpoint {
+				remote-endpoint-label = "dvp_ep_in";
+			};
+		};
+	};
+};
+
+&lcd_cam {
+	pinctrl-0 = <&lcd_cam_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&lcd_cam_dvp {
+	cam-clk = <20000000>;
+	/* As Espressif's esp32-camera configures this board */
+	invert-vsync;
+	source = <&ov3660>;
+	status = "okay";
+
+	port {
+		dvp_ep_in: endpoint {
+			remote-endpoint-label = "ov3660_ep_out";
+		};
+	};
+};
+
+&timer0 {
+	status = "okay";
+};
+
+&trng0 {
+	status = "okay";
+};
+
+&wdt0 {
+	status = "okay";
+};
+
+&esp32_bt_hci {
+	status = "okay";
+};
+
+&wifi {
+	status = "okay";
+};

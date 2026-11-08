@@ -1,0 +1,17 @@
+identifier: dfrobot_esp32s3_ai_cam/esp32s3/procpu
+name: DFRobot ESP32-S3 AI Camera PROCPU
+type: mcu
+arch: xtensa
+toolchain:
+  - zephyr
+supported:
+  - gpio
+  - i2c
+  - pwm
+  - uart
+  - dma
+  - video
+  - watchdog
+  - entropy
+  - netif:wifi
+vendor: dfrobot
