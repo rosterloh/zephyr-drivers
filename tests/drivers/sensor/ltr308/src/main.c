@@ -100,4 +100,63 @@ ZTEST(ltr308, test_ulux_formula)
 	zassert_equal(ltr308_ulux(LTR308_DATA_MASK, 18, 400), 8738125000ULL);
 }
 
+static int set_attr(enum sensor_attribute attr, int32_t val1, int32_t val2)
+{
+	const struct sensor_value val = {.val1 = val1, .val2 = val2};
+
+	return sensor_attr_set(dev, SENSOR_CHAN_LIGHT, attr, &val);
+}
+
+ZTEST(ltr308, test_attr)
+{
+	struct sensor_value val;
+
+	/* Devicetree settings read back */
+	zassert_ok(sensor_attr_get(dev, SENSOR_CHAN_LIGHT, SENSOR_ATTR_GAIN, &val));
+	zassert_equal(val.val1, 6);
+	zassert_ok(sensor_attr_get(dev, SENSOR_CHAN_LIGHT, SENSOR_ATTR_RESOLUTION, &val));
+	zassert_equal(val.val1, 17);
+	zassert_ok(sensor_attr_get(dev, SENSOR_CHAN_LIGHT, SENSOR_ATTR_SAMPLING_FREQUENCY, &val));
+	zassert_true(val.val1 == 2 && val.val2 == 0);
+
+	zassert_ok(set_attr(SENSOR_ATTR_GAIN, 18, 0));
+	zassert_equal(regs[LTR308_REG_GAIN], 4);
+	zassert_equal(set_attr(SENSOR_ATTR_GAIN, 5, 0), -EINVAL);
+	zassert_equal(regs[LTR308_REG_GAIN], 4);
+
+	/* 20 bit is 400 ms, fits the 500 ms rate */
+	zassert_ok(set_attr(SENSOR_ATTR_RESOLUTION, 20, 0));
+	zassert_equal(regs[LTR308_REG_MEAS_RATE], 0x03);
+	/* 10 Hz is 100 ms, shorter than 400 ms integration */
+	zassert_equal(set_attr(SENSOR_ATTR_SAMPLING_FREQUENCY, 10, 0), -EINVAL);
+	zassert_equal(regs[LTR308_REG_MEAS_RATE], 0x03);
+	zassert_equal(set_attr(SENSOR_ATTR_RESOLUTION, 21, 0), -EINVAL);
+
+	/* 1 count at 18x, 400 ms is 1/120 lux */
+	regs[LTR308_REG_DATA_0] = 120;
+	regs[LTR308_REG_DATA_0 + 1] = 0;
+	regs[LTR308_REG_DATA_0 + 2] = 0;
+	zassert_ok(sensor_sample_fetch(dev));
+	zassert_ok(sensor_channel_get(dev, SENSOR_CHAN_LIGHT, &val));
+	zassert_true(val.val1 == 1 && val.val2 == 0);
+
+	zassert_ok(set_attr(SENSOR_ATTR_RESOLUTION, 16, 0));
+	zassert_ok(set_attr(SENSOR_ATTR_SAMPLING_FREQUENCY, 40, 0));
+	zassert_equal(regs[LTR308_REG_MEAS_RATE], 0x40);
+	zassert_ok(set_attr(SENSOR_ATTR_SAMPLING_FREQUENCY, 0, 500000));
+	zassert_equal(regs[LTR308_REG_MEAS_RATE], 0x46);
+	zassert_ok(sensor_attr_get(dev, SENSOR_CHAN_LIGHT, SENSOR_ATTR_SAMPLING_FREQUENCY, &val));
+	zassert_true(val.val1 == 0 && val.val2 == 500000);
+	zassert_ok(set_attr(SENSOR_ATTR_SAMPLING_FREQUENCY, 1, 0));
+	zassert_equal(regs[LTR308_REG_MEAS_RATE], 0x45);
+	zassert_equal(set_attr(SENSOR_ATTR_SAMPLING_FREQUENCY, 3, 0), -EINVAL);
+	zassert_equal(set_attr(SENSOR_ATTR_OFFSET, 1, 0), -ENOTSUP);
+
+	/* Back to the devicetree settings for the other tests */
+	zassert_ok(set_attr(SENSOR_ATTR_GAIN, 6, 0));
+	zassert_ok(set_attr(SENSOR_ATTR_SAMPLING_FREQUENCY, 2, 0));
+	zassert_ok(set_attr(SENSOR_ATTR_RESOLUTION, 17, 0));
+	zassert_equal(regs[LTR308_REG_MEAS_RATE], 0x33);
+}
+
 ZTEST_SUITE(ltr308, NULL, NULL, NULL, NULL, NULL);
