@@ -85,8 +85,9 @@ jobs:
 
       # protoc for nanopb; imgtool signs the MCUboot-enabled ESP32 appcpu images;
       # aioesphomeapi (pinned to api.proto's tag) drives the esphome_api sample's pytest
+      # py-opendisplay (the version Home Assistant pins) drives the opendisplay sample's pytest
       - name: Install extra Python tools
-        run: pip install grpcio-tools imgtool aioesphomeapi==46.25.1
+        run: pip install grpcio-tools imgtool aioesphomeapi==46.25.1 py-opendisplay==7.18.1
 
       - name: Twister Tests
         working-directory: zephyr-drivers
