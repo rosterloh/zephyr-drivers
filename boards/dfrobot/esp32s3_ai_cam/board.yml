@@ -1,0 +1,6 @@
+board:
+  name: dfrobot_esp32s3_ai_cam
+  full_name: DFRobot ESP32-S3 AI Camera (DFR1154)
+  vendor: dfrobot
+  socs:
+    - name: esp32s3

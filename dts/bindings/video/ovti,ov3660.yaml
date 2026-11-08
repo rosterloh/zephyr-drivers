@@ -1,0 +1,21 @@
+# Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: OmniVision OV3660 3 MP CMOS image sensor (DVP)
+
+compatible: "ovti,ov3660"
+
+include: i2c-device.yaml
+
+properties:
+  reset-gpios:
+    type: phandle-array
+    description: RESETB pin, active low on the sensor.
+
+  pwdn-gpios:
+    type: phandle-array
+    description: PWDN pin, active high on the sensor.
+
+child-binding:
+  child-binding:
+    include: video-interfaces.yaml

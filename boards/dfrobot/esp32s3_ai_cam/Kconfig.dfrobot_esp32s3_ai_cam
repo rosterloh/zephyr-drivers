@@ -1,0 +1,6 @@
+# Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_DFROBOT_ESP32S3_AI_CAM
+	select SOC_ESP32S3
+	select SOC_ESP32S3_PROCPU if BOARD_DFROBOT_ESP32S3_AI_CAM_ESP32S3_PROCPU
