@@ -10,7 +10,8 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
-  cancel-in-progress: true
+  # A cancelled run saves no ccache, and new PRs can only restore main's
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   format:
@@ -81,6 +82,7 @@ jobs:
         uses: zephyrproject-rtos/action-zephyr-setup@v1
         with:
           app-path: zephyr-drivers
+          ccache-max-size: 1GB
           toolchains: arm-zephyr-eabi:x86_64-zephyr-elf:riscv64-zephyr-elf:xtensa-espressif_esp32_zephyr-elf:xtensa-espressif_esp32s3_zephyr-elf
 
       # protoc for nanopb; imgtool signs the MCUboot-enabled ESP32 appcpu images;
@@ -107,7 +109,17 @@ jobs:
       - name: Board smoke builds
         working-directory: zephyr-drivers
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          # On PRs, only when a board could have changed; main and the weekly run always build them
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            changed=$(gh pr diff "${{ github.event.number }}" --name-only --repo "$GITHUB_REPOSITORY")
+            if ! grep -qE '^(boards|dts|\.github)/' <<< "$changed"; then
+              echo "No board, devicetree or CI changes, skipping"
+              exit 0
+            fi
+          fi
           platforms=$(grep -h '^identifier:' boards/*/*/*.yaml | awk '{print "-p " $2}')
           west twister -T ../zephyr/samples/hello_world --build-only -v --inline-logs \
             -O twister-out-boards $platforms
