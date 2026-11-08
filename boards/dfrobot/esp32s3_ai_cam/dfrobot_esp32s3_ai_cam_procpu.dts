@@ -17,6 +17,8 @@
 	aliases {
 		uart-0 = &uart0;
 		i2c-0 = &i2c0;
+		i2s-tx = &i2s1;
+		light-sensor = &ltr308;
 		led0 = &status_led;
 		sw0 = &boot_button;
 		watchdog0 = &wdt0;
@@ -122,6 +124,18 @@
 			};
 		};
 	};
+
+	ltr308: ltr308@53 {
+		compatible = "liteon,ltr308";
+		reg = <0x53>;
+	};
+};
+
+/* MAX98357 class-D amplifier: I2S only, it has no control bus */
+&i2s1 {
+	pinctrl-0 = <&i2s1_default>;
+	pinctrl-names = "default";
+	status = "okay";
 };
 
 &lcd_cam {
