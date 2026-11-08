@@ -139,6 +139,21 @@ config OPENDISPLAY_LAN_THREAD_PRIORITY
 
 endif # OPENDISPLAY_LAN
 
+config OPENDISPLAY_ZLIB
+	bool "zlib compressed uploads"
+	select UZLIB
+	help
+	  Accept zlib streams with a window of up to 512 bytes (what hosts
+	  send) in direct write and PIPE_WRITE, decoded as they arrive.
+	  About 2.8 KB of RAM. Advertised as streaming decompression.
+
+config OPENDISPLAY_PIPE
+	bool "PIPE_WRITE uploads"
+	help
+	  Sliding-window image transfer over BLE (0x0080-0x0082): the host
+	  keeps up to 32 frames in flight and the device acknowledges every
+	  few. Hosts that see it advertised use it in place of direct write.
+
 config OPENDISPLAY_SECURITY
 	bool "Encryption"
 	depends on !OPENDISPLAY_LAN || NET_SOCKETS_SOCKOPT_TLS

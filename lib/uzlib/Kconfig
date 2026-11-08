@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config UZLIB
+	bool "uzlib inflate"
+	help
+	  Vendored uzlib v2.9.5 (Zlib license) deflate/zlib decompressor,
+	  inflate side only. See lib/uzlib/README.

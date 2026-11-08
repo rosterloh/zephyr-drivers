@@ -1,3 +1,4 @@
 add_subdirectory_ifdef(CONFIG_ACTUATOR_LIB actuator)
 add_subdirectory_ifdef(CONFIG_CDR cdr)
 add_subdirectory_ifdef(CONFIG_KINEMATICS kinematics)
+add_subdirectory_ifdef(CONFIG_UZLIB uzlib)
