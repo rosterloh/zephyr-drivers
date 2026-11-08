@@ -6,3 +6,7 @@ common:
   integration_platforms: [native_sim]
 tests:
   opendisplay.core: {}
+  opendisplay.core.ble:
+    # No controller in CI: the BLE transport is build-checked only.
+    build_only: true
+    extra_args: EXTRA_CONF_FILE=ble.conf
