@@ -20,6 +20,7 @@ This repository provides a shared drivers module for all my other projects
 
 - [Actuator subsystem](docs/actuator.md) — generic actuator API with typed SI setpoints, capabilities, a state machine, group operations, and pluggable backends (H-bridge DC motor, Dynamixel, Waveshare bus servo, fake)
 - Kinematics joint descriptors (`rosterloh,joint`) — URDF-style joint metadata exposed over a transport-agnostic CBOR wire format
+- [OpenDisplay receiver](docs/opendisplay.md) (`CONFIG_OPENDISPLAY`): Home Assistant / py-opendisplay push images to the `zephyr,display` device over BLE and LAN, with optional zlib, PIPE_WRITE and encryption (BLE AES-CCM, LAN TLS-PSK); sample in `samples/opendisplay`
 - [ESPHome native API server](docs/esphome_api.md) (`CONFIG_ESPHOME_API`) — lets Home Assistant discover and control a Zephyr device as an ESPHome device: sensor, binary sensor, switch and button entities, optional Noise encryption on PSA, mDNS discovery, IPv4/IPv6; sample in `samples/net/esphome_api`
 
 ## Boards

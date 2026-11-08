@@ -1,0 +1,37 @@
+sample:
+  name: OpenDisplay receiver
+  description: Receive images from Home Assistant or py-opendisplay over BLE and LAN
+common:
+  tags: [opendisplay]
+tests:
+  sample.opendisplay.ble:
+    build_only: true
+    # Blobs are not fetched in CI; link-only stubs stand in for them.
+    extra_configs:
+      - CONFIG_BUILD_ONLY_NO_BLOBS=y
+    platform_allow:
+      - reterminal_e1001/esp32s3/procpu
+      - m5stack_core2/esp32/procpu
+    integration_platforms:
+      - reterminal_e1001/esp32s3/procpu
+      - m5stack_core2/esp32/procpu
+  sample.opendisplay.ble_wifi:
+    build_only: true
+    extra_args: EXTRA_CONF_FILE=overlay-wifi.conf
+    extra_configs:
+      - CONFIG_BUILD_ONLY_NO_BLOBS=y
+    platform_allow:
+      - reterminal_e1001/esp32s3/procpu
+    integration_platforms:
+      - reterminal_e1001/esp32s3/procpu
+  sample.opendisplay.lan:
+    # Uploads an image with py-opendisplay over the host's loopback.
+    harness: pytest
+    harness_config:
+      pytest_root:
+        - pytest/test_upload.py
+    extra_args: CONF_FILE=native_sim.conf
+    platform_allow:
+      - native_sim
+    integration_platforms:
+      - native_sim
