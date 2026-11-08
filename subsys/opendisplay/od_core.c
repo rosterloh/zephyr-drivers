@@ -23,7 +23,7 @@ LOG_MODULE_REGISTER(opendisplay, CONFIG_OPENDISPLAY_LOG_LEVEL);
 #define OD_REPLY_MAX 104U
 #define OD_SHA_MAX   40U
 
-static K_MUTEX_DEFINE(od_lock);
+K_MUTEX_DEFINE(od_lock);
 
 static struct {
 	struct opendisplay_status status;
@@ -45,7 +45,7 @@ int od_reply(const struct od_transport *tp, uint8_t status, uint16_t cmd, const 
 		memcpy(&buf[2], data, len);
 	}
 
-	return tp->send(tp, buf, len + 2U);
+	return od_send(tp, buf, len + 2U);
 }
 
 static void fw_version(const struct od_transport *tp)
@@ -106,6 +106,9 @@ void od_disconnected(const struct od_transport *tp)
 	k_mutex_lock(&od_lock, K_FOREVER);
 	od_config_abort();
 	od_direct_abort(tp);
+	if (IS_ENABLED(CONFIG_OPENDISPLAY_SECURITY)) {
+		od_sec_reset(tp);
+	}
 	k_mutex_unlock(&od_lock);
 }
 
@@ -119,33 +122,26 @@ static void reboot_handler(struct k_work *work)
 
 static K_WORK_DELAYABLE_DEFINE(reboot_work, reboot_handler);
 
-void od_handle(const struct od_transport *tp, const uint8_t *req, size_t len)
+/* [0x00][echo][marker], always plain. */
+static void sec_reject(const struct od_transport *tp, uint16_t cmd, uint8_t marker)
+{
+	uint8_t buf[3] = {OD_ACK, (uint8_t)cmd, marker};
+
+	(void)tp->send(tp, buf, sizeof(buf));
+}
+
+static void dispatch(const struct od_transport *tp, uint16_t cmd, const uint8_t *payload,
+		     size_t plen)
 {
 	uint8_t msd[OPENDISPLAY_MSD_LEN];
-	const uint8_t *payload = req + 2;
-	size_t plen;
-	uint16_t cmd;
-
-	if (len < 2U) {
-		return;
-	}
-
-	cmd = sys_get_be16(req);
-	plen = len - 2U;
-	LOG_DBG("cmd 0x%04x len %zu", cmd, plen);
-
-	/* READ_MSD takes the lock itself. */
-	if (cmd == OD_CMD_READ_MSD) {
-		opendisplay_get_msd(msd);
-		(void)od_reply(tp, OD_ACK, cmd, msd, sizeof(msd));
-		return;
-	}
-
-	k_mutex_lock(&od_lock, K_FOREVER);
 
 	switch (cmd) {
 	case OD_CMD_FW_VERSION:
 		fw_version(tp);
+		break;
+	case OD_CMD_READ_MSD:
+		opendisplay_get_msd(msd);
+		(void)od_reply(tp, OD_ACK, cmd, msd, sizeof(msd));
 		break;
 	case OD_CMD_CONFIG_READ:
 		od_config_read(tp);
@@ -176,6 +172,60 @@ void od_handle(const struct od_transport *tp, const uint8_t *req, size_t len)
 		(void)od_reply(tp, OD_NACK, cmd, NULL, 0);
 		break;
 	}
+}
 
+#if defined(CONFIG_OPENDISPLAY_SECURITY)
+/* Encryption on: only the handshake is plain; everything else is enveloped. */
+static void handle_secured(const struct od_transport *tp, uint16_t cmd, const uint8_t *req,
+			   size_t len)
+{
+	const uint8_t *payload;
+	size_t plen;
+	int err;
+
+	if (cmd == OD_CMD_AUTHENTICATE) {
+		od_sec_authenticate(tp, req + 2, len - 2U);
+		return;
+	}
+	if (cmd == OD_CMD_FW_VERSION) {
+		fw_version(tp);
+		return;
+	}
+
+	err = od_sec_open(tp, req, len, &payload, &plen);
+	if (err != 0) {
+		LOG_WRN("cmd 0x%04x rejected: %d", cmd, err);
+		sec_reject(tp, cmd, err == -EACCES ? OD_AUTH_REQUIRED : OD_NACK);
+		return;
+	}
+	dispatch(tp, cmd, payload, plen);
+}
+#endif
+
+void od_handle(const struct od_transport *tp, const uint8_t *req, size_t len)
+{
+	uint16_t cmd;
+
+	if (len < 2U) {
+		return;
+	}
+
+	cmd = sys_get_be16(req);
+	LOG_DBG("cmd 0x%04x len %zu", cmd, len - 2U);
+
+	k_mutex_lock(&od_lock, K_FOREVER);
+#if defined(CONFIG_OPENDISPLAY_SECURITY)
+	if (!tp->secure && od_sec_enabled()) {
+		handle_secured(tp, cmd, req, len);
+		k_mutex_unlock(&od_lock);
+		return;
+	}
+#endif
+	if (cmd == OD_CMD_AUTHENTICATE) {
+		/* Status 0x03: encryption not configured. */
+		sec_reject(tp, cmd, 0x03U);
+	} else {
+		dispatch(tp, cmd, req + 2, len - 2U);
+	}
 	k_mutex_unlock(&od_lock);
 }

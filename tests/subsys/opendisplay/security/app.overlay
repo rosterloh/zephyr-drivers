@@ -1,0 +1,11 @@
+/ {
+	chosen {
+		zephyr,display = &test_display;
+	};
+
+	test_display: dummy-display {
+		compatible = "zephyr,dummy-dc";
+		height = <128>;
+		width = <296>;
+	};
+};

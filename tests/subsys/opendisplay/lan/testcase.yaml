@@ -6,3 +6,7 @@ common:
   integration_platforms: [native_sim]
 tests:
   opendisplay.lan: {}
+  opendisplay.lan.tls:
+    # mbedTLS does not fit the 64 KB of qemu_cortex_m3.
+    platform_allow: [native_sim]
+    extra_args: EXTRA_CONF_FILE=tls.conf
