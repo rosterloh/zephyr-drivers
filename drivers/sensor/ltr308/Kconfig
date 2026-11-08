@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Richard Osterloh
+# SPDX-License-Identifier: Apache-2.0
+
+config LTR308
+	bool "Lite-On LTR-308 ambient light sensor"
+	default y
+	depends on DT_HAS_LITEON_LTR308_ENABLED
+	select I2C
+	help
+	  LTR-308ALS-01 ambient light sensor, read as SENSOR_CHAN_LIGHT
+	  (lux). Zephyr has no in-tree driver.

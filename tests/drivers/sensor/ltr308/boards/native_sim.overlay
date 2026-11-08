@@ -1,0 +1,16 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&i2c0 {
+	status = "okay";
+
+	ltr308: ltr308@53 {
+		compatible = "liteon,ltr308";
+		reg = <0x53>;
+		gain = <6>;
+		integration-time-ms = <50>;
+		measurement-rate-ms = <500>;
+	};
+};

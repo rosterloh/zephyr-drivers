@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: Lite-On LTR-308ALS-01 ambient light sensor
+
+compatible: "liteon,ltr308"
+
+include: [sensor-device.yaml, i2c-device.yaml]
+
+properties:
+  gain:
+    type: int
+    default: 3
+    enum: [1, 3, 6, 9, 18]
+    description: Analog gain. The default is the power-on value.
+
+  integration-time-ms:
+    type: int
+    default: 100
+    enum: [400, 200, 100, 50, 25]
+    description: |
+      Conversion time; resolution is 20, 19, 18, 17 or 16 bits in that
+      order. The default is the power-on value.
+
+  measurement-rate-ms:
+    type: int
+    default: 100
+    enum: [25, 50, 100, 500, 1000, 2000]
+    description: |
+      Time between conversions; not shorter than integration-time-ms.
+      The default is the power-on value.
