@@ -13,6 +13,15 @@ config VIDEO_IMX219_OOT
 	  Both bind the "sony,imx219" compatible, so set CONFIG_VIDEO_IMX219=n
 	  when enabling this, or the build will define the same device twice.
 
+config VIDEO_OV3660
+	bool "OmniVision OV3660"
+	default y
+	select I2C
+	depends on DT_HAS_OVTI_OV3660_ENABLED
+	help
+	  OV3660 3 MP DVP image sensor, JPEG output from QVGA to QXGA
+	  (2048x1536). Zephyr has no in-tree OV3660 driver.
+
 config VIDEO_OV5647
 	bool "OmniVision OV5647 (Raspberry Pi Camera Module v1)"
 	default y

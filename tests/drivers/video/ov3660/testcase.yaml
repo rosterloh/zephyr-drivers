@@ -1,0 +1,12 @@
+common:
+  tags:
+    - drivers
+    - video
+tests:
+  drivers.video.ov3660.build:
+    build_only: true
+    # The DVP host uses hal_espressif; skipped where that module is absent.
+    modules:
+      - hal_espressif
+    platform_allow:
+      - dfrobot_esp32s3_ai_cam/esp32s3/procpu
