@@ -48,6 +48,19 @@
 		};
 	};
 
+	/* microSD over SPI; CS (GPIO10) is a GPIO */
+	spim2_default: spim2_default {
+		group1 {
+			pinmux = <SPIM2_MISO_GPIO13>,
+				 <SPIM2_SCLK_GPIO12>;
+		};
+
+		group2 {
+			pinmux = <SPIM2_MOSI_GPIO11>;
+			output-low;
+		};
+	};
+
 	/* OV3660 8-bit DVP: Y2..Y9 = D0..D7 */
 	lcd_cam_default: lcd_cam_default {
 		group1 {

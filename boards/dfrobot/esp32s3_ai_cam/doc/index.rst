@@ -27,14 +27,21 @@ Hardware
   alias, ``liteon,ltr308`` driver)
 - MAX98357 class-D amplifier on I2S1 TX: BCLK GPIO45, LRCLK GPIO46, DIN GPIO42
   (``i2s-tx`` alias). It has no control bus, so ``CONFIG_I2S`` is all it needs.
+- microSD slot on SPI2: SCK GPIO12, MOSI GPIO11, MISO GPIO13, CS GPIO10
+  (disk ``SD`` via ``zephyr,sdhc-spi-slot``)
 - HM6245 1 A LDO: no digital interface, nothing to configure
 
-The microphone (PDM CLK GPIO38, DATA GPIO39) and microSD (CS GPIO10) are not
-described. Some units ship with a GC2145 sensor instead of the OV3660; it has no JPEG
+The microphone (PDM CLK GPIO38, DATA GPIO39) is not described. Some units ship with a GC2145 sensor instead of the OV3660; it has no JPEG
 encoder and is not supported here. Pins are from DFRobot's
 `DFR1154_Examples`_.
 
-Only the ``procpu`` target is provided.
+Targets:
+
+- ``dfrobot_esp32s3_ai_cam/esp32s3/procpu``: the board
+- ``dfrobot_esp32s3_ai_cam/esp32s3/appcpu``: second core, for AMP with the
+  ``procpu`` image (flash uses the AMP partition layout)
+- ``dfrobot_esp32s3_ai_cam/esp32s3/procpu/qemu``: Espressif QEMU, see
+  `Emulation`_
 
 Programming
 ***********
@@ -44,6 +51,21 @@ not take a flash on its own, then::
 
    west build -b dfrobot_esp32s3_ai_cam/esp32s3/procpu <app>
    west flash
+
+Emulation
+*********
+
+The ``/qemu`` variant runs under Espressif's QEMU fork:
+
+.. code-block:: console
+
+   west build -b dfrobot_esp32s3_ai_cam/esp32s3/procpu/qemu <app>
+   west build -t run
+
+It disables what QEMU does not model (Wi-Fi, Bluetooth, USB Serial/JTAG,
+LEDC, I2C and so the camera and light sensor, I2S, SPI and so the microSD
+slot, LCD_CAM) and moves the console to UART0. See
+:zephyr_file:`boards/espressif/common/qemu.rst` for prerequisites.
 
 .. _DFR1154: https://wiki.dfrobot.com/dfr1154/
 .. _DFR1154_Examples: https://github.com/DFRobot/DFR1154_Examples

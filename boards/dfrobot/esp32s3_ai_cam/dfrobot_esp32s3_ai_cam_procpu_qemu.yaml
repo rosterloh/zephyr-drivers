@@ -1,0 +1,14 @@
+identifier: dfrobot_esp32s3_ai_cam/esp32s3/procpu/qemu
+name: DFRobot ESP32-S3 AI Camera PROCPU (Espressif QEMU)
+type: mcu
+arch: xtensa
+toolchain:
+  - zephyr
+supported:
+  - uart
+  - entropy
+  - watchdog
+# twister runs `ninja run`, which resolves to run_espressif_qemu.
+simulation:
+  - name: custom
+vendor: dfrobot

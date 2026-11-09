@@ -1,0 +1,27 @@
+identifier: dfrobot_esp32s3_ai_cam/esp32s3/appcpu
+name: DFRobot ESP32-S3 AI Camera APPCPU
+type: mcu
+arch: xtensa
+toolchain:
+  - zephyr
+supported:
+  - uart
+testing:
+  ignore_tags:
+    - net
+    - bluetooth
+    - flash
+    - cpp
+    - posix
+    - watchdog
+    - logging
+    - kernel
+    - pm
+    - gpio
+    - crypto
+    - eeprom
+    - heap
+    - cmsis_rtos
+    - jwt
+    - zdsp
+vendor: dfrobot
