@@ -1,0 +1,64 @@
+/*
+ * Copyright (c) 2026 Richard Osterloh <richard.osterloh@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* Espressif QEMU: UART0 console, no radio, camera or board peripherals. */
+
+#include "dfrobot_esp32s3_ai_cam_procpu.dts"
+
+/ {
+	aliases {
+		/delete-property/ i2c-0;
+		/delete-property/ i2s-tx;
+		/delete-property/ light-sensor;
+		/delete-property/ sdhc0;
+		/delete-property/ sw0;
+	};
+
+	chosen {
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		/delete-property/ zephyr,bt-hci;
+		/delete-property/ zephyr,camera;
+	};
+
+	/delete-node/ buttons;
+	/delete-node/ pwmleds;
+};
+
+&usb_serial {
+	status = "disabled";
+};
+
+&ledc0 {
+	status = "disabled";
+};
+
+&i2c0 {
+	status = "disabled";
+};
+
+&i2s1 {
+	status = "disabled";
+};
+
+&spi2 {
+	status = "disabled";
+};
+
+&lcd_cam {
+	status = "disabled";
+};
+
+&lcd_cam_dvp {
+	status = "disabled";
+};
+
+&esp32_bt_hci {
+	status = "disabled";
+};
+
+&wifi {
+	status = "disabled";
+};
