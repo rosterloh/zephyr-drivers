@@ -19,7 +19,7 @@
 		};
 	};
 
-	/* OV3660 SCCB */
+	/* OV3660 SCCB, LTR-308 */
 	i2c0_default: i2c0_default {
 		group1 {
 			pinmux = <I2C0_SDA_GPIO8>,
@@ -27,6 +27,16 @@
 			bias-pull-up;
 			drive-open-drain;
 			output-high;
+		};
+	};
+
+	/* MAX98357 amplifier: BCLK, LRCLK, DIN */
+	i2s1_default: i2s1_default {
+		group1 {
+			pinmux = <I2S1_O_BCK_GPIO45>,
+				 <I2S1_O_WS_GPIO46>,
+				 <I2S1_O_SD_GPIO42>;
+			output-enable;
 		};
 	};
 

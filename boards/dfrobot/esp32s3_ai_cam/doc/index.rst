@@ -23,10 +23,14 @@ Hardware
 - Status LED on GPIO3 (``led0``), BOOT button on GPIO0 (``sw0``)
 - Gravity header: UART0 TX GPIO43, RX GPIO44
 - USB-C to the ESP32-S3 USB Serial/JTAG, which is the console
+- LTR-308 ambient light sensor at 0x53 on the camera SCCB bus (``light-sensor``
+  alias, ``liteon,ltr308`` driver)
+- MAX98357 class-D amplifier on I2S1 TX: BCLK GPIO45, LRCLK GPIO46, DIN GPIO42
+  (``i2s-tx`` alias). It has no control bus, so ``CONFIG_I2S`` is all it needs.
+- HM6245 1 A LDO: no digital interface, nothing to configure
 
-The microphone (PDM CLK GPIO38, DATA GPIO39), amplifier (BCLK GPIO45, LRCLK
-GPIO46, DOUT GPIO42), light sensor and microSD (CS GPIO10) are not described.
-Some units ship with a GC2145 sensor instead of the OV3660; it has no JPEG
+The microphone (PDM CLK GPIO38, DATA GPIO39) and microSD (CS GPIO10) are not
+described. Some units ship with a GC2145 sensor instead of the OV3660; it has no JPEG
 encoder and is not supported here. Pins are from DFRobot's
 `DFR1154_Examples`_.
 

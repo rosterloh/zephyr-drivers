@@ -1,0 +1,10 @@
+common:
+  tags:
+    - drivers
+    - sensor
+  platform_allow:
+    - qemu_cortex_m3
+    - native_sim
+
+tests:
+  drivers.sensor.ltr308: {}
