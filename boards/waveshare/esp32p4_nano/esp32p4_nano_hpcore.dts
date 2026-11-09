@@ -52,8 +52,17 @@
 		mcuboot-button0 = &boot_button;
 	};
 
+	/*
+	 * GPIO35 is the P4's BOOT strapping pin and doubles as RMII TXD1 (see
+	 * rmii_default). Disabled because the gpio-keys driver, pulled in by
+	 * any app with CONFIG_INPUT=y, reconfigures it as an input and kills
+	 * Ethernet TX: link up, frames received, nothing sent. MCUboot reads
+	 * the button through mcuboot-button0 before Ethernet is up and does
+	 * not need the node enabled. An app without Ethernet may enable it.
+	 */
 	gpio_keys {
 		compatible = "gpio-keys";
+		status = "disabled";
 
 		boot_button: button {
 			label = "Boot Button";
