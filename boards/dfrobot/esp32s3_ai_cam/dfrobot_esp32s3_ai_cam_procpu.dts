@@ -19,6 +19,7 @@
 		i2c-0 = &i2c0;
 		i2s-tx = &i2s1;
 		light-sensor = &ltr308;
+		sdhc0 = &sdcard;
 		led0 = &status_led;
 		sw0 = &boot_button;
 		watchdog0 = &wdt0;
@@ -136,6 +137,28 @@
 	pinctrl-0 = <&i2s1_default>;
 	pinctrl-names = "default";
 	status = "okay";
+};
+
+&spi2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-0 = <&spim2_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpio0 10 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	sdcard: sdcard@0 {
+		compatible = "zephyr,sdhc-spi-slot";
+		reg = <0>;
+		spi-max-frequency = <20000000>;
+		status = "okay";
+
+		mmc {
+			compatible = "zephyr,sdmmc-disk";
+			disk-name = "SD";
+			status = "okay";
+		};
+	};
 };
 
 &lcd_cam {

@@ -27,10 +27,11 @@ Hardware
   alias, ``liteon,ltr308`` driver)
 - MAX98357 class-D amplifier on I2S1 TX: BCLK GPIO45, LRCLK GPIO46, DIN GPIO42
   (``i2s-tx`` alias). It has no control bus, so ``CONFIG_I2S`` is all it needs.
+- microSD slot on SPI2: SCK GPIO12, MOSI GPIO11, MISO GPIO13, CS GPIO10
+  (disk ``SD`` via ``zephyr,sdhc-spi-slot``)
 - HM6245 1 A LDO: no digital interface, nothing to configure
 
-The microphone (PDM CLK GPIO38, DATA GPIO39) and microSD (CS GPIO10) are not
-described. Some units ship with a GC2145 sensor instead of the OV3660; it has no JPEG
+The microphone (PDM CLK GPIO38, DATA GPIO39) is not described. Some units ship with a GC2145 sensor instead of the OV3660; it has no JPEG
 encoder and is not supported here. Pins are from DFRobot's
 `DFR1154_Examples`_.
 
