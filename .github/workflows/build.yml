@@ -91,6 +91,31 @@ jobs:
       - name: Install extra Python tools
         run: pip install grpcio-tools imgtool aioesphomeapi==46.25.1 py-opendisplay==7.18.1
 
+      # For the ESP /qemu platforms that --all selects. Same release as
+      # zephyr-applications' qemu-install task; the apt list is the binaries'
+      # DT_NEEDED minus what the runner image already has.
+      - name: Install Espressif QEMU
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REL: esp-develop-9.2.2-20260417
+          VER: esp_develop_9.2.2_20260417
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libsdl2-2.0-0 libslirp0 libpixman-1-0 libgcrypt20
+          dest="$RUNNER_TEMP/qemu-espressif"
+          mkdir -p "$dest"
+          cd "$RUNNER_TEMP"
+          for t in xtensa riscv32; do
+            tarball="qemu-${t}-softmmu-${VER}-x86_64-linux-gnu.tar.xz"
+            gh release download "$REL" --repo espressif/qemu -p "$tarball" -p '*checksum.sha256' --clobber
+            grep -F " *${tarball}" ./*checksum.sha256 | sha256sum -c -
+            tar -xf "$tarball"
+            cp -R qemu/. "$dest/"
+            rm -rf qemu
+          done
+          "$dest/bin/qemu-system-riscv32" --version | head -1
+          echo "ESPRESSIF_QEMU_PATH=$dest/bin" >> "$GITHUB_ENV"
+
       - name: Twister Tests
         working-directory: zephyr-drivers
         shell: bash
@@ -106,21 +131,62 @@ jobs:
           fi
           west twister -T tests -T samples -v --inline-logs $SCOPE $EXTRA_TWISTER_FLAGS
 
-      # Boards with no test targeting them would otherwise never be compiled
-      - name: Board smoke builds
-        working-directory: zephyr-drivers
-        shell: bash
+  # On PRs, only when a board could have changed; main and the weekly run always build them
+  board-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - id: diff
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # On PRs, only when a board could have changed; main and the weekly run always build them
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             changed=$(gh pr diff "${{ github.event.number }}" --name-only --repo "$GITHUB_REPOSITORY")
             if ! grep -qE '^(boards|dts|\.github)/' <<< "$changed"; then
-              echo "No board, devicetree or CI changes, skipping"
+              echo "No board, devicetree or CI changes, skipping board smoke builds"
               exit 0
             fi
           fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+  # Boards with no test targeting them would otherwise never be compiled.
+  # Own job so it runs beside twister instead of after it.
+  boards:
+    name: board smoke builds
+    needs: board-changes
+    if: needs.board-changes.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          path: zephyr-drivers
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Copy west.yml
+        run: cp zephyr-drivers/.github/west.yml zephyr-drivers/west.yml
+
+      # Separate ccache key so this job's entries don't shadow twister's
+      - name: Setup Zephyr project
+        uses: zephyrproject-rtos/action-zephyr-setup@v1
+        with:
+          app-path: zephyr-drivers
+          ccache-cache-key: boards
+          ccache-max-size: 1GB
+          toolchains: arm-zephyr-eabi:x86_64-zephyr-elf:riscv64-zephyr-elf:xtensa-espressif_esp32_zephyr-elf:xtensa-espressif_esp32s3_zephyr-elf
+
+      # imgtool signs the MCUboot-enabled ESP32 appcpu images
+      - name: Install imgtool
+        run: pip install imgtool
+
+      - name: Board smoke builds
+        working-directory: zephyr-drivers
+        run: |
           platforms=$(grep -h '^identifier:' boards/*/*/*.yaml | awk '{print "-p " $2}')
           west twister -T ../zephyr/samples/hello_world --build-only -v --inline-logs \
             -O twister-out-boards $platforms
