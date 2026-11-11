@@ -169,8 +169,6 @@
 
 &lcd_cam_dvp {
 	cam-clk = <20000000>;
-	/* As Espressif's esp32-camera configures this board */
-	invert-vsync;
 	source = <&ov3660>;
 	status = "okay";
 
