@@ -16,6 +16,18 @@ ZASSERT_MODULE(DYNAMIXEL);
 /* https://emanual.robotis.com/docs/en/dxl/crc */
 #define CRC_POLYNOMIAL         0x8005
 #define CRC_SEED               0x0000
+/* Byte stuffing covers the instruction and parameter fields, from offset 8. */
+#define DYNAMIXEL_STUFF_START  8U
+
+/* True when buf[i] closes an FF FF FD that starts inside the stuffed field. A
+ * sender then inserts an extra 0xFD after it, and the length field and the CRC
+ * both count that byte.
+ */
+static bool stuff_point(const uint8_t *buf, size_t i)
+{
+	return (i >= DYNAMIXEL_STUFF_START + 2U) && (buf[i - 2U] == 0xFFU) &&
+	       (buf[i - 1U] == 0xFFU) && (buf[i] == 0xFDU);
+}
 
 static void dxl_serial_tx_on(struct dxl_context *ctx)
 {
@@ -78,7 +90,7 @@ static int rx_frame(struct dxl_context *ctx)
 
 	ctx->rx_frame.length = sys_get_le16(&cfg->uart_buf[5]);
 	ctx->rx_frame.ic = cfg->uart_buf[7]; /* 0x55 is status packet */
-	data_ptr = &cfg->uart_buf[8];
+	data_ptr = ctx->rx_frame.data;
 	/* CRC index */
 	crc_idx = cfg->uart_buf_ctr - sizeof(uint16_t);
 
@@ -93,10 +105,8 @@ static int rx_frame(struct dxl_context *ctx)
 		return -EMSGSIZE;
 	}
 
-	memcpy(ctx->rx_frame.data, data_ptr, ctx->rx_frame.length - 3U);
-
 	ctx->rx_frame.crc = sys_get_le16(&cfg->uart_buf[crc_idx]);
-	/* Calculate CRC */
+	/* The CRC covers the frame as sent, stuffing included. */
 	calc_crc = crc16(CRC_POLYNOMIAL, CRC_SEED, &cfg->uart_buf[0],
 			 cfg->uart_buf_ctr - sizeof(ctx->rx_frame.crc));
 
@@ -105,14 +115,23 @@ static int rx_frame(struct dxl_context *ctx)
 		return -EIO;
 	}
 
+	/* Copy the error byte and parameters, dropping each stuffed 0xFD. */
+	for (size_t i = DYNAMIXEL_STUFF_START; i < crc_idx; i++) {
+		if (stuff_point(cfg->uart_buf, i - 1U) && (cfg->uart_buf[i] == 0xFDU)) {
+			continue;
+		}
+		*data_ptr++ = cfg->uart_buf[i];
+	}
+
 	return 0;
 }
 
-static void tx_frame(struct dxl_context *ctx)
+static int tx_frame(struct dxl_context *ctx)
 {
 	struct dxl_serial_config *cfg = ctx->cfg;
-	uint16_t tx_bytes = 0;
-	uint8_t *data_ptr;
+	size_t n = DYNAMIXEL_STUFF_START;
+
+	ZASSERT(ctx->tx_frame.length >= 3, "tx frame length %u too short", ctx->tx_frame.length);
 
 	cfg->uart_buf[0] = 0xFF; // Header 1
 	cfg->uart_buf[1] = 0xFF; // Header 2
@@ -120,26 +139,31 @@ static void tx_frame(struct dxl_context *ctx)
 	cfg->uart_buf[3] = 0x00; // Reserved
 
 	cfg->uart_buf[4] = ctx->tx_frame.id;
-	sys_put_le16(ctx->tx_frame.length, &cfg->uart_buf[5]);
 	cfg->uart_buf[7] = ctx->tx_frame.ic;
-	/* The Length indicates the Byte size of Instruction, Parameters and CRC
-	 * fields */
-	tx_bytes = ctx->tx_frame.length + 7;
-	data_ptr = &cfg->uart_buf[8];
 
-	/* Every caller bounds the frame against CONFIG_DYNAMIXEL_BUFFER_SIZE
-	 * before building it; a frame that slips past would overrun uart_buf.
+	/* tx_frame.length counts instruction, parameters and CRC; stuffing can
+	 * add to it, so every byte is checked against the buffer, CRC included.
 	 */
-	ZASSERT(ctx->tx_frame.length >= 3 && tx_bytes <= CONFIG_DYNAMIXEL_BUFFER_SIZE,
-		"tx frame length %u does not fit the %u-byte buffer", ctx->tx_frame.length,
-		CONFIG_DYNAMIXEL_BUFFER_SIZE);
+	for (uint16_t k = 0U; k < ctx->tx_frame.length - 3U; k++) {
+		if (n + 3U > CONFIG_DYNAMIXEL_BUFFER_SIZE) {
+			return -ENOSPC;
+		}
+		cfg->uart_buf[n] = ctx->tx_frame.data[k];
+		if (stuff_point(cfg->uart_buf, n)) {
+			if (n + 4U > CONFIG_DYNAMIXEL_BUFFER_SIZE) {
+				return -ENOSPC;
+			}
+			cfg->uart_buf[++n] = 0xFD;
+		}
+		n++;
+	}
 
-	memcpy(data_ptr, ctx->tx_frame.data, ctx->tx_frame.length);
+	/* Length: instruction (offset 7) through the parameters, plus the CRC. */
+	sys_put_le16((uint16_t)(n - 7U + 2U), &cfg->uart_buf[5]);
+	ctx->tx_frame.crc = crc16(CRC_POLYNOMIAL, CRC_SEED, &cfg->uart_buf[0], n);
+	sys_put_le16(ctx->tx_frame.crc, &cfg->uart_buf[n]);
 
-	ctx->tx_frame.crc = crc16(CRC_POLYNOMIAL, CRC_SEED, &cfg->uart_buf[0], tx_bytes - 2);
-	sys_put_le16(ctx->tx_frame.crc, &cfg->uart_buf[tx_bytes - 2]);
-
-	cfg->uart_buf_ctr = tx_bytes;
+	cfg->uart_buf_ctr = n + 2U;
 	cfg->uart_buf_ptr = &cfg->uart_buf[0];
 
 	LOG_HEXDUMP_DBG(cfg->uart_buf, cfg->uart_buf_ctr, "uart_buf");
@@ -147,6 +171,8 @@ static void tx_frame(struct dxl_context *ctx)
 
 	dxl_serial_rx_off(ctx);
 	dxl_serial_tx_on(ctx);
+
+	return 0;
 }
 
 /*
@@ -270,8 +296,7 @@ int dxl_serial_rx(struct dxl_context *ctx)
 
 int dxl_serial_tx(struct dxl_context *ctx)
 {
-	tx_frame(ctx);
-	return 0;
+	return tx_frame(ctx);
 }
 
 int dxl_serial_init(struct dxl_context *ctx, struct dxl_iface_param param)

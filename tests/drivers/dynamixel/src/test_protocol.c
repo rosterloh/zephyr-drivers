@@ -11,6 +11,7 @@
 #include <zephyr/ztest.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
+#include <zephyr/sys/byteorder.h>
 #include <drivers/dynamixel.h>
 
 #include "fake_servo.h"
@@ -223,4 +224,31 @@ ZTEST(dynamixel_protocol, test_reboot_request_bytes)
 
 	zassert_equal(srv.last_instruction, 0x08, "reboot instruction");
 	zassert_equal(srv.last_tx[4], 1, "id");
+}
+
+/* LE 0x00FDFFFF is FF FF FD 00: a header pattern inside the parameters, which
+ * Protocol 2.0 escapes with an extra 0xFD.
+ */
+#define STUFFED_VALUE 0x00FDFFFFU
+
+ZTEST(dynamixel_protocol, test_write_stuffs_header_pattern)
+{
+	zassert_ok(dxl_write_u32(iface, 1, GOAL_POSITION, STUFFED_VALUE), "write failed");
+
+	/* ic + addr(2) + value(4) + stuffed 0xFD + crc(2) */
+	zassert_equal(sys_get_le16(&srv.last_tx[5]), 10, "length must count the stuffed byte");
+	zassert_mem_equal(&srv.last_tx[10], ((uint8_t[]){0xFF, 0xFF, 0xFD, 0xFD, 0x00}), 5,
+			  "FF FF FD must be followed by a stuffed 0xFD");
+	zassert_equal(fake_servo_get_u32(&srv, 116 /* GOAL_POSITION */), STUFFED_VALUE,
+		      "servo must see the unstuffed value");
+}
+
+ZTEST(dynamixel_protocol, test_read_unstuffs_status)
+{
+	uint32_t val = 0;
+
+	fake_servo_set_u32(&srv, 132 /* PRESENT_POSITION */, STUFFED_VALUE);
+
+	zassert_ok(dxl_read_u32(iface, 1, PRESENT_POSITION, &val), "read failed");
+	zassert_equal(val, STUFFED_VALUE, "stuffed status read back as 0x%08x", val);
 }

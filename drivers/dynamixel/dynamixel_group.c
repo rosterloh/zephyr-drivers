@@ -114,10 +114,10 @@ static int sync_write_n(int iface, enum dxl_control item, uint8_t expected_width
 	 * runs to completion asynchronously after we release the mutex; the
 	 * caller does not need to wait.
 	 */
-	dxl_serial_tx(ctx);
+	int rc = dxl_serial_tx(ctx);
 
 	k_mutex_unlock(&ctx->iface_lock);
-	return 0;
+	return rc;
 }
 
 int dxl_sync_write_u8(int iface, enum dxl_control item, const uint8_t ids[], const uint8_t vals[],
@@ -403,7 +403,8 @@ int dxl_bulk_write(int iface, const struct dxl_bulk_write_entry req[], size_t n)
 	ZASSERT(p == &ctx->tx_frame.data[total_params], "bulk write packed %d of %zu bytes",
 		(int)(p - ctx->tx_frame.data), total_params);
 
-	dxl_serial_tx(ctx);
+	int rc = dxl_serial_tx(ctx);
+
 	k_mutex_unlock(&ctx->iface_lock);
-	return 0;
+	return rc;
 }
