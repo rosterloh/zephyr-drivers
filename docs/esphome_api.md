@@ -1,7 +1,7 @@
 # ESPHome native API server
 
-Lets Home Assistant discover a Zephyr device, read its sensors and control its
-switches and buttons through the ESPHome integration, without ESPHome's YAML or
+Lets Home Assistant discover a Zephyr device, read its sensors, control its
+switches and buttons and show its camera through the ESPHome integration, without ESPHome's YAML or
 code generation. The server speaks ESPHome's native API: TCP port 6053,
 protobuf messages, optional Noise encryption, mDNS discovery. Home Assistant
 sees an ordinary ESPHome device.
@@ -67,6 +67,7 @@ versions. Further fields are designated initializers:
 | `.unit`, `.accuracy_decimals`, `.state_class` | sensor | Unit, shown decimals, `ESPHOME_STATE_CLASS_*` |
 | `.on_switch` | switch | Called with the requested state |
 | `.on_press` | button | Called on a press |
+| `.get_image`, `.release_image` | camera | Lend a JPEG to send; told when it was sent |
 | `.user_data` | all | Free for the application |
 
 | Macro | Publish with |
@@ -75,6 +76,12 @@ versions. Further fields are designated initializers:
 | `ESPHOME_BINARY_SENSOR_DEFINE` | `esphome_api_publish_bool()` |
 | `ESPHOME_SWITCH_DEFINE` | `esphome_api_publish_bool()` (to confirm a command, or report a local change) |
 | `ESPHOME_BUTTON_DEFINE` | — |
+| `ESPHOME_CAMERA_DEFINE` | — (images on request) |
+
+A camera image is sent when Home Assistant asks for one, single or stream:
+the server calls `.get_image`, sends the JPEG in 768-byte chunks to that
+client and calls `.release_image`. A stream request also gets one image; Home
+Assistant asks again for the next, so a stream runs at the round-trip rate.
 
 Publishing stores the state and sends it to every subscribed client; a client
 that subscribes later gets the stored states first. Entities never published

@@ -84,6 +84,9 @@ static union {
 	ListEntitiesBinarySensorResponse binary_sensor;
 	ListEntitiesSwitchResponse sw;
 	ListEntitiesButtonResponse button;
+	ListEntitiesCameraResponse camera;
+	CameraImageResponse image;
+	CameraImageRequest image_req;
 	SensorStateResponse sensor_state;
 	BinarySensorStateResponse binary_state;
 	SwitchStateResponse switch_state;
@@ -314,9 +317,70 @@ static int send_entity(struct client *c, struct esphome_entity *e)
 		SET_STR(msg.button.device_class, e->device_class);
 		return send_msg(c, ListEntitiesButtonResponse_msgid,
 				ListEntitiesButtonResponse_fields, &msg.button);
+	case ESPHOME_CAMERA:
+		msg.camera = (ListEntitiesCameraResponse){.key = key,
+							  .entity_category = e->entity_category};
+		SET_STR(msg.camera.object_id, e->object_id);
+		SET_STR(msg.camera.name, name);
+		SET_STR(msg.camera.icon, e->icon);
+		return send_msg(c, ListEntitiesCameraResponse_msgid,
+				ListEntitiesCameraResponse_fields, &msg.camera);
 	}
 
 	return -EINVAL;
+}
+
+/* Camera image chunk per frame, sized so a frame fits tx without growing it. */
+#define IMAGE_CHUNK 768
+BUILD_ASSERT(IMAGE_CHUNK + 16 <= PROTO_API_PB_H_MAX_SIZE, "camera chunk does not fit tx");
+
+struct image_chunk {
+	const uint8_t *data;
+	size_t len;
+};
+
+static bool encode_chunk(pb_ostream_t *os, const pb_field_t *field, void *const *arg)
+{
+	const struct image_chunk *chunk = *arg;
+
+	return pb_encode_tag_for_field(os, field) && pb_encode_string(os, chunk->data, chunk->len);
+}
+
+/* Send every camera's image to @p c, as Home Assistant asked for it. */
+static int send_images(struct client *c)
+{
+	STRUCT_SECTION_FOREACH(esphome_entity, e) {
+		struct image_chunk chunk;
+		const uint8_t *data;
+		size_t len;
+		int ret = 0;
+
+		if (e->type != ESPHOME_CAMERA || e->get_image == NULL ||
+		    e->get_image(e, &data, &len) < 0) {
+			continue;
+		}
+		/* An empty image still ends with done = true. */
+		do {
+			chunk = (struct image_chunk){.data = data, .len = MIN(len, IMAGE_CHUNK)};
+			msg.image = (CameraImageResponse){
+				.key = entity_key(e),
+				.data = {.funcs.encode = encode_chunk, .arg = &chunk},
+				.done = chunk.len == len,
+			};
+			ret = send_msg(c, CameraImageResponse_msgid, CameraImageResponse_fields,
+				       &msg.image);
+			data += chunk.len;
+			len -= chunk.len;
+		} while (ret == 0 && len > 0);
+		if (e->release_image != NULL) {
+			e->release_image(e);
+		}
+		if (ret < 0) {
+			return ret;
+		}
+	}
+
+	return 0;
 }
 
 static struct esphome_entity *find_entity(uint32_t key, enum esphome_entity_type type)
@@ -446,6 +510,11 @@ static int dispatch(struct client *c, uint32_t type, const uint8_t *buf, size_t 
 			e->on_press(e);
 		}
 		return 0;
+	case CameraImageRequest_msgid:
+		/* shortcut: one image per request, single or stream; Home Assistant re-requests a
+		 * stream frame by frame, so this streams at the round-trip rate.
+		 */
+		return send_images(c);
 	default:
 		/* Subscriptions this server has nothing for (logs, HA states, ...). */
 		LOG_DBG("ignoring message %u", type);
