@@ -109,6 +109,29 @@ int actuator_report_setpoint_if_state(const struct device *dev, enum actuator_mo
 	return 0;
 }
 
+/* The state check and the backend write it guards run outside the lock, so a
+ * stop or disable can land between them and do its I/O first. Called after the
+ * write: redo that I/O, or the drive is left energised under a STOPPED or
+ * DISABLED state. Returns -EPERM when it had to.
+ */
+static int redo_overtaking_stop(const struct device *dev)
+{
+	struct actuator_common_data *cd = common(dev);
+	k_spinlock_key_t key = k_spin_lock(&cd->lock);
+	enum actuator_state now = cd->state;
+
+	k_spin_unlock(&cd->lock, key);
+	if (now == ACTUATOR_STATE_STOPPED) {
+		(void)(api(dev)->stop != NULL ? api(dev)->stop(dev) : api(dev)->disable(dev));
+		return -EPERM;
+	}
+	if (now == ACTUATOR_STATE_DISABLED) {
+		(void)api(dev)->disable(dev);
+		return -EPERM;
+	}
+	return 0;
+}
+
 int z_impl_actuator_enable(const struct device *dev)
 {
 	struct actuator_common_data *cd = common(dev);
@@ -126,17 +149,7 @@ int z_impl_actuator_enable(const struct device *dev)
 		actuator_report_state(dev, ACTUATOR_SM_EVT_FAULT, ACTUATOR_FAULT_DRIVER(0));
 		return err;
 	}
-	/* A stop or disable that landed while the op ran did its I/O before the
-	 * enable write: redo it, or the drive is left energised under it. */
-	key = k_spin_lock(&cd->lock);
-	enum actuator_state now = cd->state;
-	k_spin_unlock(&cd->lock, key);
-	if (now == ACTUATOR_STATE_STOPPED) {
-		(void)(api(dev)->stop != NULL ? api(dev)->stop(dev) : api(dev)->disable(dev));
-		return -EPERM;
-	}
-	if (now == ACTUATOR_STATE_DISABLED) {
-		(void)api(dev)->disable(dev);
+	if (redo_overtaking_stop(dev) != 0) {
 		return -EPERM;
 	}
 	if (rc == 1) {
@@ -495,6 +508,9 @@ static int set_setpoint_typed(const struct device *dev, enum actuator_mode mode,
 	if (err != 0) {
 		actuator_report_state(dev, ACTUATOR_SM_EVT_FAULT, ACTUATOR_FAULT_DRIVER(0));
 		return err;
+	}
+	if (redo_overtaking_stop(dev) != 0) {
+		return -EPERM;
 	}
 	if (rc == 1) {
 		actuator_callbacks_fire_state(dev, new_state);

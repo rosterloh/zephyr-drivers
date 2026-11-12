@@ -24,6 +24,7 @@ extern int fake_stop_calls(const struct device *dev);
 extern void fake_set_reference_rc(const struct device *dev, int rc);
 extern bool fake_is_energised(const struct device *dev);
 extern void fake_stop_during_enable(const struct device *dev);
+extern void fake_stop_during_setpoint(const struct device *dev);
 extern int fake_group_set_calls(const struct device *dev);
 
 static void before_each(void *data)
@@ -425,6 +426,20 @@ ZTEST(actuator_subsys, test_stop_during_enable_leaves_drive_stopped)
 	zassert_equal(actuator_enable(FAKE0), -EPERM);
 	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_STOPPED);
 	zassert_false(fake_is_energised(FAKE0));
+}
+
+ZTEST(actuator_subsys, test_stop_during_setpoint_leaves_drive_stopped)
+{
+	/* The setpoint passed its state check, then a stop did its I/O before
+	 * the setpoint write: the stop must be redone. */
+	int before = fake_stop_calls(FAKE0);
+
+	zassert_ok(actuator_enable(FAKE0));
+	fake_stop_during_setpoint(FAKE0);
+	zassert_equal(actuator_set_velocity(FAKE0, 1.0f), -EPERM);
+	zassert_equal(actuator_get_state(FAKE0), ACTUATOR_STATE_STOPPED);
+	zassert_false(fake_is_energised(FAKE0));
+	zassert_equal(fake_stop_calls(FAKE0), before + 2);
 }
 
 ZTEST(actuator_subsys, test_native_group_write_refused_for_stopped_member)
