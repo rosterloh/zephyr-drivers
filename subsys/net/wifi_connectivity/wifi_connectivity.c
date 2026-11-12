@@ -21,12 +21,25 @@ LOG_MODULE_REGISTER(wifi_connectivity, CONFIG_WIFI_CONNECTIVITY_LOG_LEVEL);
 #include <zephyr/net/wifi_credentials.h>
 #include <zephyr/net/wifi_mgmt.h>
 
-#define RECONNECT_DELAY K_SECONDS(CONFIG_WIFI_CONNECTIVITY_RECONNECT_DELAY_SECONDS)
-
 static struct net_if *wifi_iface;
 static struct net_mgmt_event_callback wifi_mgmt_cb;
 static struct k_work_delayable reconnect_work;
 static bool disconnect_requested;
+static uint32_t reconnect_delay_s = CONFIG_WIFI_CONNECTIVITY_RECONNECT_DELAY_SECONDS;
+
+/* The delay for this attempt; each call doubles the next one, up to the cap. */
+static k_timeout_t next_reconnect_delay(void)
+{
+	uint32_t delay_s = reconnect_delay_s;
+
+	reconnect_delay_s = MIN(delay_s * 2U, CONFIG_WIFI_CONNECTIVITY_RECONNECT_MAX_DELAY_SECONDS);
+	return K_SECONDS(delay_s);
+}
+
+static void reset_reconnect_delay(void)
+{
+	reconnect_delay_s = CONFIG_WIFI_CONNECTIVITY_RECONNECT_DELAY_SECONDS;
+}
 
 static bool creds_available(void)
 {
@@ -43,7 +56,7 @@ static void schedule_reconnect(struct net_if *iface)
 		return;
 	}
 
-	k_work_reschedule(&reconnect_work, RECONNECT_DELAY);
+	k_work_reschedule(&reconnect_work, next_reconnect_delay());
 }
 
 static void reconnect_handler(struct k_work *work)
@@ -59,7 +72,7 @@ static void reconnect_handler(struct k_work *work)
 	err = conn_mgr_if_connect(wifi_iface);
 	if (err && err != -EALREADY) {
 		LOG_DBG("Connect attempt failed: %d", err);
-		k_work_reschedule(&reconnect_work, RECONNECT_DELAY);
+		k_work_reschedule(&reconnect_work, next_reconnect_delay());
 	}
 }
 
@@ -79,6 +92,7 @@ static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb, uint64_t
 			schedule_reconnect(iface);
 		} else {
 			LOG_INF("Connected");
+			reset_reconnect_delay();
 			if (IS_ENABLED(CONFIG_WIFI_CONNECTIVITY_DISABLE_POWER_SAVE)) {
 				struct wifi_ps_params ps = {
 					.enabled = WIFI_PS_DISABLED,
@@ -141,6 +155,7 @@ static int wc_connect(struct conn_mgr_conn_binding *const binding)
 static int wc_disconnect(struct conn_mgr_conn_binding *const binding)
 {
 	disconnect_requested = true;
+	reset_reconnect_delay();
 	k_work_cancel_delayable(&reconnect_work);
 
 	return net_mgmt(NET_REQUEST_WIFI_DISCONNECT, binding->iface, NULL, 0);
@@ -163,7 +178,8 @@ static void wc_init(struct conn_mgr_conn_binding *const binding)
 	binding->flags |= BIT(CONN_MGR_IF_NO_AUTO_CONNECT);
 
 	k_work_init_delayable(&reconnect_work, reconnect_handler);
-	k_work_reschedule(&reconnect_work, RECONNECT_DELAY);
+	k_work_reschedule(&reconnect_work,
+			  K_SECONDS(CONFIG_WIFI_CONNECTIVITY_RECONNECT_DELAY_SECONDS));
 
 	net_mgmt_init_event_callback(&wifi_mgmt_cb, wifi_mgmt_event_handler,
 				     NET_EVENT_WIFI_CONNECT_RESULT |
