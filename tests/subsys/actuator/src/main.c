@@ -176,6 +176,32 @@ ZTEST(actuator_subsys, test_setpoint_auto_clears_drive_mode)
 		      "setpoint must implicitly return to NORMAL");
 }
 
+ZTEST(actuator_subsys, test_non_finite_setpoints_rejected)
+{
+	/* NaN fails every limit comparison; it must not slip past them. */
+	struct actuator_limits lim = ACTUATOR_LIMITS_NONE;
+	const float group_pos[] = {NAN, 0.1f};
+	struct actuator_feedback fb;
+
+	lim.min_position = -1.0f;
+	lim.max_position = 1.0f;
+	lim.max_velocity = 1.0f;
+	lim.max_effort = 1.0f;
+	zassert_ok(actuator_set_limits(FAKE0, &lim));
+	zassert_ok(actuator_group_enable(&arm));
+	zassert_ok(actuator_set_position(FAKE0, 0.5f));
+
+	zassert_equal(actuator_set_position(FAKE0, NAN), -EINVAL);
+	zassert_equal(actuator_set_velocity(FAKE0, NAN), -EINVAL);
+	zassert_equal(actuator_set_effort(FAKE0, NAN), -EINVAL);
+	zassert_equal(actuator_set_position(FAKE0, INFINITY), -EINVAL);
+	zassert_equal(actuator_set_velocity(FAKE0, -INFINITY), -EINVAL);
+	zassert_equal(actuator_group_set_position(&arm, group_pos), -EINVAL);
+
+	zassert_ok(actuator_read_feedback(FAKE0, &fb));
+	zassert_equal(fb.position, 0.5f, "a non-finite setpoint reached the backend");
+}
+
 ZTEST(actuator_subsys, test_set_duty_rejects_nan_and_missing_cap)
 {
 	zassert_equal(actuator_set_duty(FAKE0, NAN), -EINVAL);

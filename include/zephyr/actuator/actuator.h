@@ -92,6 +92,7 @@ __syscall uint32_t actuator_get_capabilities(const struct device *dev);
  * setpoint never enables it.
  *
  * @retval 0         Setpoint accepted.
+ * @retval -EINVAL   The setpoint is NaN or infinite.
  * @retval -ENOTSUP  Backend does not support position mode.
  * @retval -EAGAIN   Actuator is in ALIGNING state; retry later.
  * @retval -EPERM    Actuator is DISABLED, STOPPED or in FAULT.
@@ -107,7 +108,7 @@ __syscall int actuator_set_effort(const struct device *dev, float nm);
  * backend without a closed loop.
  *
  * @retval 0         Setpoint accepted.
- * @retval -EINVAL   @p duty is NaN.
+ * @retval -EINVAL   @p duty is NaN or infinite.
  * @retval -ENOTSUP  Backend does not advertise ACTUATOR_CAP_DUTY.
  * @retval -EPERM    Actuator is in FAULT state; clear fault first.
  */

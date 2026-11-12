@@ -453,7 +453,8 @@ int actuator_setpoint_check(const struct device *dev, enum actuator_mode mode, f
 {
 	struct actuator_common_data *cd = common(dev);
 
-	if (mode == ACTUATOR_MODE_DUTY && isnan(value)) {
+	/* NaN fails every limit comparison, so it must be refused here. */
+	if (!isfinite(value)) {
 		return -EINVAL;
 	}
 	int rc = actuator_cap_check_mode(cd->caps, mode);
@@ -476,6 +477,10 @@ static int set_setpoint_typed(const struct device *dev, enum actuator_mode mode,
 {
 	struct actuator_common_data *cd = common(dev);
 
+	/* NaN fails every limit comparison, so it must be refused here. */
+	if (!isfinite(value)) {
+		return -EINVAL;
+	}
 	int err = actuator_cap_check_mode(cd->caps, mode);
 	if (err != 0) {
 		return err;
@@ -535,9 +540,6 @@ int z_impl_actuator_set_effort(const struct device *dev, float nm)
 
 int z_impl_actuator_set_duty(const struct device *dev, float duty)
 {
-	if (isnan(duty)) {
-		return -EINVAL;
-	}
 	return set_setpoint_typed(dev, ACTUATOR_MODE_DUTY, duty);
 }
 
