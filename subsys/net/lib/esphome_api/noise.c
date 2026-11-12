@@ -119,7 +119,7 @@ static int ss_aead(struct noise_ss *ss, bool enc, uint8_t *buf, size_t len, size
 	return ret;
 }
 
-void noise_init(struct noise_ss *ss)
+void esphome_noise_init(struct noise_ss *ss)
 {
 	size_t olen;
 
@@ -130,10 +130,10 @@ void noise_init(struct noise_ss *ss)
 	memcpy(ss->ck, ss->h, sizeof(ss->ck));
 	ss->n = 0;
 	/* "NoiseAPIInit" followed by two NUL bytes. */
-	(void)noise_mix_hash(ss, PROLOGUE, sizeof(PROLOGUE));
+	(void)esphome_noise_mix_hash(ss, PROLOGUE, sizeof(PROLOGUE));
 }
 
-int noise_mix_hash(struct noise_ss *ss, const uint8_t *data, size_t len)
+int esphome_noise_mix_hash(struct noise_ss *ss, const uint8_t *data, size_t len)
 {
 	psa_hash_operation_t op = PSA_HASH_OPERATION_INIT;
 	psa_status_t st;
@@ -157,33 +157,33 @@ int noise_mix_hash(struct noise_ss *ss, const uint8_t *data, size_t len)
 	return 0;
 }
 
-int noise_mix_key(struct noise_ss *ss, const uint8_t *ikm, size_t len)
+int esphome_noise_mix_key(struct noise_ss *ss, const uint8_t *ikm, size_t len)
 {
 	ss->n = 0;
 	return hkdf(ss->ck, ikm, len, ss->ck, ss->k, NULL);
 }
 
-int noise_mix_key_and_hash(struct noise_ss *ss, const uint8_t *ikm, size_t len)
+int esphome_noise_mix_key_and_hash(struct noise_ss *ss, const uint8_t *ikm, size_t len)
 {
 	uint8_t temp_h[NOISE_KEY_LEN];
 	int ret = hkdf(ss->ck, ikm, len, ss->ck, temp_h, ss->k);
 
 	ss->n = 0;
-	ret = ret ?: noise_mix_hash(ss, temp_h, sizeof(temp_h));
+	ret = ret ?: esphome_noise_mix_hash(ss, temp_h, sizeof(temp_h));
 	wipe(temp_h, sizeof(temp_h));
 
 	return ret;
 }
 
-int noise_encrypt_and_hash(struct noise_ss *ss, uint8_t *buf, size_t len)
+int esphome_noise_encrypt_and_hash(struct noise_ss *ss, uint8_t *buf, size_t len)
 {
 	size_t olen;
 	int ret = ss_aead(ss, true, buf, len, &olen);
 
-	return ret ?: noise_mix_hash(ss, buf, olen);
+	return ret ?: esphome_noise_mix_hash(ss, buf, olen);
 }
 
-int noise_decrypt_and_hash(struct noise_ss *ss, uint8_t *buf, size_t len)
+int esphome_noise_decrypt_and_hash(struct noise_ss *ss, uint8_t *buf, size_t len)
 {
 	uint8_t ct[NOISE_TAG_LEN + 16];
 	size_t olen;
@@ -196,10 +196,10 @@ int noise_decrypt_and_hash(struct noise_ss *ss, uint8_t *buf, size_t len)
 	memcpy(ct, buf, len);
 	ret = ss_aead(ss, false, buf, len, &olen);
 
-	return ret ?: noise_mix_hash(ss, ct, len);
+	return ret ?: esphome_noise_mix_hash(ss, ct, len);
 }
 
-int noise_split(struct noise_ss *ss, struct noise_cs *c1, struct noise_cs *c2)
+int esphome_noise_split(struct noise_ss *ss, struct noise_cs *c1, struct noise_cs *c2)
 {
 	uint8_t k1[NOISE_KEY_LEN], k2[NOISE_KEY_LEN];
 	int ret = hkdf(ss->ck, NULL, 0, k1, k2, NULL);
@@ -209,8 +209,8 @@ int noise_split(struct noise_ss *ss, struct noise_cs *c1, struct noise_cs *c2)
 	ret = ret ?: import_cipher(k1, &c1->key);
 	ret = ret ?: import_cipher(k2, &c2->key);
 	if (ret != 0) {
-		noise_cs_destroy(c1);
-		noise_cs_destroy(c2);
+		esphome_noise_cs_destroy(c1);
+		esphome_noise_cs_destroy(c2);
 	}
 	wipe(k1, sizeof(k1));
 	wipe(k2, sizeof(k2));
@@ -219,7 +219,7 @@ int noise_split(struct noise_ss *ss, struct noise_cs *c1, struct noise_cs *c2)
 	return ret;
 }
 
-int noise_generate_e(psa_key_id_t *e, uint8_t pub[NOISE_KEY_LEN])
+int esphome_noise_generate_e(psa_key_id_t *e, uint8_t pub[NOISE_KEY_LEN])
 {
 	psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
 	size_t olen;
@@ -240,9 +240,9 @@ int noise_generate_e(psa_key_id_t *e, uint8_t pub[NOISE_KEY_LEN])
 	return 0;
 }
 
-int noise_respond(const uint8_t psk[NOISE_KEY_LEN], const uint8_t msg1[NOISE_HS_LEN],
-		  psa_key_id_t e, uint8_t msg2[NOISE_HS_LEN], struct noise_cs *rx,
-		  struct noise_cs *tx)
+int esphome_noise_respond(const uint8_t psk[NOISE_KEY_LEN], const uint8_t msg1[NOISE_HS_LEN],
+			  psa_key_id_t e, uint8_t msg2[NOISE_HS_LEN], struct noise_cs *rx,
+			  struct noise_cs *tx)
 {
 	struct noise_ss ss;
 	uint8_t tag[NOISE_TAG_LEN];
@@ -250,27 +250,27 @@ int noise_respond(const uint8_t psk[NOISE_KEY_LEN], const uint8_t msg1[NOISE_HS_
 	size_t olen;
 	int ret;
 
-	noise_init(&ss);
+	esphome_noise_init(&ss);
 	/* <- psk, e */
-	ret = noise_mix_key_and_hash(&ss, psk, NOISE_KEY_LEN);
-	ret = ret ?: noise_mix_hash(&ss, msg1, NOISE_KEY_LEN);
-	ret = ret ?: noise_mix_key(&ss, msg1, NOISE_KEY_LEN);
+	ret = esphome_noise_mix_key_and_hash(&ss, psk, NOISE_KEY_LEN);
+	ret = ret ?: esphome_noise_mix_hash(&ss, msg1, NOISE_KEY_LEN);
+	ret = ret ?: esphome_noise_mix_key(&ss, msg1, NOISE_KEY_LEN);
 	memcpy(tag, &msg1[NOISE_KEY_LEN], sizeof(tag));
-	ret = ret ?: noise_decrypt_and_hash(&ss, tag, sizeof(tag));
+	ret = ret ?: esphome_noise_decrypt_and_hash(&ss, tag, sizeof(tag));
 
 	/* -> e, ee */
 	if (ret == 0 && psa_export_public_key(e, msg2, NOISE_KEY_LEN, &olen) != PSA_SUCCESS) {
 		ret = -EIO;
 	}
-	ret = ret ?: noise_mix_hash(&ss, msg2, NOISE_KEY_LEN);
-	ret = ret ?: noise_mix_key(&ss, msg2, NOISE_KEY_LEN);
+	ret = ret ?: esphome_noise_mix_hash(&ss, msg2, NOISE_KEY_LEN);
+	ret = ret ?: esphome_noise_mix_key(&ss, msg2, NOISE_KEY_LEN);
 	if (ret == 0 && psa_raw_key_agreement(PSA_ALG_ECDH, e, msg1, NOISE_KEY_LEN, dh, sizeof(dh),
 					      &olen) != PSA_SUCCESS) {
 		ret = -EIO;
 	}
-	ret = ret ?: noise_mix_key(&ss, dh, sizeof(dh));
-	ret = ret ?: noise_encrypt_and_hash(&ss, &msg2[NOISE_KEY_LEN], 0);
-	ret = ret ?: noise_split(&ss, rx, tx);
+	ret = ret ?: esphome_noise_mix_key(&ss, dh, sizeof(dh));
+	ret = ret ?: esphome_noise_encrypt_and_hash(&ss, &msg2[NOISE_KEY_LEN], 0);
+	ret = ret ?: esphome_noise_split(&ss, rx, tx);
 
 	psa_destroy_key(e);
 	wipe(dh, sizeof(dh));
@@ -279,7 +279,7 @@ int noise_respond(const uint8_t psk[NOISE_KEY_LEN], const uint8_t msg1[NOISE_HS_
 	return ret;
 }
 
-int noise_encrypt(struct noise_cs *cs, uint8_t *buf, size_t len)
+int esphome_noise_encrypt(struct noise_cs *cs, uint8_t *buf, size_t len)
 {
 	size_t olen;
 	int ret = aead(cs->key, cs->n, true, NULL, 0, buf, len, &olen);
@@ -290,7 +290,7 @@ int noise_encrypt(struct noise_cs *cs, uint8_t *buf, size_t len)
 	return ret;
 }
 
-int noise_decrypt(struct noise_cs *cs, uint8_t *buf, size_t len)
+int esphome_noise_decrypt(struct noise_cs *cs, uint8_t *buf, size_t len)
 {
 	size_t olen;
 	int ret;
@@ -305,7 +305,7 @@ int noise_decrypt(struct noise_cs *cs, uint8_t *buf, size_t len)
 	return ret;
 }
 
-void noise_cs_destroy(struct noise_cs *cs)
+void esphome_noise_cs_destroy(struct noise_cs *cs)
 {
 	if (cs->key != PSA_KEY_ID_NULL) {
 		psa_destroy_key(cs->key);
