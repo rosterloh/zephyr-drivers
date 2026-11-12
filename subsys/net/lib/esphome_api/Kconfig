@@ -3,7 +3,7 @@ menuconfig ESPHOME_API
 	depends on NET_SOCKETS
 	select NANOPB
 	imply NET_IPV4_MAPPING_TO_IPV6 if NET_IPV4 && NET_IPV6
-	select NET_CONTEXT_SNDTIMEO
+	select NET_CONTEXT_SNDTIMEO if NET_CONTEXT
 	help
 	  Server side of the ESPHome native API (TCP, protobuf messages,
 	  optional Noise encryption, mDNS discovery) so Home Assistant can
