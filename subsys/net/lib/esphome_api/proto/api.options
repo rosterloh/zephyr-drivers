@@ -69,6 +69,15 @@ ListEntitiesButtonResponse.icon max_size:64
 ListEntitiesButtonResponse.device_class max_size:48
 ButtonCommandRequest skip_message:false msgid:62
 
+# Camera image data is sent from the caller's buffer, a chunk per frame.
+ListEntitiesCameraResponse skip_message:false msgid:43
+ListEntitiesCameraResponse.object_id max_size:121
+ListEntitiesCameraResponse.name max_size:121
+ListEntitiesCameraResponse.icon max_size:64
+CameraImageResponse skip_message:false msgid:44
+CameraImageResponse.data type:FT_CALLBACK
+CameraImageRequest skip_message:false msgid:45
+
 # Home Assistant asks for capabilities on API >= 1.15; none are supported.
 DeviceCapabilitiesRequest skip_message:false msgid:149
 DeviceCapabilitiesResponse skip_message:false msgid:150

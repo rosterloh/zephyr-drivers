@@ -12,6 +12,8 @@
 #include <zephyr/net/socket.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
+#include <pb_decode.h>
+#include <pb_encode.h>
 #include <api.pb.h>
 #include <noise.h>
 
@@ -270,6 +272,106 @@ ZTEST(esphome_api_noise, test_server_ping)
 		zassert_equal(sys_get_be16(frame), PingResponse_msgid);
 		zassert_equal(sys_get_be16(&frame[2]), 0);
 	}
+
+	esphome_noise_cs_destroy(&c1);
+	esphome_noise_cs_destroy(&c2);
+	zsock_close(fd);
+	open_fd = -1;
+}
+
+static uint8_t image[1000];
+
+static int get_image_cb(struct esphome_entity *ent, const uint8_t **data, size_t *len)
+{
+	*data = image;
+	*len = sizeof(image);
+	return 0;
+}
+
+ESPHOME_CAMERA_DEFINE(cam, .get_image = get_image_cb);
+
+static void send_msg(int fd, struct noise_cs *cs, uint16_t type, const pb_msgdesc_t *fields,
+		     const void *msg)
+{
+	uint8_t frame[128];
+	pb_ostream_t os = pb_ostream_from_buffer(&frame[4], sizeof(frame) - 4 - NOISE_TAG_LEN);
+
+	zassert_true(pb_encode(&os, fields, msg));
+	sys_put_be16(type, frame);
+	sys_put_be16(os.bytes_written, &frame[2]);
+	zassert_ok(esphome_noise_encrypt(cs, frame, 4 + os.bytes_written));
+	send_noise_frame(fd, frame, 4 + os.bytes_written + NOISE_TAG_LEN);
+}
+
+/* Decrypts one frame in place; returns its message length, the body at &frame[4]. */
+static int recv_msg(int fd, struct noise_cs *cs, uint8_t *frame, size_t size, uint16_t type)
+{
+	int len = recv_noise_frame(fd, frame, size);
+
+	zassert_true(len >= 4 + NOISE_TAG_LEN, "recv %d", len);
+	zassert_ok(esphome_noise_decrypt(cs, frame, len));
+	zassert_equal(sys_get_be16(frame), type, "got %u", sys_get_be16(frame));
+
+	return sys_get_be16(&frame[2]);
+}
+
+struct image_rx {
+	uint8_t data[sizeof(image)];
+	size_t len;
+};
+
+static bool decode_chunk(pb_istream_t *is, const pb_field_t *field, void **arg)
+{
+	struct image_rx *rx = *arg;
+	size_t n = is->bytes_left;
+
+	if (rx->len + n > sizeof(rx->data) || !pb_read(is, &rx->data[rx->len], n)) {
+		return false;
+	}
+	rx->len += n;
+	return true;
+}
+
+/* The image goes out in chunks, each its own encrypted frame. */
+ZTEST(esphome_api_noise, test_server_camera)
+{
+	static uint8_t frame[1024];
+	static struct image_rx rx;
+	HelloRequest hello = {.api_version_major = 1, .api_version_minor = 19};
+	CameraImageRequest req = {.single = true};
+	CameraImageResponse m;
+	int fd = connect_server();
+	struct noise_ss ss;
+	struct noise_cs c1, c2;
+	psa_key_id_t e;
+	int frames = 0;
+	int len;
+
+	for (size_t i = 0; i < sizeof(image); i++) {
+		image[i] = (uint8_t)(i * 13U);
+	}
+
+	len = handshake(fd, psk, &ss, &e, frame, sizeof(frame));
+	zassert_equal(len, 1 + NOISE_HS_LEN);
+	initiator_read(&ss, e, &frame[1], &c1, &c2);
+
+	send_msg(fd, &c1, HelloRequest_msgid, HelloRequest_fields, &hello);
+	(void)recv_msg(fd, &c2, frame, sizeof(frame), HelloResponse_msgid);
+
+	send_msg(fd, &c1, CameraImageRequest_msgid, CameraImageRequest_fields, &req);
+	do {
+		pb_istream_t is;
+
+		len = recv_msg(fd, &c2, frame, sizeof(frame), CameraImageResponse_msgid);
+		is = pb_istream_from_buffer(&frame[4], len);
+		m = (CameraImageResponse){.data = {.funcs.decode = decode_chunk, .arg = &rx}};
+		zassert_true(pb_decode(&is, CameraImageResponse_fields, &m));
+		frames++;
+	} while (!m.done);
+
+	zassert_equal(frames, 2);
+	zassert_equal(rx.len, sizeof(image));
+	zassert_mem_equal(rx.data, image, sizeof(image));
 
 	esphome_noise_cs_destroy(&c1);
 	esphome_noise_cs_destroy(&c2);

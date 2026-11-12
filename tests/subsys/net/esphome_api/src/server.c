@@ -18,6 +18,7 @@
 #define KEY_STOPPED     0xad23af94
 #define KEY_RELAY       0xd3a92fe4
 #define KEY_RESET       0xef75803a
+#define KEY_CAM         0x3a97a3a2
 
 #if defined(CONFIG_NET_HOSTNAME_ENABLE)
 #define DEVICE_NAME CONFIG_NET_HOSTNAME
@@ -49,7 +50,26 @@ ESPHOME_BINARY_SENSOR_DEFINE(stopped, .name = "Stopped");
 ESPHOME_SWITCH_DEFINE(relay, .on_switch = relay_cb);
 ESPHOME_BUTTON_DEFINE(reset, .name = "Reset", .on_press = reset_cb);
 
-static uint8_t buf[512];
+/* Spans several chunks, the last one partial. */
+static uint8_t image[2000];
+static int release_calls;
+
+static int get_image_cb(struct esphome_entity *e, const uint8_t **data, size_t *len)
+{
+	*data = image;
+	*len = sizeof(image);
+	return 0;
+}
+
+static void release_image_cb(struct esphome_entity *e)
+{
+	release_calls++;
+}
+
+ESPHOME_CAMERA_DEFINE(cam, .name = "Camera", .get_image = get_image_cb,
+		      .release_image = release_image_cb);
+
+static uint8_t buf[1024];
 static int open_fd = -1;
 
 static int connect_to(int family, const char *ip)
@@ -346,12 +366,21 @@ ZTEST(esphome_api_server, test_list_entities)
 			seen |= BIT(3);
 			break;
 		}
+		case ListEntitiesCameraResponse_msgid: {
+			ListEntitiesCameraResponse m;
+
+			zassert_true(pb_decode(&is, ListEntitiesCameraResponse_fields, &m));
+			zassert_equal(m.key, KEY_CAM);
+			zassert_str_equal(m.name, "Camera");
+			seen |= BIT(4);
+			break;
+		}
 		default:
 			zassert_unreachable("unexpected message %u", type);
 		}
 	}
 	zassert_true(len >= 0);
-	zassert_equal(seen, BIT_MASK(4));
+	zassert_equal(seen, BIT_MASK(5));
 	disconnect(fd);
 }
 
@@ -403,6 +432,55 @@ ZTEST(esphome_api_server, test_states_and_commands)
 	send_frame(fd, PingRequest_msgid, NULL, NULL);
 	expect_frame(fd, PingResponse_msgid, NULL, NULL);
 	zassert_equal(reset_calls, 1);
+	disconnect(fd);
+}
+
+struct image_rx {
+	uint8_t data[sizeof(image)];
+	size_t len;
+};
+
+static bool decode_chunk(pb_istream_t *is, const pb_field_t *field, void **arg)
+{
+	struct image_rx *rx = *arg;
+	size_t n = is->bytes_left;
+
+	if (rx->len + n > sizeof(rx->data)) {
+		return false;
+	}
+	if (!pb_read(is, &rx->data[rx->len], n)) {
+		return false;
+	}
+	rx->len += n;
+	return true;
+}
+
+ZTEST(esphome_api_server, test_camera_image)
+{
+	static struct image_rx rx;
+	int fd = connect_hello();
+	CameraImageRequest req = {.single = true};
+	CameraImageResponse m;
+	int frames = 0;
+
+	for (size_t i = 0; i < sizeof(image); i++) {
+		image[i] = (uint8_t)(i * 7U);
+	}
+	rx.len = 0U;
+	release_calls = 0;
+
+	send_frame(fd, CameraImageRequest_msgid, CameraImageRequest_fields, &req);
+	do {
+		m = (CameraImageResponse){.data = {.funcs.decode = decode_chunk, .arg = &rx}};
+		expect_frame(fd, CameraImageResponse_msgid, CameraImageResponse_fields, &m);
+		zassert_equal(m.key, KEY_CAM);
+		frames++;
+	} while (!m.done);
+
+	zassert_true(frames > 1, "one frame for %zu bytes", sizeof(image));
+	zassert_equal(rx.len, sizeof(image));
+	zassert_mem_equal(rx.data, image, sizeof(image));
+	zassert_equal(release_calls, 1);
 	disconnect(fd);
 }
 

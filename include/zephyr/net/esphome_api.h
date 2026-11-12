@@ -26,6 +26,7 @@ enum esphome_entity_type {
 	ESPHOME_BINARY_SENSOR,
 	ESPHOME_SWITCH,
 	ESPHOME_BUTTON,
+	ESPHOME_CAMERA,
 };
 
 /** Sensor state classes (api.proto SensorStateClass). */
@@ -70,6 +71,14 @@ struct esphome_entity {
 	void (*on_switch)(struct esphome_entity *entity, bool state);
 	/** Button press from Home Assistant. */
 	void (*on_press)(struct esphome_entity *entity);
+	/**
+	 * Camera: Home Assistant wants a JPEG. Point @p data and @p len at one that stays
+	 * valid until release_image() and return 0, or return a negative errno. Called on
+	 * the server thread, which sends the image before handling anything else.
+	 */
+	int (*get_image)(struct esphome_entity *entity, const uint8_t **data, size_t *len);
+	/** Camera: the image from get_image() has been sent (or the send failed). */
+	void (*release_image)(struct esphome_entity *entity);
 	void *user_data;
 
 	/* private */
@@ -101,6 +110,9 @@ struct esphome_entity {
 
 /** Define a button; set .on_press. See ESPHOME_SENSOR_DEFINE(). */
 #define ESPHOME_BUTTON_DEFINE(_id, ...) Z_ESPHOME_ENTITY_DEFINE(_id, ESPHOME_BUTTON, __VA_ARGS__)
+
+/** Define a camera; set .get_image and .release_image. See ESPHOME_SENSOR_DEFINE(). */
+#define ESPHOME_CAMERA_DEFINE(_id, ...) Z_ESPHOME_ENTITY_DEFINE(_id, ESPHOME_CAMERA, __VA_ARGS__)
 
 /**
  * Set a sensor's state and send it to subscribed clients.
