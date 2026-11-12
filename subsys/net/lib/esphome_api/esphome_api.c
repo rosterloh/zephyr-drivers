@@ -198,7 +198,9 @@ static int encode_frame(struct client *c, uint16_t type, const pb_msgdesc_t *fie
 	return hdr + len;
 }
 
-/* shortcut: blocking send, so a stalled client stalls publishers; add SO_SNDTIMEO if seen. */
+/* Bounded by SO_SNDTIMEO (handle_accept), so a stalled client is dropped
+ * rather than holding a publisher for NET_SOCKET_MAX_SEND_WAIT.
+ */
 static int send_all(int fd, size_t len)
 {
 	size_t off = 0;
@@ -629,6 +631,10 @@ static void handle_rx(struct client *c)
 
 static void handle_accept(int listen_fd)
 {
+	static const struct zsock_timeval send_timeout = {
+		.tv_sec = CONFIG_ESPHOME_API_SEND_TIMEOUT_MS / 1000,
+		.tv_usec = (CONFIG_ESPHOME_API_SEND_TIMEOUT_MS % 1000) * 1000,
+	};
 	int one = 1;
 	int fd = zsock_accept(listen_fd, NULL, NULL);
 
@@ -643,6 +649,10 @@ static void handle_accept(int listen_fd)
 			/* Frames are small and latency matters more than segments. */
 			(void)zsock_setsockopt(fd, NET_IPPROTO_TCP, ZSOCK_TCP_NODELAY, &one,
 					       sizeof(one));
+			if (zsock_setsockopt(fd, ZSOCK_SOL_SOCKET, ZSOCK_SO_SNDTIMEO, &send_timeout,
+					     sizeof(send_timeout)) < 0) {
+				LOG_WRN("client %d: no send timeout (%d)", fd, errno);
+			}
 			LOG_DBG("client %d connected", fd);
 			return;
 		}

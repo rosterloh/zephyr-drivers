@@ -3,6 +3,7 @@ menuconfig ESPHOME_API
 	depends on NET_SOCKETS
 	select NANOPB
 	imply NET_IPV4_MAPPING_TO_IPV6 if NET_IPV4 && NET_IPV6
+	select NET_CONTEXT_SNDTIMEO
 	help
 	  Server side of the ESPHome native API (TCP, protobuf messages,
 	  optional Noise encryption, mDNS discovery) so Home Assistant can
@@ -28,6 +29,16 @@ config ESPHOME_API_IDLE_TIMEOUT
 	help
 	  Close a client that has sent nothing for this long. Home Assistant
 	  pings every 20 s and gives up on an unanswered ping after 90 s.
+
+config ESPHOME_API_SEND_TIMEOUT_MS
+	int "Send timeout in milliseconds"
+	default 1000
+	range 1 60000
+	help
+	  esphome_api_publish_*() sends from the caller's thread. A client
+	  that does not drain its socket for this long is dropped (Home
+	  Assistant reconnects), so a stalled connection holds up a publisher
+	  for at most this long rather than NET_SOCKET_MAX_SEND_WAIT.
 
 config ESPHOME_API_RX_BUF_SIZE
 	int "Receive buffer per client"
