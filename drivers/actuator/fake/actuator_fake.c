@@ -22,7 +22,8 @@ struct fake_data {
 	int stop_calls;
 	int reference_rc; /* <0 fail after begin; >0 "succeed" without finishing */
 	bool energised;
-	bool stop_during_enable; /* a concurrent stop lands while enable is in flight */
+	bool stop_during_enable;   /* a concurrent stop lands while enable is in flight */
+	bool stop_during_setpoint; /* likewise, while a setpoint write is in flight */
 	int group_set_calls;
 };
 
@@ -100,8 +101,13 @@ static int fake_set_setpoint(const struct device *dev, enum actuator_mode mode, 
 {
 	struct fake_data *d = dev->data;
 
+	if (d->stop_during_setpoint) {
+		d->stop_during_setpoint = false;
+		(void)actuator_stop(dev);
+	}
 	d->last_setpoint = value;
 	d->last_mode = mode;
+	d->energised = true;
 	return 0;
 }
 
@@ -204,6 +210,13 @@ void fake_stop_during_enable(const struct device *dev)
 	struct fake_data *d = dev->data;
 
 	d->stop_during_enable = true;
+}
+
+void fake_stop_during_setpoint(const struct device *dev)
+{
+	struct fake_data *d = dev->data;
+
+	d->stop_during_setpoint = true;
 }
 
 int fake_group_set_calls(const struct device *dev)

@@ -75,8 +75,11 @@ int dxl_iface_get_by_ctx(const struct dxl_context *ctx);
  * @brief Send packet.
  *
  * @param ctx        Dynamixel interface context
+ *
+ * @retval 0         Transmission started.
+ * @retval -ENOSPC   The byte-stuffed frame does not fit CONFIG_DYNAMIXEL_BUFFER_SIZE.
  */
-void dxl_tx(struct dxl_context *ctx);
+int dxl_tx(struct dxl_context *ctx);
 
 /**
  * @brief Send packet and wait certain time for response.
@@ -122,8 +125,8 @@ int dxl_serial_rx(struct dxl_context *ctx);
  *
  * @param ctx        Dynamixel interface context
  *
- * @retval           0 If the function was successful,
- *                   -ENOTSUP if serial line mode is not supported.
+ * @retval 0         Transmission started.
+ * @retval -ENOSPC   The byte-stuffed frame does not fit CONFIG_DYNAMIXEL_BUFFER_SIZE.
  */
 int dxl_serial_tx(struct dxl_context *ctx);
 

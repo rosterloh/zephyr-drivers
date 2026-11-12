@@ -102,14 +102,18 @@ static void dxl_rx_handler(struct k_work *item)
 	k_sem_give(&ctx->wait_sem);
 }
 
-void dxl_tx(struct dxl_context *ctx)
+int dxl_tx(struct dxl_context *ctx)
 {
-	dxl_serial_tx(ctx);
+	return dxl_serial_tx(ctx);
 }
 
 int dxl_tx_wait_rx(struct dxl_context *ctx)
 {
-	dxl_tx(ctx);
+	int rc = dxl_tx(ctx);
+
+	if (rc != 0) {
+		return rc;
+	}
 
 	if (k_sem_take(&ctx->wait_sem, K_USEC(ctx->rxwait_to)) != 0) {
 		LOG_WRN("Packet wait-for-RX timeout");

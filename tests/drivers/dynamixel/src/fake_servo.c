@@ -28,6 +28,39 @@ LOG_MODULE_REGISTER(fake_servo, LOG_LEVEL_INF);
 #define CRC_POLY 0x8005
 #define CRC_SEED 0x0000
 
+/* Protocol 2.0 byte stuffing from offset 8: an extra 0xFD follows every FF FF FD. */
+static bool stuff_point(const uint8_t *buf, size_t i)
+{
+	return i >= 10 && buf[i - 2] == 0xFF && buf[i - 1] == 0xFF && buf[i] == 0xFD;
+}
+
+/* Stuff buf[8..len) in place; returns the new length. */
+static size_t stuff(uint8_t *buf, size_t len, size_t cap)
+{
+	for (size_t i = 8; i < len; i++) {
+		if (stuff_point(buf, i) && len < cap) {
+			memmove(&buf[i + 2], &buf[i + 1], len - i - 1);
+			buf[++i] = 0xFD;
+			len++;
+		}
+	}
+	return len;
+}
+
+/* Undo stuff() on buf[8..len); returns the new length. */
+static size_t unstuff(uint8_t *buf, size_t len)
+{
+	size_t out = 8;
+
+	for (size_t i = 8; i < len; i++) {
+		if (stuff_point(buf, i - 1) && buf[i] == 0xFD) {
+			continue;
+		}
+		buf[out++] = buf[i];
+	}
+	return out;
+}
+
 static void send_status(struct fake_servo *s, uint8_t error, const uint8_t *params,
 			uint16_t params_len)
 {
@@ -51,6 +84,8 @@ static void send_status(struct fake_servo *s, uint8_t error, const uint8_t *para
 	if (params_len > 0) {
 		memcpy(&buf[9], params, params_len);
 	}
+	total = stuff(buf, total - 2, sizeof(buf) - 2) + 2;
+	sys_put_le16(total - 7, &buf[5]);
 	crc = crc16(CRC_POLY, CRC_SEED, buf, total - 2);
 	if (s->corrupt_crc) {
 		crc ^= 0x0001;
@@ -75,13 +110,19 @@ void fake_servo_handle_packet(struct fake_servo *s, const uint8_t *pkt, size_t l
 	if (pkt[0] != DXL_HDR0 || pkt[1] != DXL_HDR1 || pkt[2] != DXL_HDR2) {
 		return;
 	}
-	id = pkt[4];
-	length = sys_get_le16(&pkt[5]);
-	inst = pkt[7];
-
-	/* Capture for assertions */
+	/* Capture the wire bytes for assertions, then parse the unstuffed frame. */
 	s->last_tx_len = MIN(len, sizeof(s->last_tx));
 	memcpy(s->last_tx, pkt, s->last_tx_len);
+
+	uint8_t raw[FAKE_SERVO_LAST_TX_SIZE];
+
+	memcpy(raw, pkt, s->last_tx_len);
+	len = unstuff(raw, s->last_tx_len - 2) + 2;
+	pkt = raw;
+
+	id = pkt[4];
+	length = len - 7;
+	inst = pkt[7];
 	s->last_instruction = inst;
 
 	if (id != s->id && !s->answer_any_id) {
