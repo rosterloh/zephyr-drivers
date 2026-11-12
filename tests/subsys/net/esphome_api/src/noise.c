@@ -60,12 +60,12 @@ static void initiator_write(struct noise_ss *ss, const uint8_t key[32], psa_key_
 {
 	size_t olen;
 
-	noise_init(ss);
-	zassert_ok(noise_mix_key_and_hash(ss, key, 32));
+	esphome_noise_init(ss);
+	zassert_ok(esphome_noise_mix_key_and_hash(ss, key, 32));
 	zassert_equal(psa_export_public_key(e, m1, 32, &olen), PSA_SUCCESS);
-	zassert_ok(noise_mix_hash(ss, m1, 32));
-	zassert_ok(noise_mix_key(ss, m1, 32));
-	zassert_ok(noise_encrypt_and_hash(ss, &m1[32], 0));
+	zassert_ok(esphome_noise_mix_hash(ss, m1, 32));
+	zassert_ok(esphome_noise_mix_key(ss, m1, 32));
+	zassert_ok(esphome_noise_encrypt_and_hash(ss, &m1[32], 0));
 }
 
 static void initiator_read(struct noise_ss *ss, psa_key_id_t e, const uint8_t m2[NOISE_HS_LEN],
@@ -75,15 +75,15 @@ static void initiator_read(struct noise_ss *ss, psa_key_id_t e, const uint8_t m2
 	uint8_t dh[32];
 	size_t olen;
 
-	zassert_ok(noise_mix_hash(ss, m2, 32));
-	zassert_ok(noise_mix_key(ss, m2, 32));
+	zassert_ok(esphome_noise_mix_hash(ss, m2, 32));
+	zassert_ok(esphome_noise_mix_key(ss, m2, 32));
 	zassert_equal(psa_raw_key_agreement(PSA_ALG_ECDH, e, m2, 32, dh, sizeof(dh), &olen),
 		      PSA_SUCCESS);
 	psa_destroy_key(e);
-	zassert_ok(noise_mix_key(ss, dh, sizeof(dh)));
+	zassert_ok(esphome_noise_mix_key(ss, dh, sizeof(dh)));
 	memcpy(tag, &m2[32], sizeof(tag));
-	zassert_ok(noise_decrypt_and_hash(ss, tag, sizeof(tag)));
-	zassert_ok(noise_split(ss, c1, c2));
+	zassert_ok(esphome_noise_decrypt_and_hash(ss, tag, sizeof(tag)));
+	zassert_ok(esphome_noise_split(ss, c1, c2));
 }
 
 ZTEST(esphome_api_noise, test_initiator_kat)
@@ -99,14 +99,14 @@ ZTEST(esphome_api_noise, test_initiator_kat)
 	initiator_read(&ss, e, msg2, &c1, &c2);
 
 	memcpy(frame, "\x00\x07\x00\x00", 4);
-	zassert_ok(noise_encrypt(&c1, frame, 4));
+	zassert_ok(esphome_noise_encrypt(&c1, frame, 4));
 	zassert_mem_equal(frame, c2s, sizeof(c2s));
 	memcpy(frame, s2c, sizeof(s2c));
-	zassert_ok(noise_decrypt(&c2, frame, sizeof(frame)));
+	zassert_ok(esphome_noise_decrypt(&c2, frame, sizeof(frame)));
 	zassert_mem_equal(frame, "\x00\x08\x00\x00", 4);
 
-	noise_cs_destroy(&c1);
-	noise_cs_destroy(&c2);
+	esphome_noise_cs_destroy(&c1);
+	esphome_noise_cs_destroy(&c2);
 }
 
 ZTEST(esphome_api_noise, test_respond_kat)
@@ -115,22 +115,22 @@ ZTEST(esphome_api_noise, test_respond_kat)
 	uint8_t out[NOISE_HS_LEN];
 	uint8_t frame[sizeof(c2s)];
 
-	zassert_ok(noise_respond(psk, msg1, import_e(re_priv), out, &rx, &tx));
+	zassert_ok(esphome_noise_respond(psk, msg1, import_e(re_priv), out, &rx, &tx));
 	zassert_mem_equal(out, msg2, sizeof(msg2));
 
 	memcpy(frame, c2s, sizeof(c2s));
-	zassert_ok(noise_decrypt(&rx, frame, sizeof(frame)));
+	zassert_ok(esphome_noise_decrypt(&rx, frame, sizeof(frame)));
 	zassert_mem_equal(frame, "\x00\x07\x00\x00", 4);
 	/* Replayed frame: the nonce has moved on. */
 	memcpy(frame, c2s, sizeof(c2s));
-	zassert_equal(noise_decrypt(&rx, frame, sizeof(frame)), -EBADMSG);
+	zassert_equal(esphome_noise_decrypt(&rx, frame, sizeof(frame)), -EBADMSG);
 
 	memcpy(frame, "\x00\x08\x00\x00", 4);
-	zassert_ok(noise_encrypt(&tx, frame, 4));
+	zassert_ok(esphome_noise_encrypt(&tx, frame, 4));
 	zassert_mem_equal(frame, s2c, sizeof(s2c));
 
-	noise_cs_destroy(&rx);
-	noise_cs_destroy(&tx);
+	esphome_noise_cs_destroy(&rx);
+	esphome_noise_cs_destroy(&tx);
 }
 
 ZTEST(esphome_api_noise, test_respond_wrong_psk)
@@ -141,7 +141,7 @@ ZTEST(esphome_api_noise, test_respond_wrong_psk)
 
 	memcpy(bad, psk, sizeof(bad));
 	bad[0] ^= 1;
-	zassert_equal(noise_respond(bad, msg1, import_e(re_priv), out, &rx, &tx), -EBADMSG);
+	zassert_equal(esphome_noise_respond(bad, msg1, import_e(re_priv), out, &rx, &tx), -EBADMSG);
 	zassert_equal(rx.key, PSA_KEY_ID_NULL);
 }
 
@@ -228,7 +228,7 @@ static int handshake(int fd, const uint8_t key[32], struct noise_ss *ss, psa_key
 	char hello[64];
 	int len;
 
-	zassert_ok(noise_generate_e(e, &m1[1]));
+	zassert_ok(esphome_noise_generate_e(e, &m1[1]));
 	initiator_write(ss, key, *e, &m1[1]);
 
 	send_noise_frame(fd, NULL, 0);
@@ -261,18 +261,18 @@ ZTEST(esphome_api_noise, test_server_ping)
 	for (int i = 0; i < 2; i++) {
 		sys_put_be16(PingRequest_msgid, frame);
 		sys_put_be16(0, &frame[2]);
-		zassert_ok(noise_encrypt(&c1, frame, 4));
+		zassert_ok(esphome_noise_encrypt(&c1, frame, 4));
 		send_noise_frame(fd, frame, 4 + NOISE_TAG_LEN);
 
 		len = recv_noise_frame(fd, frame, sizeof(frame));
 		zassert_equal(len, 4 + NOISE_TAG_LEN);
-		zassert_ok(noise_decrypt(&c2, frame, len));
+		zassert_ok(esphome_noise_decrypt(&c2, frame, len));
 		zassert_equal(sys_get_be16(frame), PingResponse_msgid);
 		zassert_equal(sys_get_be16(&frame[2]), 0);
 	}
 
-	noise_cs_destroy(&c1);
-	noise_cs_destroy(&c2);
+	esphome_noise_cs_destroy(&c1);
+	esphome_noise_cs_destroy(&c2);
 	zsock_close(fd);
 	open_fd = -1;
 }

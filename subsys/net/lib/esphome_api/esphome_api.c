@@ -188,7 +188,7 @@ static int encode_frame(struct client *c, uint16_t type, const pb_msgdesc_t *fie
 	sys_put_be16(4 + len + NOISE_TAG_LEN, &tx[1]);
 	sys_put_be16(type, &tx[3]);
 	sys_put_be16(len, &tx[5]);
-	ret = noise_encrypt(&c->tx_cs, &tx[3], 4 + len);
+	ret = esphome_noise_encrypt(&c->tx_cs, &tx[3], 4 + len);
 	if (ret < 0) {
 		return ret;
 	}
@@ -231,8 +231,8 @@ static void close_client(struct client *c)
 	zsock_close(c->fd);
 	c->fd = -1;
 #if defined(CONFIG_ESPHOME_API_NOISE)
-	noise_cs_destroy(&c->rx_cs);
-	noise_cs_destroy(&c->tx_cs);
+	esphome_noise_cs_destroy(&c->rx_cs);
+	esphome_noise_cs_destroy(&c->tx_cs);
 #endif
 }
 
@@ -509,8 +509,8 @@ static int noise_frame(struct client *c, uint8_t *buf, size_t len)
 		if (len != 1 + NOISE_HS_LEN || buf[0] != 0x00) {
 			return send_reject(c, "Bad handshake packet len");
 		}
-		ret = noise_generate_e(&e, &msg2[1]);
-		ret = ret ?: noise_respond(psk, &buf[1], e, &msg2[1], &c->rx_cs, &c->tx_cs);
+		ret = esphome_noise_generate_e(&e, &msg2[1]);
+		ret = ret ?: esphome_noise_respond(psk, &buf[1], e, &msg2[1], &c->rx_cs, &c->tx_cs);
 		if (ret == -EBADMSG) {
 			return send_reject(c, NOISE_HANDSHAKE_REJECT);
 		}
@@ -520,7 +520,7 @@ static int noise_frame(struct client *c, uint8_t *buf, size_t len)
 		c->noise = NOISE_READY;
 		return send_raw(c, msg2, sizeof(msg2), "", 0);
 	default:
-		if (noise_decrypt(&c->rx_cs, buf, len) < 0 || len < NOISE_TAG_LEN + 4) {
+		if (esphome_noise_decrypt(&c->rx_cs, buf, len) < 0 || len < NOISE_TAG_LEN + 4) {
 			LOG_WRN("client %d: decrypt failed", c->fd);
 			return -EBADMSG;
 		}
