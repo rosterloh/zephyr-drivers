@@ -8,6 +8,10 @@ inputs:
   toolchains:
     description: Colon-separated SDK toolchains
     required: true
+  apt-packages:
+    description: Extra apt packages, installed from the same cache
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -23,26 +27,32 @@ runs:
       uses: actions/cache@v6
       with:
         path: ~/apt-debs
-        key: apt-${{ steps.image.outputs.id }}-ccache-gperf-multilib
+        key: apt-${{ steps.image.outputs.id }}-${{ hashFiles('zephyr-drivers/.github/actions/zephyr-setup/action.yml') }}-${{ inputs.apt-packages }}
 
     # gcc-multilib for native_sim/native (32-bit), gperf for userspace builds
     - name: Install apt packages
       shell: bash
       env:
-        PKGS: ccache gperf libc6-dev-i386 g++-multilib
+        PKGS: ccache gperf libc6-dev-i386 g++-multilib ${{ inputs.apt-packages }}
         HIT: ${{ steps.apt.outputs.cache-hit }}
       run: |
         sudo rm -f /var/lib/man-db/auto-update
-        debs=(~/apt-debs/*.deb)
-        if [ "$HIT" = true ] && { [ ! -e "${debs[0]}" ] || sudo apt-get install -y --no-download "${debs[@]}"; }; then
+        install_debs() {
+          local debs=(~/apt-debs/*.deb)
+          # dpkg, not apt: apt fetches a local .deb again if the mirror has that version
+          [ ! -e "${debs[0]}" ] || sudo dpkg -i "${debs[@]}"
+        }
+        if [ "$HIT" = true ] && install_debs; then
           exit 0
         fi
         sudo apt-get update -y
+        sudo apt-get install -y -f
+        rm -rf ~/apt-debs
         mkdir -p ~/apt-debs/partial
-        sudo apt-get install -y --download-only -o Dir::Cache::archives="$HOME/apt-debs" $PKGS
+        sudo apt-get install -y --no-install-recommends --download-only -o Dir::Cache::archives="$HOME/apt-debs" $PKGS
         sudo chown -R "$USER" ~/apt-debs
         rm -rf ~/apt-debs/partial ~/apt-debs/lock
-        sudo apt-get install -y $PKGS
+        install_debs
 
     - name: West update
       shell: bash
