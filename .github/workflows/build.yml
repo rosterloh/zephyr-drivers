@@ -85,13 +85,11 @@ jobs:
           cp zephyr-drivers/.github/west.yml zephyr-drivers/west.yml
 
       - name: Setup Zephyr project
-        uses: zephyrproject-rtos/action-zephyr-setup@v1
+        uses: ./zephyr-drivers/.github/actions/zephyr-setup
         with:
-          app-path: zephyr-drivers
-          enable-ccache: false
           toolchains: arm-zephyr-eabi:x86_64-zephyr-elf:riscv64-zephyr-elf:xtensa-espressif_esp32_zephyr-elf:xtensa-espressif_esp32s3_zephyr-elf
 
-      # Own ccache steps rather than the setup action's: one entry per shard
+      # One ccache entry per shard
       # (a shared 1 GB one was full and evicting), the exact Zephyr revision
       # restored first (else a PR's older entry beats main's current one), and
       # saved even when a test fails.
@@ -211,14 +209,21 @@ jobs:
       - name: Copy west.yml
         run: cp zephyr-drivers/.github/west.yml zephyr-drivers/west.yml
 
-      # Separate ccache key so this job's entries don't shadow twister's
       - name: Setup Zephyr project
-        uses: zephyrproject-rtos/action-zephyr-setup@v1
+        uses: ./zephyr-drivers/.github/actions/zephyr-setup
         with:
-          app-path: zephyr-drivers
-          ccache-cache-key: boards
-          ccache-max-size: 1GB
           toolchains: arm-zephyr-eabi:x86_64-zephyr-elf:riscv64-zephyr-elf:xtensa-espressif_esp32_zephyr-elf:xtensa-espressif_esp32s3_zephyr-elf
+
+      # Separate ccache key so this job's entries don't shadow twister's
+      - name: Cache ccache
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-boards-${{ github.run_id }}
+          restore-keys: ccache-boards-
+
+      - name: Set up ccache
+        run: ccache -M 1G
 
       # imgtool signs the MCUboot-enabled ESP32 appcpu images
       - name: Install imgtool

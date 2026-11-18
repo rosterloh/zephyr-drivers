@@ -1,0 +1,92 @@
+name: Zephyr setup
+description: >
+  zephyrproject-rtos/action-zephyr-setup without its uncached apt install, which
+  took up to 13 min per job on a slow Ubuntu mirror. Expects .github/west.yml
+  copied to zephyr-drivers/west.yml and Python set up.
+
+inputs:
+  toolchains:
+    description: Colon-separated SDK toolchains
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Runner image
+      id: image
+      shell: bash
+      run: echo "id=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+
+    # Keyed on the runner image, so the cached .debs match what is installed.
+    - name: Cache apt packages
+      id: apt
+      uses: actions/cache@v6
+      with:
+        path: ~/apt-debs
+        key: apt-${{ steps.image.outputs.id }}-ccache-gperf-multilib
+
+    # gcc-multilib for native_sim/native (32-bit), gperf for userspace builds
+    - name: Install apt packages
+      shell: bash
+      env:
+        PKGS: ccache gperf libc6-dev-i386 g++-multilib
+        HIT: ${{ steps.apt.outputs.cache-hit }}
+      run: |
+        sudo rm -f /var/lib/man-db/auto-update
+        debs=(~/apt-debs/*.deb)
+        if [ "$HIT" = true ] && { [ ! -e "${debs[0]}" ] || sudo apt-get install -y --no-download "${debs[@]}"; }; then
+          exit 0
+        fi
+        sudo apt-get update -y
+        mkdir -p ~/apt-debs/partial
+        sudo apt-get install -y --download-only -o Dir::Cache::archives="$HOME/apt-debs" $PKGS
+        sudo chown -R "$USER" ~/apt-debs
+        rm -rf ~/apt-debs/partial ~/apt-debs/lock
+        sudo apt-get install -y $PKGS
+
+    - name: West update
+      shell: bash
+      run: |
+        pip3 install west
+        west init -l zephyr-drivers
+        west update -o=--depth=1 -n
+        echo "SDK_VERSION=$(cat zephyr/SDK_VERSION)" >> "$GITHUB_ENV"
+        echo "CCACHE_DIR=$HOME/.cache/ccache" >> "$GITHUB_ENV"
+        echo "CCACHE_IGNOREOPTIONS=-specs=* --specs=*" >> "$GITHUB_ENV"
+
+    - name: Cache pip
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/pip
+        key: pip-${{ runner.os }}-${{ hashFiles('zephyr/scripts/requirements*.txt') }}
+
+    - name: Install Python packages
+      shell: bash
+      run: west packages pip --install --ignore-venv-check
+
+    - name: Cache Zephyr SDK
+      id: sdk
+      uses: actions/cache@v6
+      with:
+        path: zephyr-sdk
+        key: zephyr-sdk-${{ env.SDK_VERSION }}-${{ inputs.toolchains }}
+
+    - name: Download Zephyr SDK
+      if: steps.sdk.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        f="zephyr-sdk-${SDK_VERSION}_linux-x86_64_minimal.tar.xz"
+        wget --progress=dot:giga "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${SDK_VERSION}/$f"
+        mkdir zephyr-sdk
+        tar xf "$f" -C zephyr-sdk --strip-components=1
+        rm -f "$f"
+
+    - name: Set up Zephyr SDK
+      shell: bash
+      working-directory: zephyr-sdk
+      env:
+        TOOLCHAINS: ${{ inputs.toolchains }}
+      run: |
+        for t in ${TOOLCHAINS//:/ }; do ./setup.sh -t "$t"; done
+        [ -d sysroots ] || ./setup.sh -h
+        ./setup.sh -c
