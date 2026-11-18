@@ -55,12 +55,16 @@ jobs:
             npx --prefix "$RUNNER_TEMP/zephyr/scripts/ci" --no dts-linter -- \
             --format --enableSortNodesAndProperties --sortNodesNodesBy address
 
+  # Twister is mostly compile time, so split it with --subset across runners.
+  # The split is deterministic, so each shard keeps its own ccache warm.
   build:
+    name: twister ${{ matrix.shard }}/4
     strategy:
       fail-fast: false
       matrix:
 #        os: [ubuntu-latest, macos-latest, windows-latest]
         os: [ubuntu-latest]
+        shard: [1, 2, 3, 4]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -82,8 +86,31 @@ jobs:
         uses: zephyrproject-rtos/action-zephyr-setup@v1
         with:
           app-path: zephyr-drivers
-          ccache-max-size: 1GB
+          enable-ccache: false
           toolchains: arm-zephyr-eabi:x86_64-zephyr-elf:riscv64-zephyr-elf:xtensa-espressif_esp32_zephyr-elf:xtensa-espressif_esp32s3_zephyr-elf
+
+      # Own ccache steps rather than the setup action's: one entry per shard
+      # (a shared 1 GB one was full and evicting), the exact Zephyr revision
+      # restored first (else a PR's older entry beats main's current one), and
+      # saved even when a test fails.
+      - name: Zephyr revision
+        id: zephyr
+        run: echo "sha=$(git -C zephyr rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore ccache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-twister-${{ matrix.shard }}-${{ steps.zephyr.outputs.sha }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-twister-${{ matrix.shard }}-${{ steps.zephyr.outputs.sha }}-
+            ccache-twister-${{ matrix.shard }}-
+            ccache-
+
+      - name: Set up ccache
+        run: |
+          ccache -M 1G
+          ccache -z
 
       # protoc for nanopb; imgtool signs the MCUboot-enabled ESP32 appcpu images;
       # aioesphomeapi (pinned to api.proto's tag) drives the esphome_api sample's pytest
@@ -129,7 +156,18 @@ jobs:
           else
             SCOPE="--all"
           fi
-          west twister -T tests -T samples -v --inline-logs $SCOPE $EXTRA_TWISTER_FLAGS
+          west twister -T tests -T samples -v --inline-logs $SCOPE --subset ${{ matrix.shard }}/4 $EXTRA_TWISTER_FLAGS
+
+      - name: ccache stats
+        if: ${{ !cancelled() }}
+        run: ccache -s
+
+      - name: Save ccache
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-twister-${{ matrix.shard }}-${{ steps.zephyr.outputs.sha }}-${{ github.run_id }}
 
   # On PRs, only when a board could have changed; main and the weekly run always build them
   board-changes:
