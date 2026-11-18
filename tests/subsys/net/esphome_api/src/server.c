@@ -505,6 +505,32 @@ ZTEST(esphome_api_server, test_idle_client_closed)
 	expect_closed(fd);
 }
 
+static K_SEM_DEFINE(shutdown_done, 0, 1);
+
+static void shutdown_fn(struct k_work *work)
+{
+	esphome_api_shutdown();
+	k_sem_give(&shutdown_done);
+}
+
+/* Named to run last: ztest orders tests by name, and a shutdown server stays shut. */
+ZTEST(esphome_api_server, test_zz_shutdown)
+{
+	static K_WORK_DEFINE(work, shutdown_fn);
+	int fd = connect_hello();
+	int64_t start = k_uptime_get();
+
+	k_work_submit(&work);
+	expect_frame(fd, DisconnectRequest_msgid, NULL, NULL);
+	send_frame(fd, DisconnectResponse_msgid, NULL, NULL);
+	expect_closed(fd);
+	zassert_ok(k_sem_take(&shutdown_done, K_SECONDS(1)));
+	/* The reply ends the wait early. */
+	zassert_true(k_uptime_get() - start < 400);
+
+	expect_closed(connect_server());
+}
+
 static void *setup(void)
 {
 	/* Let the server thread open its listener. */
