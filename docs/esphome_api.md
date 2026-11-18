@@ -89,6 +89,13 @@ are reported as "unknown". Callbacks run on the server thread with its lock
 held; publishing from inside one is allowed, blocking in one stalls the
 server.
 
+## Rebooting
+
+Call `esphome_api_shutdown()` right before `sys_reboot()`. It sends each
+client a `DisconnectRequest`, waits up to 500 ms for the replies and refuses
+new connections, so Home Assistant shows the entities as unavailable at once
+instead of after its keepalive timeout.
+
 ## Kconfig
 
 | Option | Default | Notes |

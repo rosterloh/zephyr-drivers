@@ -133,6 +133,15 @@ int esphome_api_publish_float(struct esphome_entity *entity, float state);
 int esphome_api_publish_bool(struct esphome_entity *entity, bool state);
 
 /**
+ * Send DisconnectRequest to every connected client and close them, as ESPHome does
+ * before a reboot, so Home Assistant marks the entities unavailable at once instead
+ * of after its keepalive timeout. Waits up to 500 ms for the replies. New connections
+ * are refused afterwards; call it right before sys_reboot().
+ * Callable from any thread, not from an ISR.
+ */
+void esphome_api_shutdown(void);
+
+/**
  * Set the Noise encryption key (CONFIG_ESPHOME_API_NOISE), the 32 bytes behind the base64
  * key Home Assistant asks for. Saved to settings when CONFIG_SETTINGS is enabled. Clients
  * that connect afterwards use it.

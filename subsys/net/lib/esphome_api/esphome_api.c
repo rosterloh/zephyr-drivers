@@ -48,6 +48,7 @@ BUILD_ASSERT(sizeof(CONFIG_ESPHOME_API_DEVICE_NAME) <= sizeof(((HelloResponse *)
 /* Noise frame: 0x01, u16 length, then encrypted u16 type, u16 length, body, tag. */
 #define NOISE_HDR              (3 + 4)
 #define NOISE_HANDSHAKE_REJECT "Handshake MAC failure"
+#define SHUTDOWN_WAIT_MS       500
 #define IDLE_TIMEOUT_MS        (CONFIG_ESPHOME_API_IDLE_TIMEOUT * MSEC_PER_SEC)
 
 struct client {
@@ -72,6 +73,7 @@ static struct client clients[CONFIG_ESPHOME_API_MAX_CLIENTS] = {
 	[0 ... CONFIG_ESPHOME_API_MAX_CLIENTS - 1] = {.fd = -1},
 };
 static K_MUTEX_DEFINE(lock);
+static bool stopped;
 
 /* Encode buffers; only used with lock held. */
 static uint8_t tx[FRAME_HDR_MAX + PROTO_API_PB_H_MAX_SIZE +
@@ -711,6 +713,10 @@ static void handle_accept(int listen_fd)
 		LOG_ERR("accept: %d", errno);
 		return;
 	}
+	if (stopped) {
+		zsock_close(fd);
+		return;
+	}
 
 	ARRAY_FOR_EACH_PTR(clients, c) {
 		if (c->fd < 0) {
@@ -977,6 +983,44 @@ int esphome_api_publish_bool(struct esphome_entity *entity, bool state)
 	k_mutex_unlock(&lock);
 
 	return ret;
+}
+
+void esphome_api_shutdown(void)
+{
+	struct zsock_pollfd fds[CONFIG_ESPHOME_API_MAX_CLIENTS];
+	int nfds = 0;
+	int64_t end;
+
+	__ASSERT_NO_MSG(!k_is_in_isr());
+	k_mutex_lock(&lock, K_FOREVER);
+	stopped = true;
+	ARRAY_FOR_EACH_PTR(clients, c) {
+		/* Before hello there is no session (and with Noise no keys) to end. */
+		if (c->fd >= 0 && c->hello && send_msg(c, DisconnectRequest_msgid, NULL, NULL) == 0) {
+			fds[nfds++] = (struct zsock_pollfd){.fd = c->fd, .events = ZSOCK_POLLIN};
+		}
+	}
+
+	/* A reply (or close) shows the request left the device before a reboot cuts it off. */
+	end = k_uptime_get() + SHUTDOWN_WAIT_MS;
+	for (int pending = nfds; pending > 0;) {
+		int64_t left = end - k_uptime_get();
+
+		if (left <= 0 || zsock_poll(fds, nfds, (int)left) <= 0) {
+			break;
+		}
+		for (int i = 0; i < nfds; i++) {
+			if (fds[i].fd >= 0 && fds[i].revents != 0) {
+				fds[i].fd = -1;
+				pending--;
+			}
+		}
+	}
+
+	ARRAY_FOR_EACH_PTR(clients, c) {
+		close_client(c);
+	}
+	k_mutex_unlock(&lock);
 }
 
 #if defined(CONFIG_ESPHOME_API_NOISE)
