@@ -996,7 +996,8 @@ void esphome_api_shutdown(void)
 	stopped = true;
 	ARRAY_FOR_EACH_PTR(clients, c) {
 		/* Before hello there is no session (and with Noise no keys) to end. */
-		if (c->fd >= 0 && c->hello && send_msg(c, DisconnectRequest_msgid, NULL, NULL) == 0) {
+		if (c->fd >= 0 && c->hello &&
+		    send_msg(c, DisconnectRequest_msgid, NULL, NULL) == 0) {
 			fds[nfds++] = (struct zsock_pollfd){.fd = c->fd, .events = ZSOCK_POLLIN};
 		}
 	}
