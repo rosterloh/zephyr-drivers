@@ -36,17 +36,8 @@ LOG_MODULE_DECLARE(actuator_icl57, CONFIG_ACTUATOR_LOG_LEVEL);
  * status word would be a worse outcome than an unverified save. The callers
  * that care read back what they saved.
  */
-int icl57_save(const struct shell *sh, uint8_t id)
+static int save_and_wait(const struct shell *sh, uint8_t id)
 {
-	if (icl57_shell_iface < 0) {
-		ICL57_ERROR(sh, "modbus bus not initialised");
-		return -ENODEV;
-	}
-	if (id < 1 || id > 31) {
-		ICL57_ERROR(sh, "slave id must be 1..31");
-		return -EINVAL;
-	}
-
 	int rc = icl57_mb_write_reg(icl57_shell_iface, id, ICL57_REG_CONTROL_WORD,
 				    ICL57_CTRL_SAVE_EEPROM);
 
@@ -99,6 +90,45 @@ int icl57_save(const struct shell *sh, uint8_t id)
 			   id, st, ICL57_EEPROM_SAVE_RETRIES * ICL57_EEPROM_SAVE_RETRY_MS);
 	}
 	return 0;
+}
+
+/*
+ * The save also stores Pr0.07. Saved at 1, the drive powers up energised
+ * whatever DI1 says, so after a power loss a stopped axis can never be shown
+ * de-energised and its re-pin refuses every reset. Save it at 0, then put the
+ * live value back: a drive enabled before the save is enabled after it.
+ */
+int icl57_save(const struct shell *sh, uint8_t id)
+{
+	if (icl57_shell_iface < 0) {
+		ICL57_ERROR(sh, "modbus bus not initialised");
+		return -ENODEV;
+	}
+	if (id < 1 || id > 31) {
+		ICL57_ERROR(sh, "slave id must be 1..31");
+		return -EINVAL;
+	}
+
+	uint16_t live = 0;
+	int rc = icl57_mb_read_regs(icl57_shell_iface, id, ICL57_REG_FORCE_ENABLE, &live, 1);
+
+	if (rc == 0 && live != 0U) {
+		rc = icl57_mb_write_reg(icl57_shell_iface, id, ICL57_REG_FORCE_ENABLE, 0);
+	}
+	if (rc < 0) {
+		ICL57_ERROR(sh, "id %u: software enable (Pr0.07) not cleared (%d); not saving", id,
+			    rc);
+		return rc;
+	}
+
+	rc = save_and_wait(sh, id);
+	if (live != 0U &&
+	    icl57_mb_write_reg(icl57_shell_iface, id, ICL57_REG_FORCE_ENABLE, live) < 0) {
+		ICL57_ERROR(sh, "id %u: software enable not restored: the drive is de-energised",
+			    id);
+		rc = rc < 0 ? rc : -EIO;
+	}
+	return rc;
 }
 
 /* One-shot bring-up, persisted to EEPROM:
