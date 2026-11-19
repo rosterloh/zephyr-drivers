@@ -19,30 +19,35 @@ runs:
     - name: Runner image
       id: image
       shell: bash
-      run: echo "id=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+      run: |
+        echo "os=$ImageOS" >> "$GITHUB_OUTPUT"
+        echo "version=$ImageVersion" >> "$GITHUB_OUTPUT"
 
     # Keyed on the runner image, so the cached .debs match what is installed.
+    # Several image versions are in rotation at once, so fall back to another
+    # version's .debs; dpkg --refuse-downgrade keeps them from replacing newer ones.
     - name: Cache apt packages
       id: apt
       uses: actions/cache@v6
       with:
         path: ~/apt-debs
-        key: apt-${{ steps.image.outputs.id }}-${{ hashFiles('zephyr-drivers/.github/actions/zephyr-setup/action.yml') }}-${{ inputs.apt-packages }}
+        key: apt-${{ hashFiles('zephyr-drivers/.github/actions/zephyr-setup/action.yml') }}-${{ inputs.apt-packages }}-${{ steps.image.outputs.os }}-${{ steps.image.outputs.version }}
+        restore-keys: apt-${{ hashFiles('zephyr-drivers/.github/actions/zephyr-setup/action.yml') }}-${{ inputs.apt-packages }}-${{ steps.image.outputs.os }}-
 
     # gcc-multilib for native_sim/native (32-bit), gperf for userspace builds
     - name: Install apt packages
       shell: bash
       env:
         PKGS: ccache gperf libc6-dev-i386 g++-multilib ${{ inputs.apt-packages }}
-        HIT: ${{ steps.apt.outputs.cache-hit }}
+        RESTORED: ${{ steps.apt.outputs.cache-matched-key }}
       run: |
         sudo rm -f /var/lib/man-db/auto-update
         install_debs() {
           local debs=(~/apt-debs/*.deb)
           # dpkg, not apt: apt fetches a local .deb again if the mirror has that version
-          [ ! -e "${debs[0]}" ] || sudo dpkg -i "${debs[@]}"
+          [ ! -e "${debs[0]}" ] || sudo dpkg -i --refuse-downgrade "${debs[@]}"
         }
-        if [ "$HIT" = true ] && install_debs; then
+        if [ -n "$RESTORED" ] && install_debs; then
           exit 0
         fi
         sudo apt-get update -y
