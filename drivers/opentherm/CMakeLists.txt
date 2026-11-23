@@ -1,2 +1,4 @@
 zephyr_library()
-zephyr_library_sources(opentherm_gpio.c)
+zephyr_library_sources(opentherm_common.c)
+zephyr_library_sources_ifdef(CONFIG_OPENTHERM_GPIO opentherm_gpio.c)
+zephyr_library_sources_ifdef(CONFIG_OPENTHERM_PULSE_IO opentherm_pulse_io.c)

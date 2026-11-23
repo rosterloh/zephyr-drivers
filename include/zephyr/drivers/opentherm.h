@@ -68,6 +68,12 @@ static inline uint16_t opentherm_frame_value(uint32_t frame)
 	return (uint16_t)frame;
 }
 
+/** @cond INTERNAL_HIDDEN */
+__subsystem struct opentherm_driver_api {
+	int (*transfer)(const struct device *dev, uint32_t request, uint32_t *response);
+};
+/** @endcond */
+
 /**
  * @brief Send a request and wait for the slave's response.
  *
@@ -83,9 +89,12 @@ static inline uint16_t opentherm_frame_value(uint32_t frame)
  * @retval 0 Response received with valid parity.
  * @retval -ETIMEDOUT No complete response.
  * @retval -EBADMSG Response has bad parity or broken Manchester timing.
- * @retval -EIO GPIO error.
+ * @retval -EIO Line driver error.
  */
-int opentherm_transfer(const struct device *dev, uint32_t request, uint32_t *response);
+static inline int opentherm_transfer(const struct device *dev, uint32_t request, uint32_t *response)
+{
+	return DEVICE_API_GET(opentherm, dev)->transfer(dev, request, response);
+}
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,37 @@
+description: |
+  OpenTherm master (thermostat side) on a pulse_io controller, such as the
+  ESP32 RMT, through an external line adapter. The controller times the
+  request and captures the reply, so the CPU only sees one interrupt per
+  frame instead of one per edge.
+
+  Logical level 1 is the line state during the first half of a '1' bit; the
+  line idles at logical 0. If the adapter idles a pin high, set the matching
+  *-idle-high property. For Ihor Melnyk's adapter (inverting output stage)
+  that is, untested on hardware:
+
+    opentherm {
+        compatible = "opentherm-pulse-io";
+        pulse-ios = <&rmt 0>, <&rmt 2>;
+        tx-idle-high;
+    };
+
+  The pins are routed by the controller's pinctrl state.
+
+compatible: "opentherm-pulse-io"
+
+properties:
+  pulse-ios:
+    type: phandle-array
+    required: true
+    description: |
+      Transmit channel, then receive channel, on the same controller. They
+      may be the same channel only on backends that allow both directions
+      on one channel (the software loopback).
+
+  tx-idle-high:
+    type: boolean
+    description: The transmit pin idles high.
+
+  rx-idle-high:
+    type: boolean
+    description: The receive pin idles high.

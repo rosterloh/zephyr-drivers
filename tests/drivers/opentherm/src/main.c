@@ -285,4 +285,24 @@ ZTEST(opentherm, test_transfer_does_not_block)
 	zassert_true(max_gap_us < 2000U, "spinner starved for %u us", max_gap_us);
 }
 
+ZTEST(opentherm, test_pulse_io_loopback)
+{
+	const struct device *pio = DEVICE_DT_GET(DT_NODELABEL(ot_pio));
+	const struct device *inv = DEVICE_DT_GET(DT_NODELABEL(ot_pio_inv));
+	const struct device *bad = DEVICE_DT_GET(DT_NODELABEL(ot_pio_mismatch));
+	uint32_t req = opentherm_frame(OPENTHERM_WRITE_DATA, 1, 0x3C80);
+	uint32_t resp = 0U;
+
+	zassert_true(device_is_ready(pio) && device_is_ready(inv) && device_is_ready(bad));
+
+	zassert_ok(opentherm_transfer(pio, req, &resp));
+	zassert_equal(resp, req, "got 0x%08x", resp);
+
+	resp = 0U;
+	zassert_ok(opentherm_transfer(inv, req, &resp));
+	zassert_equal(resp, req, "got 0x%08x", resp);
+
+	zassert_equal(opentherm_transfer(bad, req, &resp), -EBADMSG);
+}
+
 ZTEST_SUITE(opentherm, NULL, NULL, before, after, NULL);
