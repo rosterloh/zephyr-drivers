@@ -1,0 +1,29 @@
+description: |
+  OpenTherm master (thermostat side) on two GPIOs through an external line
+  adapter, which converts between logic levels and the OpenTherm bus.
+
+  Logical level 1 on either pin means the line state during the first half of
+  a '1' bit; the line is idle at logical 0. Use the GPIO flags to match the
+  adapter. For Ihor Melnyk's adapter (inverting output stage) that is,
+  untested on hardware:
+
+    opentherm {
+        compatible = "opentherm-gpio";
+        out-gpios = <&gpio0 4 GPIO_ACTIVE_LOW>;
+        in-gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
+    };
+
+compatible: "opentherm-gpio"
+
+properties:
+  out-gpios:
+    type: phandle-array
+    required: true
+    description: Output to the adapter's transmit input.
+
+  in-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      Input from the adapter's receive output. Needs an interrupt on both
+      edges.

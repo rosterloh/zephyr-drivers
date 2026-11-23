@@ -1,0 +1,7 @@
+/ {
+	opentherm0: opentherm {
+		compatible = "opentherm-gpio";
+		in-gpios = <&gpio0 11 GPIO_ACTIVE_HIGH>;
+		out-gpios = <&gpio0 10 GPIO_ACTIVE_LOW>;
+	};
+};

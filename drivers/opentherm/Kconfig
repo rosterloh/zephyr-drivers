@@ -1,0 +1,22 @@
+config OPENTHERM
+	bool "OpenTherm master over GPIO"
+	default y
+	depends on DT_HAS_OPENTHERM_GPIO_ENABLED
+	depends on GPIO
+	help
+	  OpenTherm master (thermostat side) that bit-bangs the Manchester
+	  line through an external OpenTherm adapter on two GPIOs.
+
+if OPENTHERM
+
+config OPENTHERM_INIT_PRIORITY
+	int "OpenTherm init priority"
+	default 80
+	help
+	  Must be after the GPIO controllers.
+
+module = OPENTHERM
+module-str = opentherm
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # OPENTHERM

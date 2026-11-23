@@ -8,6 +8,7 @@ rsource "ethercat/Kconfig"
 rsource "ethernet/Kconfig"
 rsource "gpio/Kconfig"
 rsource "mfd/seesaw/Kconfig"
+rsource "opentherm/Kconfig"
 rsource "pwm/Kconfig"
 rsource "sensor/Kconfig"
 # Upstream Zephyr sources its video drivers inside "if VIDEO"; match that, or a
