@@ -25,11 +25,17 @@ LOG_MODULE_REGISTER(opentherm, CONFIG_OPENTHERM_LOG_LEVEL);
 #define OT_MID_MIN_US    750U
 /* Spec allows mid-bit edges 900..1150 us apart; anything later lost an edge. */
 #define OT_MID_MAX_US    1250U
-#define OT_REPLY_TIMEOUT K_MSEC(1000)
+/* Frame time plus the slave's 800 ms reply window, with margin. */
+#define OT_REPLY_TIMEOUT K_MSEC(1100)
 #define OT_MSG_GAP_MS    100
+
+BUILD_ASSERT(CONFIG_SYS_CLOCK_TICKS_PER_SEC % (USEC_PER_SEC / OT_HALF_BIT_US) == 0,
+	     "OpenTherm clocks 500 us half-bits from a k_timer: set "
+	     "CONFIG_SYS_CLOCK_TICKS_PER_SEC to a multiple of 2000, e.g. 10000");
 
 enum ot_rx_state {
 	OT_RX_OFF,
+	OT_TX,
 	OT_RX_WAIT,
 	OT_RX_START,
 	OT_RX_DATA,
@@ -43,20 +49,18 @@ struct ot_config {
 struct ot_data {
 	const struct device *dev;
 	struct gpio_callback cb;
+	struct k_timer tx_timer;
 	struct k_mutex lock;
 	struct k_sem done;
 	enum ot_rx_state state;
+	uint64_t tx_word;
 	uint32_t t_mid;
 	uint32_t frame;
 	uint8_t bits;
+	uint8_t tx_half;
 	int rx_err;
 	int64_t last_msg_ms;
 };
-
-static uint32_t us_since(uint32_t cyc)
-{
-	return k_cyc_to_us_floor32(k_cycle_get_32() - cyc);
-}
 
 static void rx_finish(struct ot_data *data, int err)
 {
@@ -121,37 +125,27 @@ static void ot_edge(const struct device *port, struct gpio_callback *cb, gpio_po
 	}
 }
 
-static void wait_until(uint32_t start, uint32_t us)
+/* Timer ISR: drives one half-bit per expiry, then hands the line to RX. */
+static void ot_tx_half(struct k_timer *timer)
 {
-	uint32_t elapsed;
+	struct ot_data *data = CONTAINER_OF(timer, struct ot_data, tx_timer);
+	const struct ot_config *cfg = data->dev->config;
+	uint8_t half = data->tx_half++;
+	int level = 0;
 
-	while ((elapsed = us_since(start)) < us) {
-		k_busy_wait(us - elapsed);
+	if (half < 2U * OT_FRAME_BITS) {
+		bool one = ((data->tx_word >> (OT_FRAME_BITS - 1U - half / 2U)) & 1U) != 0U;
+
+		level = ((half & 1U) == 0U) == one;
+	} else {
+		k_timer_stop(timer);
+		data->state = OT_RX_WAIT;
 	}
-}
 
-static int tx_frame(const struct ot_config *cfg, uint32_t frame)
-{
-	/* Start and stop bits are both '1'. */
-	uint64_t word = BIT64(33) | ((uint64_t)frame << 1) | 1U;
-	uint32_t start;
-	int ret = 0;
-
-	/*
-	 * shortcut: busy-waits ~34 ms with the scheduler locked (ISRs still run);
-	 * move to a hardware timer or RMT if that starves other threads.
-	 */
-	k_sched_lock();
-	start = k_cycle_get_32();
-	for (uint32_t half = 0U; half < 2U * OT_FRAME_BITS && ret == 0; half++) {
-		bool one = ((word >> (OT_FRAME_BITS - 1U - half / 2U)) & 1U) != 0U;
-
-		ret = gpio_pin_set_dt(&cfg->out, ((half & 1U) == 0U) == one);
-		wait_until(start, (half + 1U) * OT_HALF_BIT_US);
+	if (gpio_pin_set_dt(&cfg->out, level) != 0) {
+		k_timer_stop(timer);
+		rx_finish(data, -EIO);
 	}
-	k_sched_unlock();
-
-	return ret;
 }
 
 int opentherm_transfer(const struct device *dev, uint32_t request, uint32_t *response)
@@ -169,16 +163,17 @@ int opentherm_transfer(const struct device *dev, uint32_t request, uint32_t *res
 	}
 
 	k_sem_reset(&data->done);
-	ret = tx_frame(cfg, request);
-	if (ret != 0) {
-		gpio_pin_set_dt(&cfg->out, 0);
-		goto out;
-	}
+	/* Start and stop bits are both '1'. */
+	data->tx_word = BIT64(33) | ((uint64_t)request << 1) | 1U;
+	data->tx_half = 0U;
+	data->state = OT_TX;
+	k_timer_start(&data->tx_timer, K_NO_WAIT, K_USEC(OT_HALF_BIT_US));
 
-	data->state = OT_RX_WAIT;
 	ret = k_sem_take(&data->done, OT_REPLY_TIMEOUT);
 	if (ret != 0) {
+		k_timer_stop(&data->tx_timer);
 		data->state = OT_RX_OFF;
+		(void)gpio_pin_set_dt(&cfg->out, 0);
 		ret = -ETIMEDOUT;
 		goto out;
 	}
@@ -215,6 +210,7 @@ static int ot_init(const struct device *dev)
 	data->state = OT_RX_OFF;
 	k_mutex_init(&data->lock);
 	k_sem_init(&data->done, 0, 1);
+	k_timer_init(&data->tx_timer, ot_tx_half, NULL);
 
 	ret = gpio_pin_configure_dt(&cfg->out, GPIO_OUTPUT_INACTIVE);
 	if (ret != 0) {

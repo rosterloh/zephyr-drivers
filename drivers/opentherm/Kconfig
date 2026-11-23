@@ -5,7 +5,10 @@ config OPENTHERM
 	depends on GPIO
 	help
 	  OpenTherm master (thermostat side) that bit-bangs the Manchester
-	  line through an external OpenTherm adapter on two GPIOs.
+	  line through an external OpenTherm adapter on two GPIOs. Half-bits
+	  are clocked from a k_timer, so CONFIG_SYS_CLOCK_TICKS_PER_SEC must
+	  be a multiple of 2000 (Espressif SoCs default to 1000; use 10000).
+	  The GPIOs must be settable from an ISR (SoC GPIO, not an expander).
 
 if OPENTHERM
 

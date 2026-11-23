@@ -246,4 +246,43 @@ ZTEST(opentherm, test_timeout)
 		      -ETIMEDOUT);
 }
 
+static volatile bool spin;
+static uint32_t max_gap_us;
+
+static void spinner(void *a, void *b, void *c)
+{
+	uint32_t last = k_cycle_get_32();
+
+	ARG_UNUSED(a);
+	ARG_UNUSED(b);
+	ARG_UNUSED(c);
+
+	while (spin) {
+		uint32_t now = k_cycle_get_32();
+
+		max_gap_us = MAX(max_gap_us, k_cyc_to_us_floor32(now - last));
+		last = now;
+		k_busy_wait(50);
+	}
+}
+
+K_THREAD_STACK_DEFINE(spinner_stack, 1024);
+
+ZTEST(opentherm, test_transfer_does_not_block)
+{
+	static struct k_thread thread;
+	uint32_t resp;
+
+	/* A thread below every other one still runs while the frame goes out. */
+	spin = true;
+	max_gap_us = 0U;
+	k_thread_create(&thread, spinner_stack, K_THREAD_STACK_SIZEOF(spinner_stack), spinner, NULL,
+			NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, K_NO_WAIT);
+	zassert_ok(opentherm_transfer(ot, opentherm_frame(OPENTHERM_READ_DATA, 0, 0), &resp));
+	spin = false;
+	k_thread_join(&thread, K_FOREVER);
+
+	zassert_true(max_gap_us < 2000U, "spinner starved for %u us", max_gap_us);
+}
+
 ZTEST_SUITE(opentherm, NULL, NULL, before, after, NULL);
