@@ -14,6 +14,7 @@ This repository provides a shared drivers module for all my other projects
 - ESP32 I2S0 camera-mode DVP receiver (`espressif,esp32-i2s-cam`) — JPEG capture from an OV2640 on the original ESP32
 - Camera sensors: OmniVision OV5647, Arducam Pivariety (incl. ToF), and a fork of Zephyr's Sony IMX219
 - [Microchip LAN9252](https://www.microchip.com/en-us/product/lan9252) EtherCAT SubDevice controller (SPI) — System CSR and indirect EtherCAT core CSR access
+- [OpenTherm](https://www.opentherm.eu/) master: boiler request/response through an external line adapter, on two GPIOs (`opentherm-gpio`) or on pulse_io channels such as the ESP32 RMT (`opentherm-pulse-io`)
 - [Analog Devices ADIN3310](https://www.analog.com/en/products/adin3310.html) 3-port TSN Ethernet switch — SPI management transport and reset for ADI's host driver
 
 ## Subsystems & libraries

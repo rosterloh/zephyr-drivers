@@ -1,0 +1,41 @@
+config OPENTHERM
+	bool "OpenTherm master"
+	default y
+	depends on DT_HAS_OPENTHERM_GPIO_ENABLED || DT_HAS_OPENTHERM_PULSE_IO_ENABLED
+	help
+	  OpenTherm master (thermostat side) talking to a boiler through an
+	  external OpenTherm line adapter.
+
+if OPENTHERM
+
+config OPENTHERM_GPIO
+	bool "OpenTherm on two GPIOs"
+	default y
+	depends on DT_HAS_OPENTHERM_GPIO_ENABLED
+	depends on GPIO
+	help
+	  Clocks half-bits from a k_timer and decodes the reply from GPIO edge
+	  interrupts. CONFIG_SYS_CLOCK_TICKS_PER_SEC must be a multiple of
+	  2000 (Espressif SoCs default to 1000; use 10000). The GPIOs must be
+	  settable from an ISR (SoC GPIO, not an expander).
+
+config OPENTHERM_PULSE_IO
+	bool "OpenTherm on pulse_io channels"
+	default y
+	depends on DT_HAS_OPENTHERM_PULSE_IO_ENABLED
+	depends on PULSE_IO
+	help
+	  Lets pulse_io hardware (e.g. the ESP32 RMT) time the request and
+	  capture the reply.
+
+config OPENTHERM_INIT_PRIORITY
+	int "OpenTherm init priority"
+	default 85
+	help
+	  Must be after the GPIO and pulse_io controllers.
+
+module = OPENTHERM
+module-str = opentherm
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # OPENTHERM

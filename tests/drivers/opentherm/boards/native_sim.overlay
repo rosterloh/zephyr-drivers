@@ -1,0 +1,32 @@
+/ {
+	pulse_io0: pulse-io {
+		compatible = "zephyr,pulse-io-loopback";
+		#pulse-io-cells = <1>;
+	};
+
+	/* The loopback returns what was sent, so these echo the request. */
+	ot_pio: opentherm-pio {
+		compatible = "opentherm-pulse-io";
+		pulse-ios = <&pulse_io0 0>, <&pulse_io0 0>;
+	};
+
+	ot_pio_inv: opentherm-pio-inv {
+		compatible = "opentherm-pulse-io";
+		pulse-ios = <&pulse_io0 1>, <&pulse_io0 1>;
+		rx-idle-high;
+		tx-idle-high;
+	};
+
+	/* TX inverted but RX not: the echo arrives upside down. */
+	ot_pio_mismatch: opentherm-pio-mismatch {
+		compatible = "opentherm-pulse-io";
+		pulse-ios = <&pulse_io0 2>, <&pulse_io0 2>;
+		tx-idle-high;
+	};
+
+	opentherm0: opentherm {
+		compatible = "opentherm-gpio";
+		in-gpios = <&gpio0 11 GPIO_ACTIVE_HIGH>;
+		out-gpios = <&gpio0 10 GPIO_ACTIVE_LOW>;
+	};
+};
